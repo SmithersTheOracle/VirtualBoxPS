@@ -15,6 +15,23 @@ LONG DESCRIPTION
     at this point does not include native PowerShell support. This module is an attempt to utilize
     the VirtualBox Web Service to perform common management tasks for virtual machines running
     in the VirtualBox environment.
+	
+INSTALLATION INSTRUCTIONS
+	For this module to work, a simple "intallation" script has been included for Windows to copy 
+	all of the required files to the correct locations. Install-VirtualBoxPS.ps1 will need to have 
+	vboxweb.wsdl, vboxwebService.wsdl, VirtualBox API Web Service.xml, VirtualBoxPS.psd1, and
+	VirtualBoxPS.psm1 in the same folder. To install, run Install-VirtualBoxPS.ps1 with an
+	elevated PowerShell session. This script will automatically copy the files into the following
+	locations:
+	
+	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxweb.wsdl
+	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl
+	$($pspath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psd1
+	$($pspath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psm1
+	
+	Additionally, a new startup task will be created in Task Scheduler by importing the xml file:
+	
+	\Psuedo Services\VirtualBox\VirtualBox API Web Service
     
 $VBOX GLOBAL VARIABLE
     When you import the module, a global variable is created for the main VirtualBox COM object. 
