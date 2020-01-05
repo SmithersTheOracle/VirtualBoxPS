@@ -1,4 +1,4 @@
-﻿Start-Transcript -Append -Confirm:$false -Force -IncludeInvocationHeader -Path "$($env:USERPROFILE)\PowerVBox_install.log"
+﻿Start-Transcript -Append -Confirm:$false -Force -IncludeInvocationHeader -Path "$($env:USERPROFILE)\VirtualBoxPS_install.log"
 try{
  Write-Host '[INFO] Installing VirtualBox module'
  Write-Host '[INFO] Creating VirtualBox WebSrv startup task'
@@ -12,9 +12,9 @@ try{
  if (!(Test-Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\")) {New-Item -ItemType Directory -Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose}
  Copy-Item -Path "$((Get-Location).Path)\*.wsdl" -Destination "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose
  foreach ($pspath in (($env:PSModulePath).Split(';'))) {
-  if (!(Test-Path "$($pspath)\Oracle.PowerVBox\1.0\")) {New-Item -ItemType Directory -Path "$($pspath)\Oracle.PowerVBox\1.0\" -Force -Confirm:$false | Write-Verbose}
-  Copy-Item -Path "$((Get-Location).Path)\*.psm*" -Destination "$($pspath)\Oracle.PowerVBox\1.0\" -Force -Confirm:$false | Write-Verbose
-  Copy-Item -Path "$((Get-Location).Path)\*.psd*" -Destination "$($pspath)\Oracle.PowerVBox\1.0\" -Force -Confirm:$false | Write-Verbose
+  if (!(Test-Path "$($pspath)\VirtualBoxPS\")) {New-Item -ItemType Directory -Path "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
+  Copy-Item -Path "$((Get-Location).Path)\*.psm*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
+  Copy-Item -Path "$((Get-Location).Path)\*.psd*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
  }
  Write-Host '[SUCCESS] Installation complete' -ForegroundColor Green
  Pause
