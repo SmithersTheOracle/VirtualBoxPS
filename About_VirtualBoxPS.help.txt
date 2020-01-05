@@ -26,8 +26,8 @@ INSTALLATION INSTRUCTIONS
 	
 	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxweb.wsdl
 	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl
-	$($pspath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psd1
-	$($pspath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psm1
+	$($env:PSModulePath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psd1
+	$($env:PSModulePath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psm1
 	
 	Additionally, a new startup task will be created in Task Scheduler by importing the xml file:
 	
