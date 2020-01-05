@@ -9,6 +9,7 @@ try{
  Write-Host '[INFO] Starting VirtualBox WebSrv'
  if ((Test-Path -LiteralPath "$($env:VBOX_MSI_INSTALL_PATH)VBoxWebSrv.exe") -and !(Get-Process VBoxWebSrv)) {& cmd /c schtasks.exe /run /tn `"\Psuedo Services\VirtualBox\VirtualBox API Web Service`" | Write-Verbose}
  Write-Host '[INFO] Copying files'
+ if (!(Test-Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\")) {New-Item -ItemType Directory -Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose}
  Copy-Item -Path "$((Get-Location).Path)\*.wsdl" -Destination "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose
  foreach ($pspath in (($env:PSModulePath).Split(';'))) {
   if (!(Test-Path "$($pspath)\Oracle.PowerVBox\1.0\")) {New-Item -ItemType Directory -Path "$($pspath)\Oracle.PowerVBox\1.0\" -Force -Confirm:$false | Write-Verbose}
