@@ -4,12 +4,12 @@ so I am sure it needs some updating.
 
 ---
 
-## **IMPORTANT**
+## ![!](exclaim_sm.png)**(IMPORTANT)**![!](exclaim_sm.png)
 This module is currently in a **very** early development phase. You should not try to use it 
 in a production environment. If you do use it, you do so at your own risk! Please realize 
-that it uses the VirtualBox web proxy in plain text mode. If you provide any information to 
-this web service, it will **NOT** be encrypted. Adding SSL support is possible, but has not 
-been added natively to this module's installer.
+that it uses the VirtualBox web proxy in plain text mode by default. If you provide any 
+information to this web service, it will **NOT** be encrypted. Adding SSL support is possible, 
+but has not been added natively to this module's installer.
 
 ---
 
