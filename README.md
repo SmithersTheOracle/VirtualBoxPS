@@ -24,7 +24,7 @@ so I am sure it needs some updating.
     in the VirtualBox environment.
 	
 **INSTALLATION INSTRUCTIONS**\
-	For this module to work, a simple "intallation" script has been included for Windows to copy 
+	For this module to work, a simple "installation" script has been included for Windows to copy 
 	all of the required files to the correct locations. Install-VirtualBoxPS.ps1 will need to have 
 	vboxweb.wsdl, vboxwebService.wsdl, VirtualBox API Web Service.xml, VirtualBoxPS.psd1, and
 	VirtualBoxPS.psm1 in the same folder. To install, run Install-VirtualBoxPS.ps1 with an
