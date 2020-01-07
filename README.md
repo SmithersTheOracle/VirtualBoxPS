@@ -19,7 +19,7 @@ about_VirtualBoxPS
 ### **SHORT DESCRIPTION**
 These functions are wrappers to the APIs that you can use to manage a virtual machine 
 infrastructure based on the VirtualBox application, which you can download for free from 
-Oracle at http://www.virtualbox.org
+Oracle at [VirtualBox's homepage.](http://www.virtualbox.org)
 
 ### **LONG DESCRIPTION**
 The free virtualization application from Oracle, VirtualBox, offers an application SDK which
