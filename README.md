@@ -43,7 +43,7 @@ locations:
 	
 Additionally, a new startup task will be created in Task Scheduler by importing the xml file:
 	
-	\Psuedo Services\VirtualBox\VirtualBox API Web Service
+	\Pseudo Services\VirtualBox\VirtualBox API Web Service
     
 ### **_$VBOX_ GLOBAL VARIABLE**
 When you import the module, a global variable is created for the main VirtualBox Web Service object. 
