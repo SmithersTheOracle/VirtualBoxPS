@@ -46,7 +46,7 @@ Additionally, a new startup task will be created in Task Scheduler by importing 
 	\Psuedo Services\VirtualBox\VirtualBox API Web Service
     
 ### **_$VBOX_ GLOBAL VARIABLE**
-When you import the module, a global variable is created for the main VirtualBox COM object. 
+When you import the module, a global variable is created for the main VirtualBox Web Service object. 
 This variable, $vbox, is used by many of the support functions. It will be removed when you
 remove the module. If the variable does not exist when you call a function, that requires it,
 it will be recreated in the global scope.
