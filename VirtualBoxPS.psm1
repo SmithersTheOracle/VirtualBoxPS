@@ -14,13 +14,13 @@ Create a new Disk
 ****************************************************************
 #>
 #########################################################################################
-# Classe Definitions
+# Class Definitions
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
     [string]$Name
     [ValidateNotNullOrEmpty()]
     [string]$Id
-    [string]$Uuid
+    [guid]$Guid
     [string]$Description
     [string]$MemoryMB
     [string]$State
@@ -28,8 +28,14 @@ class VirtualBoxVM {
     [string]$Info
     [string]$GuestOS
     [string]$ISession
+    static [array]op_Addition($A,$B) {
+        [array]$C = $null
+        if ($A.Name -ne $null -and $A.Id -ne $null) {$C += [VirtualBoxVM]@{Name=$A.Name;Id=$A.Id;Guid=$A.Guid;Description=$A.Description;MemoryMB=$A.MemoryMB;State=$A.State;Running=$A.Running;Info=$A.Info;GuestOS=$A.GuestOS;ISession=$A.ISession}}
+        if ($B.Name -ne $null -and $B.Id -ne $null) {$C += [VirtualBoxVM]@{Name=$B.Name;Id=$B.Id;Guid=$B.Guid;Description=$B.Description;MemoryMB=$B.MemoryMB;State=$B.State;Running=$B.Running;Info=$B.Info;GuestOS=$B.GuestOS;ISession=$B.ISession}}
+        return $C
+    }
 }
-Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("UUID","Name","MemoryMB","Description","State","GuestOS") -Force
+Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force
 class VirtualBoxVHD {
     [string]$Name
     [string]$Description
@@ -50,12 +56,24 @@ class VirtualBoxVHD {
     [string]$ReadOnly
     [string]$AutoReset
     [string]$LastAccessError
+    static [array]op_Addition($A,$B) {
+        [array]$C = $null
+        $C += [VirtualBoxVHD]@{Name=$A.Name;Description=$A.Description;Format=$A.Format;Size=$A.Size;LogicalSize=$A.LogicalSize;VMIds=$A.VMIds;VMNames=$A.VMNames;State=$A.State;Variant=$A.Variant;Location=$A.Location;HostDrive=$A.HostDrive;MediumFormat=$A.MediumFormat;Type=$A.Type;Parent=$A.Parent;Children=$A.Children;Id=$A.Id;ReadOnly=$A.ReadOnly;AutoReset=$A.AutoReset;LastAccessError=$A.LastAccessError}
+        $C += [VirtualBoxVHD]@{Name=$B.Name;Description=$B.Description;Format=$B.Format;Size=$B.Size;LogicalSize=$B.LogicalSize;VMIds=$B.VMIds;VMNames=$B.VMNames;State=$B.State;Variant=$B.Variant;Location=$B.Location;HostDrive=$B.HostDrive;MediumFormat=$B.MediumFormat;Type=$B.Type;Parent=$B.Parent;Children=$B.Children;Id=$B.Id;ReadOnly=$B.ReadOnly;AutoReset=$B.AutoReset;LastAccessError=$B.LastAccessError}
+        return $C
+    }
 }
 Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","VMIds","VMNames") -Force
 class VirtualBoxWebSrvTask {
     [string]$Name
     [string]$Path
     [string]$Status
+    static [array]op_Addition($A,$B) {
+        [array]$C = $null
+        $C += [VirtualBoxVM]@{Name=$A.Name;Path=$A.Path;Status=$A.Status}
+        $C += [VirtualBoxVM]@{Name=$B.Name;Path=$B.Path;Status=$B.Status}
+        return $C
+    }
 }
 Update-TypeData -TypeName VirtualBoxWebSrvTask -DefaultDisplayPropertySet @("Name","Path","Status") -Force
 class VirtualBoxError {
@@ -439,91 +457,117 @@ End {
 Function Get-VirtualBoxVM {
 <#
 .SYNOPSIS
-Get a VirtualBox virtual machine
+Get VirtualBox virtual machine information
 .DESCRIPTION
-Retrieve any or all VirtualBox machines by name, by state or all. The default usage, without any parameters is to display all running virtual machines. Use -IncludeRaw to add the native COM object for the virtual machine.
+Retrieve any or all VirtualBox virtual machines by name/GUID, state, or all. The default usage, without any parameters is to display all virtual machines.
 .PARAMETER Name
-The name of a virtual machine. IMPORTANT: Names are case sensitive.
-.PARAMETER All
-Return all virtual machines regardless of state. Valid values are:
+The name of a virtual machine.
+.PARAMETER Guid
+The GUID of a virtual machine.
+.PARAMETER State
+Return virtual machines based on their state. Valid values are:
 "Stopped","Running","Saved","Teleported","Aborted","Paused","Stuck","Snapshotting",
 "Starting","Stopping","Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
 "DeletingSnapshotOnline","DeletingSnapshot", and "SettingUp"
-.PARAMETER State
-Return virtual machines based on their state.
-.PARAMETER IncludeRaw
-Include the raw or native COM object for the virtual machine.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM
-ID          : 96c58d09-37be-46b1-9f4b-d37ea6da4005
-Name        : Win2008 R2 Standard
-MemoryMB    : 1500
-Description : Windows 2008 R2 Standard DC jdhlab.local
-State       : Running
-OS          : Windows2008_64
+UUID        : c9d4dc35-3967-4009-993d-1c23ab4ff22b
+Name        : GNS3 IOU VM_1.3
+MemoryMB    : 2048
+Description : VM for GNS3 (development)
+State       : Saved
+GuestOS     : Debian
 
-ID          : ed29417c-869a-45bf-bbf3-79a407ade630
-Name        : CoreDC01
+UUID        : a237e4f5-da5a-4fca-b2a6-80f9aea91a9b
+Name        : WebSite
 MemoryMB    : 512
-Description :
-State       : Running
-OS          : Windows2008_64
+Description : LAMP Server
+State       : PoweredOff
+GuestOS     : Other_64
 
-ID          : 2dd7f99a-d209-4b1c-ad79-2fa34e2c229a
-Name        : Ubuntu
+UUID        : 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Name        : 2016 Core
 MemoryMB    : 1024
-Description : v11.04 Natty Narwhal
-State       : Running
-OS          : Ubuntu_64
-
-Return all running virtual machines
-.EXAMPLE
-PS C:\> Get-VirtualBoxVM -Name CoreDC01
-ID          : ed29417c-869a-45bf-bbf3-79a407ade630
-Name        : CoreDC01
-MemoryMB    : 512
 Description :
-State       : Running
-OS          : Windows2008_64
+State       : PoweredOff
+GuestOS     : Windows2016_64
 
-Retrieve a machine by name. Names are case sensitive
+UUID        : 15a4c311-3b89-4936-89c7-11d3340ced7a
+Name        : Win10
+MemoryMB    : 2048
+Description :
+State       : PoweredOff
+GuestOS     : Windows10_64
+
+Return all virtual machines
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -Name 2016
+UUID        : 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Name        : 2016 Core
+MemoryMB    : 1024
+Description :
+State       : PoweredOff
+GuestOS     : Windows2016_64
+
+Retrieve a machine by name
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+UUID        : 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Name        : 2016 Core
+MemoryMB    : 1024
+Description :
+State       : PoweredOff
+GuestOS     : Windows2016_64
+
+Retrieve a machine by GUID
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Saved
-ID          : 2dd7f99a-d209-4b1c-ad79-2fa34e2c229a
-Name        : Ubuntu
-MemoryMB    : 1024
-Description : v11.04 Natty Narwhal
+UUID        : c9d4dc35-3967-4009-993d-1c23ab4ff22b
+Name        : GNS3 IOU VM_1.3
+MemoryMB    : 2048
+Description : VM for GNS3 (development)
 State       : Saved
-OS          : Ubuntu_64
+GuestOS     : Debian
 
 Get suspended virtual machines
 .NOTES
-NAME        :  Get-VirtualBoxVM
-VERSION     :  0.9
-LAST UPDATED:  6/13/2011
-AUTHOR      :  Jeffery Hicks
+NAME        :  Update-VirtualBoxWebSrv
+VERSION     :  1.1
+LAST UPDATED:  1/8/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
 .LINK
-Stop-VirtualBoxVM
 Start-VirtualBoxVM
+Stop-VirtualBoxVM
 Suspend-VirtualBoxVM
 .INPUTS
-Strings for virtual machine names
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for virtual machine states
 .OUTPUTS
-Custom Object
+System.Array[]
 #>
 [cmdletbinding(DefaultParameterSetName="All")]
 Param(
-[Parameter(Position=0)]
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Position=0)]
   [string[]]$Name,
-  [switch]$SkipCheck,
-[Parameter(ParameterSetName="All")]
-  [switch]$All,
-[Parameter(ParameterSetName="All")]
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Position=0)]
+  [guid[]]$Guid,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter a virtual machine state you wish to filter by")]
 [ValidateSet("Stopped","Running","Saved","Teleported","Aborted",
    "Paused","Stuck","Snapshotting","Starting","Stopping",
    "Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
    "DeletingSnapshotOnline","DeletingSnapshot","SettingUp")]
-  [string]$State
+  [string]$State,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
 ) # Param
 Begin {
  Write-Verbose "Starting $($myinvocation.mycommand)"
@@ -537,6 +581,7 @@ Begin {
  if (!$Name) {$All = $true}
 } # Begin
 Process {
+ $obj = New-Object VirtualBoxVM
  Write-Verbose "Getting virtual machine inventory"
  # initialize array object to hold virtual machine values
  $vminventory = @()
@@ -549,7 +594,7 @@ Process {
    $tempobj.GuestOS = $global:vbox.IMachine_getOSTypeId($vmid)
    $tempobj.MemoryMb = $global:vbox.IMachine_getMemorySize($vmid)
    $tempobj.Id = $vmid
-   $tempobj.Uuid = $global:vbox.IMachine_getId($vmid)
+   $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
    # decode state
    Switch ($tempobj.State) {
     1 {$tempobj.State = "Stopped"}
@@ -578,23 +623,44 @@ Process {
   Write-Verbose "Filtering virtual machines by name: $Name"
   foreach ($vm in $vminventory) {
    Write-Verbose "Matching $($vm.Name) to $($Name)"
-   if ($vm.Name -match $Name) {
-    $obj += $vm
+   if ($vm.Name -match $Name -and $vm -notcontains $obj) {
+    if ($State -and $vm.State -eq $State) {$obj += $vm}
+    elseif (!$State) {$obj += $vm}
    }
   }
  } # end if $Name and not *
- if ($All -or $Name -eq "*") {
-  Write-Verbose "Filtering all virtual machines"
-  $obj = $vminventory
- } # end if $All or $Name *
+ <#
  if ($State) {
   Write-Verbose "Filtering virtual machines with a state of $State"
-  $obj=$vminventory | where {$_.State -eq $State}
+  $obj = $vminventory | where {$_.State -eq $State}
  } # end if $State
- Write-Verbose "Found $(($obj | Measure-Object).count) virtual machines"
+ #>
+ if ($Guid) {
+  Write-Verbose "Filtering virtual machines by GUID: $Guid"
+  foreach ($vm in $vminventory) {
+   Write-Verbose "Matching $($vm.Guid) to $($Guid)"
+   if ($vm.Guid -match $Guid -and $vm -notcontains $obj) {
+    if ($State -and $vm.State -eq $State) {$obj += $vm}
+    elseif (!$State) {$obj += $vm}
+   }
+  }
+ } # end if $Guid
+ if ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
+  if ($State) {
+   Write-Verbose "Filtering all virtual machines by state: $State"
+   foreach ($vm in $vminventory) {
+    if ($vm.State -eq $State) {$obj += $vm}
+   }
+  }
+  else {
+   Write-Verbose "Filtering all virtual machines"
+   $obj = $vminventory
+  }
+ } # end if All
+ Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
  if ($obj) {
-  # write virtual machines object to the pipeline
-  $obj
+  # write virtual machines object to the pipeline as an array
+  [System.Array]$obj
  } # end if $obj
  else {
   Write-Host "[Warning] No matching virtual machines found" -ForegroundColor DarkYellow
@@ -612,8 +678,8 @@ Suspend a virtual machine
 Suspends or saves the state of a running virtual machine.
 .PARAMETER Name
 The Name of a running virtual machine.
-.PARAMETER UUID
-The UUID of a running virtual machine.
+.PARAMETER GUID
+The GUID of a running virtual machine.
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM | Suspend-VirtualBoxVM
 Suspend all running virtual machines
@@ -643,11 +709,11 @@ ValueFromPipelineByPropertyName=$true)]
 [ValidateNotNullorEmpty()]
   [string[]]$Name,
   [switch]$SkipCheck,
-[Parameter(ParameterSetName="Uuid",
-HelpMessage="Enter a virtual box machine UUID",
+[Parameter(ParameterSetName="Guid",
+HelpMessage="Enter a virtual box machine GUID",
 ValueFromPipelineByPropertyName=$true)]
 [ValidateNotNullorEmpty()]
-  [guid[]]$Uuid
+  [guid[]]$Guid
 ) # Param
 Begin {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -663,7 +729,7 @@ Process {
   if ($Name) {
    foreach ($item in $Name) {
     # get the virtual machine by Name
-    $vmachines = Get-VirtualBoxVM $item -SkipCheck
+    $vmachines = Get-VirtualBoxVM -Name $item -SkipCheck
     if ($vmachines) {
      foreach ($vmachine in $vmachines) {
       Write-Verbose "Suspending $($vmachine.Name)"
@@ -700,19 +766,23 @@ Function Start-VirtualBoxVM {
 .SYNOPSIS
 Start a virtual machine
 .DESCRIPTION
-Start virtual box machines. The default is to start them in GUI mode. You can also run them headless mode which will start a new, hidden process window. If the machine(s) disk(s) are encrypted, you must specify the -Encrypted switch and supply credentials using the -Credential parameter. The default username (identifier) is the name of the virtual machine.
+Start virtual box machines by machine object, name, or GUID. The default Type is to start them in GUI mode. You can also run them headless mode which will start a new, hidden process window. If the machine(s) disk(s) are encrypted, you must specify the -Encrypted switch and supply credentials using the -Credential parameter. The username (identifier) is the name of the virtual machine by default, unless it has been otherwise specified.
+.PARAMETER Machine
+At least one virtual machine object. The object must be wrapped as a [System.Array]. Can be received via pipeline input.
 .PARAMETER Name
-The name of at least one virtual machine.
-.PARAMETER ProgressBar
-A switch to display a progress bar.
-.PARAMETER SkipCheck
-A switch to skip service update (for development use).
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER Type
 Specifies whether to run the virtual machine in GUI or headless mode.
 .PARAMETER Encrypted
 A switch to specify use of disk encryption.
 .PARAMETER Credential
 Powershell credentials. Must be provided if the -Encrypted switch is used.
+.PARAMETER ProgressBar
+A switch to display a progress bar.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Start-VirtualBoxVM "Win10"
 Starts the virtual machine called Win10 in GUI mode.
@@ -721,8 +791,8 @@ PS C:\> Start-VirtualBoxVM "2016 Core" -Headless -Encrypted -Credential
 Starts the virtual machine called 2016 Core in headless mode and provides credentials to decrypt the disk(s) on boot.
 .NOTES
 NAME        :  Suspend-VirtualBoxVM
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
+VERSION     :  1.1
+LAST UPDATED:  1/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
@@ -730,28 +800,41 @@ Get-VirtualBoxVM
 Start-VirtualBoxVM
 Stop-VirtualBoxVM
 .INPUTS
-String[]    :  
+System.Array[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
 #>
-[CmdletBinding(DefaultParametersetName='None')]
+[CmdletBinding(DefaultParameterSetName='None')]
 Param(
-[Parameter(Position=0,Mandatory=$true,HelpMessage="Enter one or more virtual machine name(s)",
-ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [System.Object[]]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
   [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
+[ValidateSet("Headless","Gui")]
+  [string]$Type = 'Gui',
+[Parameter(ParameterSetName='Encryption',Mandatory=$false,
+HelpMessage="Use this switch if VM disk(s) are encrypted")]
+  [switch]$Encrypted,
+[Parameter(ParameterSetName='Encryption',Mandatory=$true,
+HelpMessage="Enter the credentials to unlock the VM disk(s)")]
+  [pscredential]$Credential,
 [Parameter(HelpMessage="Use this switch to display a progress bar")]
   [switch]$ProgressBar,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
-  [switch]$SkipCheck,
-[Parameter(Position=1,Mandatory=$false,HelpMessage="Enter the requested start type (Headless or Gui)",
-ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-[ValidateSet("Headless","Gui")]
-  [string]$Type = 'Gui',
-[Parameter(ParameterSetName='Encryption',Mandatory=$false,HelpMessage="Use this switch if VM disk(s) are encrypted")]
-  [switch]$Encrypted,
-[Parameter(ParameterSetName='Encryption',Mandatory=$true,HelpMessage="Enter the credentials to unlock the VM disk(s)")]
-  [pscredential]$Credential
+  [switch]$SkipCheck
 ) # Param
 Begin {
  Write-Verbose "Starting $($myinvocation.mycommand)"
@@ -763,80 +846,95 @@ Begin {
  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
 } # Begin
 Process {
- # get vm inventory (ids)
- $imachines = Get-VirtualBoxVM -SkipCheck $Name
- # get hard disk inventory (ids)
- $imediums = $global:vbox.IVirtualBox_getHardDisks($global:ivbox)
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+  if ($Encrypted) {
+   Write-Verbose "Getting virtual disks from Machine(s)"
+   $disks = Get-VirtualBoxDisks -Machine $Machine -SkipCheck
+  }
+ }
+ # get vm inventory (by $Name)
+ if ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+  if ($Encrypted) {
+   Write-Verbose "Getting virtual disks from VM Name(s)"
+   $disks = Get-VirtualBoxDisks -MachineName $Name -SkipCheck
+  }
+ }
+ # get vm inventory (by $Guid)
+ if ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+  if ($Encrypted) {
+   Write-Verbose "Getting virtual disks from VM GUID(s)"
+   $disks = Get-VirtualBoxDisks -MachineGuid $Guid -SkipCheck
+  }
+ }
  if ($imachines) {
   foreach ($imachine in $imachines) {
   if ($imachine.State -match 'PoweredOff') {
    # create isession for the machine
    $imachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
    if (-not $Encrypted) {
-    foreach ($imachine in $imachines) {
-     # start the vm in headless mode
-     $iprogress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
+    # start the vm in $Type mode
+    Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
+    $iprogress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
+    $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
+    if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
+    do {
      $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
-     do {
-      $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
-     } until ($ipercent -eq '100') # continue once the progress reaches 100%
-    } # end foreach imachine
+    } until ($ipercent -eq '100') # continue once the progress reaches 100%
    } # end if not Encrypted
    elseif ($Encrypted) {
-    foreach ($imachine in $imachines) {
-     # start the vm in $Type mode
-     Write-Verbose "Starting VM $($imachine.Name)"
-     $iprogress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
+    # start the vm in $Type mode
+    Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
+    $iprogress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
+    $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
+    if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
+    Write-Verbose "Waiting for VM $($imachine.Name) to pause"
+    do {
+     # get the current machine state
+     $machinestate = $global:vbox.IMachine_getState($imachine.Id)
      $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
-     Write-Verbose "Waiting for VM $($imachine.Name) to pause"
-     do {
-      # get the current machine state
-      $machinestate = $global:vbox.IMachine_getState($imachine.Id)
-      $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
-     } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
-     Write-Verbose "VM $($imachine.Name) paused"
-     # create new session object for iconsole
-     Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
-     $iconsole = $global:vbox.ISession_getConsole($imachine.ISession)
-     Write-Verbose "foreach disk"
-     foreach ($disk in $imediums) {
-      Write-Verbose "Processing disk $disk"
-      Write-Verbose $imachine.Uuid
-      foreach ($diskguid in $global:vbox.IMedium_getMachineIds($disk)) {
-       Write-Verbose $diskguid
-      }
-      if ($imachine.Uuid -contains $global:vbox.IMedium_getMachineIds($disk)) {
-       try {
-        Write-Verbose "Checking for Password against disk"
-        # check the password against the vm disk
-        $global:vbox.IMedium_checkEncryptionPassword($disk, $Credential.GetNetworkCredential().Password)
-        Write-Verbose  "The image is configured for encryption and the password is correct"
-        # pass disk encryption password to the vm console
-        Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
-        $global:vbox.IConsole_addDiskEncryptionPassword($iconsole, $imachine.Name, $Credential.GetNetworkCredential().Password, $false)
-        Write-Verbose "Password sent"
-       }
-       catch {
-        Write-Verbose '$_.Exception'
-        Write-Host $_.Exception -ForegroundColor Red
-       }
-      }
-     }
-    } # end foreach imachine
+    } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
+    Write-Verbose "VM $($imachine.Name) paused"
+    # create new session object for iconsole
+    Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
+    $iconsole = $global:vbox.ISession_getConsole($imachine.ISession)
+    foreach ($disk in $disks) {
+     Write-Verbose "Processing disk $disk"
+     try {
+      Write-Verbose "Checking for Password against disk"
+      # check the password against the vm disk
+      $global:vbox.IMedium_checkEncryptionPassword($disk.Id, $Credential.GetNetworkCredential().Password)
+      Write-Verbose  "The image is configured for encryption and the password is correct"
+      # pass disk encryption password to the vm console
+      Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
+      $global:vbox.IConsole_addDiskEncryptionPassword($iconsole, $imachine.Name, $Credential.GetNetworkCredential().Password, $false)
+      Write-Verbose "Password sent"
+     } # Try
+     catch {
+      Write-Host $_.Exception -ForegroundColor Red
+      return
+     } # Catch
+    } # end foreach $disk in $disks
    } # end elseif Encrypted
-   else {
-    Write-Host "[Error] Invalid Type selected." -ForegroundColor Red
-   } # else error
   } # end if $machine.State -match 'PoweredOff'
-  else {
-   Write-Host "[Error] Only VMs that have been powered off can be started. The state of $($imachine.Name) is $($imachine.State)" -ForegroundColor Red
-  } # else error
+  else {throw "Only VMs that have been powered off can be started. The state of $($imachine.Name) is $($imachine.State)"}
   } # foreach $imachine in $imachines
  } # end if imachines
+ else {throw "No matching virtual machines were found using specified parameters"}
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -903,7 +1001,7 @@ Begin {
 Process {
  foreach ($item in $name) {
   #get the virtual machine
-  $imachine = Get-VirtualBoxVM -SkipCheck $item
+  $imachine = Get-VirtualBoxVM -Name $item -SkipCheck
   if ($imachine) {
    if ($pscmdlet.ShouldProcess($imachine.name)) {
     # create Vbox session object
@@ -951,7 +1049,7 @@ Process {
       Write-Verbose "Guest console status: $iguestsessionstatus"
       # create the powershell process in the guest machine and send it a stop-computer -force command and wait for 10 seconds
       Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command (timeout: 10s)'
-      $iguestprocess = $global:vbox.IGuestSession_processCreate($iguestsession, 'cmd.exe', @('/c','powershell -ExecutionPolicy Bypass -Command `"Stop-Computer -Force -Confirm:$false`"'), @(), 3, 10000) #"powershell.exe", '-ExecutionPolicy Bypass -Command Stop-Computer -Force -Confirm:$false', @(), 3, 10000)
+      $iguestprocess = $global:vbox.IGuestSession_processCreate($iguestsession, 'shutdown', @('/s','/f'), @(), 3, 10000) #"powershell.exe", '-ExecutionPolicy Bypass -Command Stop-Computer -Force -Confirm:$false', @(), 3, 10000)
       # release the iconsole guest session
       Write-Verbose "Releasing the IConsole guest session"
       # release the iconsole session
@@ -1001,12 +1099,53 @@ End {
 Function Get-VirtualBoxDisks {
 <#
 .SYNOPSIS
-Get VirtualBox disks
+Get VirtualBox disk information
 .DESCRIPTION
-Retrieve all VirtualBox disks.
+Retrieve VirtualBox disks by machine object, machine name, machine GUID, or all.
+.PARAMETER Machine
+At least one virtual machine object. The object must be wrapped as a [System.Array]. Can be received via pipeline input.
+.PARAMETER MachineName
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER MachineGuid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .EXAMPLE
-PS C:\Users\rich> Get-VirtualBoxDisks
+PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxDisks
 
+Name        : 2016 Core.vhd
+Description :
+Format      : VHD
+Size        : 7291584512
+LogicalSize : 53687091200
+VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+VMNames     : {2016 Core}
+
+Gets virtual machine by machine object from pipeline input
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisks -MachineName 2016
+
+Name        : 2016 Core.vhd
+Description :
+Format      : VHD
+Size        : 7291584512
+LogicalSize : 53687091200
+VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+VMNames     : {2016 Core}
+
+Gets virtual machine by Name
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisks -MachineGuid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+
+Name        : 2016 Core.vhd
+Description :
+Format      : VHD
+Size        : 7291584512
+LogicalSize : 53687091200
+VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+VMNames     : {2016 Core}
+
+Gets virtual machine by GUID
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisks
 
 Name        : GNS3 IOU VM_1.3-disk1.vmdk
 Description :
@@ -1040,22 +1179,36 @@ LogicalSize : 53687091200
 VMIds       : {15a4c311-3b89-4936-89c7-11d3340ced7a}
 VMNames     : {Win10}
 
-Gets virtual machine disks
+Gets all virtual machine disks
 .NOTES
 NAME        :  Get-VirtualBoxDisks
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
+VERSION     :  1.1
+LAST UPDATED:  1/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
 None (Yet)
 .INPUTS
-None
+System.Array[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
-[VirtualBoxVHD[]]
+System.Array[]
 #>
-[cmdletbinding()]
+[cmdletbinding(DefaultParameterSetName="All")]
 Param(
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Machine",Position=0)]
+  [System.Object]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="MachineName",Position=0)]
+  [string[]]$MachineName,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="MachineGuid",Position=0)]
+  [guid[]]$MachineGuid,
   [switch]$SkipCheck
 ) # Param
 Begin {
@@ -1082,7 +1235,7 @@ Process {
   $disk.Size = $global:vbox.IMedium_getSize($imediumid)
   $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
   $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
-  foreach ($machineid in $disk.VMIds) {$disk.VMNames = (Get-VirtualBoxVM -SkipCheck | Where-Object {$_.Uuid -eq $machineid}).Name}
+  foreach ($machineid in $disk.VMIds) {$disk.VMNames = (Get-VirtualBoxVM -Guid $machineid -SkipCheck).Name}
   $disk.State = $global:vbox.IMedium_getState($imediumid)
   $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
   $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
@@ -1097,10 +1250,45 @@ Process {
   $disk.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
   $disks += $disk
  } # end foreach loop inventory
- Write-Verbose "Found $(($disks | Measure-Object).count) disk(s)"
- if ($disks) {
-  # write virtual machines object to the pipeline
-  $disks
+ # filter by machine object
+ if ($Machine) {
+  foreach ($disk in $disks) {
+   $matched = $false
+   foreach ($vmname in $disk.VMNames) {
+    Write-Verbose "Matching $vmname to $($Machine.Name)"
+    if ($vmname -match $Machine.Name) {Write-Verbose "Matched $vmname to $($Machine.Name)";$matched = $true}
+   }
+   if ($matched -eq $true) {$obj += $disk}
+  }
+ }
+ # filter by machine name
+ elseif ($MachineName) {
+  foreach ($disk in $disks) {
+   $matched = $false
+   foreach ($vmname in $disk.VMNames) {
+    Write-Verbose "Matching $vmname to $MachineName"
+    if ($vmname -match $MachineName) {Write-Verbose "Matched $vmname to $MachineName";$matched = $true}
+   }
+   if ($matched -eq $true) {$obj += $disk}
+  }
+ }
+ # filter by machine GUID
+ elseif ($MachineGuid) {
+  foreach ($disk in $disks) {
+   $matched = $false
+   foreach ($vmguid in $disk.VMIds) {
+    Write-Verbose "Matching $vmguid to $MachineGuid"
+    if ($vmguid -eq $MachineGuid) {Write-Verbose "Matched $vmguid to $MachineGuid";$matched = $true}
+   }
+   if ($matched -eq $true) {$obj += $disk}
+  }
+ }
+ # no filter
+ else {$obj = $disks}
+ Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
+ if ($obj) {
+  # write virtual machines object to the pipeline as an array
+  [System.Array]$obj
  } # end if $obj
  else {
   Write-Host "[Warning] No virtual disks found." -ForegroundColor DarkYellow
