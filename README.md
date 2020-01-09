@@ -51,7 +51,7 @@ This variable, $vbox, is used by many of the support functions. It will be remov
 remove the module. If the variable does not exist when you call a function, that requires it,
 it will be recreated in the global scope.
     
-    PS S:\> $vbox
+    PS C:\> $vbox
 
 	SoapVersion                          : Default
 	AllowAutoRedirect                    : False
