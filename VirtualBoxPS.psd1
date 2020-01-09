@@ -6,7 +6,7 @@
 ModuleToProcess = 'VirtualBoxPS.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.1.8.6'
+ModuleVersion = '0.1.12.10'
 
 # ID used to uniquely identify this module
 GUID = '7995dcaf-5ba0-4c72-8f8a-896f0fe9cab5'
