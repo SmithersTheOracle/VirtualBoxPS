@@ -78,8 +78,8 @@ the module will take pipelined input from this function. Get-VirtualBoxVM writes
 object to the pipeline with commonly used properties.
     
 ### **VERSION**
-	0.1.8.7
-	January 5, 2020
+	0.1.12.10
+	January 8, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
