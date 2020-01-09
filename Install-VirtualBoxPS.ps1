@@ -3,7 +3,14 @@ try{
  Write-Host '[INFO] Installing VirtualBox module'
  Write-Host '[INFO] Creating VirtualBox WebSrv startup task'
  if (((& cmd /c schtasks /query /fo csv /tn `"\Pseudo Services\VirtualBox\VirtualBox API Web Service`") | ConvertFrom-Csv).TaskName -ne '\Pseudo Services\VirtualBox\VirtualBox API Web Service') {
-  & cmd /c schtasks /create /ru `"SYSTEM`" /rp /tn `"\Pseudo Services\VirtualBox\VirtualBox API Web Service`" /XML `"$((Get-Location).Path)\VirtualBox API Web Service.xml`" | Write-Verbose
+  do {
+   $user = Get-Credential -Message "Enter the credentials for the user the VirtualBox Web Server will run-as (the password will not be saved, it's only used to create the task)" -UserName "$($env:USERNAME)"
+   foreach ($name in (Get-LocalUser).Name) {
+    if ($user.GetNetworkCredential().UserName.ToLower() -eq $name.ToLower()) {$flag = $true}
+   }
+   if (!$flag) {Write-Host "[Error] User $($user.GetNetworkCredential().UserName) doesn't exist on this computer. Try again." -ForegroundColor Red}
+  } until ($flag)
+  & cmd /c schtasks /create /ru `"$($env:COMPUTERNAME)\$($user.GetNetworkCredential().UserName)`" /rp `"$($user.GetNetworkCredential().Password)`" /np /tn `"\Pseudo Services\VirtualBox\VirtualBox API Web Service`" /XML `"$((Get-Location).Path)\VirtualBox API Web Service.xml`" | Write-Verbose
  }
  else {Write-Host "[INFO] VirtualBox WebSrv startup task already exists"}
  Write-Host '[INFO] Starting VirtualBox WebSrv'
@@ -20,8 +27,8 @@ try{
  Pause
 }
 catch{
- Write-Host "[ERROR] Installer encountered a fatal error" -ForegroundColor Red
- $Error[0]
+ Write-Host "[ERROR] Installer encountered a fatal error:`n" -ForegroundColor Red
+ Write-Host $Error[0] -ForegroundColor Red
 }
 finally {
  Stop-Transcript
