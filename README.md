@@ -19,13 +19,16 @@ about_VirtualBoxPS
 ### **SHORT DESCRIPTION**
 These functions are wrappers to the APIs that you can use to manage a virtual machine 
 infrastructure based on the VirtualBox application, which you can download for free from 
-Oracle at [VirtualBox's homepage.](http://www.virtualbox.org)
+Oracle at [VirtualBox's homepage](http://www.virtualbox.org).
 
 ### **LONG DESCRIPTION**
 The free virtualization application from Oracle, VirtualBox, offers an application SDK which
 at this point does not include native PowerShell support. This module is an attempt to utilize
 the VirtualBox Web Service to perform common management tasks for virtual machines running
 in the VirtualBox environment.
+
+### **CONTRIBUTION**
+If you would like to contribute to this project, visit [our thread](https://forums.virtualbox.org/viewtopic.php?f=34&t=54027) at the VirtualBox API Forum. Also, note that there is at least one other project on GitHub pursuing a similar goal. It is planned to merge [NNVirtualBoxPowerShellMode](https://github.com/ajbrehm/NNVirtualBoxPowerShellModule) and VirtualBoxPS in the future after local bugs have been ironed out.
 	
 ### **INSTALLATION INSTRUCTIONS**
 For this module to work, a simple "installation" script has been included for Windows to copy 
