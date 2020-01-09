@@ -59,6 +59,10 @@ When you import the module, a global variable is created for the main VirtualBox
     
 ### **CUSTOM OBJECTS**
 The Get-VirtualBoxVM is used to get virtual machine objects and most other functions in the module will take pipelined input from this function when everything is completed. Get-VirtualBoxVM writes an array of custom objects to the pipeline with commonly used properties.
+
+### **KNOWN ISSUES**
+* Stop-VirtualBoxVM -PsShutdown doesn't work
+* Suspend-VirtualBoxVM doesn't work
     
 ### **VERSION**
 	0.1.12.10
