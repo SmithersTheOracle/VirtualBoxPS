@@ -199,7 +199,7 @@ Process {
  }
  catch {
   Write-Verbose '$_.Exception'
-  Write-Host $_.Exception -ForegroundColor Red
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  }
 } # Process
 End {
@@ -250,7 +250,7 @@ Process {
   } # end try
   catch {
    Write-Verbose '$_.Exception'
-   Write-Host $_.Exception -ForegroundColor Red
+   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
   }
  }
 } # Process
@@ -305,7 +305,7 @@ Process {
  }
  catch {
   Write-Verbose '$_.Exception'
-  Write-Host $_.Exception -ForegroundColor Red
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  }
 } # Process
 End {
@@ -350,7 +350,7 @@ Process {
  } # end try
  catch {
   Write-Verbose '$_.Exception'
-  Write-Host $_.Exception -ForegroundColor Red
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # end catch
 } # Process
 End {
@@ -444,7 +444,7 @@ Process {
  } # end try
  catch {
   Write-Verbose '$_.Exception'
-  Write-Host $_.Exception -ForegroundColor Red
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # end catch
  if (!$vboxwebsrvtask) {throw 'Failed to update $vboxwebsrvtask'}
  return $vboxwebsrvtask
@@ -561,7 +561,7 @@ ParameterSetName="Guid",Position=0)]
   [guid[]]$Guid,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter a virtual machine state you wish to filter by")]
-[ValidateSet("Stopped","Running","Saved","Teleported","Aborted",
+[ValidateSet("PoweredOff","Running","Saved","Teleported","Aborted",
    "Paused","Stuck","Snapshotting","Starting","Stopping",
    "Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
    "DeletingSnapshotOnline","DeletingSnapshot","SettingUp")]
@@ -597,7 +597,7 @@ Process {
    $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
    # decode state
    Switch ($tempobj.State) {
-    1 {$tempobj.State = "Stopped"}
+    1 {$tempobj.State = "PoweredOff"}
     2 {$tempobj.State = "Saved"}
     3 {$tempobj.State = "Teleported"}
     4 {$tempobj.State = "Aborted"}
@@ -616,6 +616,7 @@ Process {
     17 {$tempobj.State = "SettingUp"}
     Default {$tempobj.State = $tempobj.State}
    }
+   Write-Verbose "Found $($tempobj.Name) and adding to inventory"
    $vminventory += $tempobj
  } # end foreach loop inventory
  # filter virtual machines
@@ -623,7 +624,7 @@ Process {
   Write-Verbose "Filtering virtual machines by name: $Name"
   foreach ($vm in $vminventory) {
    Write-Verbose "Matching $($vm.Name) to $($Name)"
-   if ($vm.Name -match $Name -and $vm -notcontains $obj) {
+   if ($vm.Name -match $Name) {
     if ($State -and $vm.State -eq $State) {$obj += $vm}
     elseif (!$State) {$obj += $vm}
    }
@@ -658,6 +659,7 @@ Process {
   }
  } # end if All
  Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
+ Write-Verbose "Found $($obj.Guid)"
  if ($obj) {
   # write virtual machines object to the pipeline as an array
   [System.Array]$obj
@@ -675,45 +677,53 @@ Function Suspend-VirtualBoxVM {
 .SYNOPSIS
 Suspend a virtual machine
 .DESCRIPTION
-Suspends or saves the state of a running virtual machine.
+Suspends a running virtual machine to the paused state.
+.PARAMETER Machine
+At least one running virtual machine object. The object must be wrapped as a [System.Array]. Can be received via pipeline input.
 .PARAMETER Name
-The Name of a running virtual machine.
+The Name of at least one running virtual machine.
 .PARAMETER GUID
-The GUID of a running virtual machine.
+The GUID of at least one running virtual machine.
 .EXAMPLE
-PS C:\> Get-VirtualBoxVM | Suspend-VirtualBoxVM
+PS C:\> Get-VirtualBoxVM -State Running | Suspend-VirtualBoxVM
 Suspend all running virtual machines
+.EXAMPLE
+PS C:\> Suspend-VirtualBoxVM -Name "2016"
+Suspend the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Suspend-VirtualBoxVM -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Suspend the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
 .NOTES
 NAME        :  Suspend-VirtualBoxVM
-VERSION     :  0.1b.garbage.doesntwork
-LAST UPDATED:  1/5/2020
+VERSION     :  1.0
+LAST UPDATED:  1/9/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
-Get-VirtualBoxVM
-Start-VirtualBoxVM
-Stop-VirtualBoxVM
+Resume-VirtualBoxVM
 .INPUTS
-String[]    :  
+System.Array[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs 
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParametersetName='Name')]
+[CmdletBinding(DefaultParameterSetName='None')]
 Param(
-[Parameter(ParameterSetName="Name",
-Mandatory=$true,
-HelpMessage="Enter a virtual box machine Name",
-ValueFromPipeline=$true,
-ValueFromPipelineByPropertyName=$true)]
-[Parameter(Position=0)]
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+Position=0)]
 [ValidateNotNullorEmpty()]
-  [string[]]$Name,
-  [switch]$SkipCheck,
-[Parameter(ParameterSetName="Guid",
-HelpMessage="Enter a virtual box machine GUID",
-ValueFromPipelineByPropertyName=$true)]
+  [System.Object[]]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
-  [guid[]]$Guid
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+  [switch]$SkipCheck
 ) # Param
 Begin {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -725,37 +735,286 @@ Begin {
  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
 } # Begin
 Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
  try {
-  if ($Name) {
+  if ($Machine) {
+   foreach ($vmachine in $Machine) {
+    # write the virtual machine Name
+    Write-Verbose "VM Name: $($vmachine.Name)"
+    if ($vmachine.State -eq 'Running') {
+     Write-Verbose "Suspending $($vmachine.Name)"
+     # get the machine session
+     Write-Verbose "Getting the machine session"
+     $vmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
+     # lock the vm session
+     Write-Verbose "Locking the machine session"
+     $global:vbox.IMachine_lockMachine($vmachine.Id,$vmachine.ISession,1)
+     # get the machine IConsole session
+     Write-Verbose "Getting the machine IConsole session"
+     $iconsole = $global:vbox.ISession_getConsole($vmachine.ISession)
+     # suspend the vm
+     Write-Verbose "Pausing the virtual machine"
+     $global:vbox.IConsole_pause($iconsole)
+     # unlock the machine session
+     Write-Verbose "Unlocking the machine session"
+     $global:vbox.ISession_unlockMachine($vmachine.ISession)
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session"
+     $global:vbox.IManagedObjectRef_release($iconsole)
+    } # end if $vmachine.State -eq 'Running'
+    else {Write-Verbose "The requested virtual machine `"$($vmachine.Name)`" can't be resumed because it is not paused (State: $($vmachine.State))"}
+   } # foreach $Machine
+  } # end if Machine
+  elseif ($Name) {
    foreach ($item in $Name) {
     # get the virtual machine by Name
     $vmachines = Get-VirtualBoxVM -Name $item -SkipCheck
+    Write-Verbose "VM Name: $($vmachines.Name)"
     if ($vmachines) {
      foreach ($vmachine in $vmachines) {
-      Write-Verbose "Suspending $($vmachine.Name)"
-      # create a session object
-      Write-Verbose "Creating a session object"
-      $isession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
-      # lock the vm session
-      Write-Verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($vmachine.Id,$isession,1)
-      # suspend the vm
-      Write-Verbose "Saving the virtual machine state"
-      $global:vbox.IMachine_saveState($vmachine.Id)
+      if ($vmachine.State -eq 'Running') {
+       Write-Verbose "Suspending $($vmachine.Name)"
+       # get the machine session
+       Write-Verbose "Getting the machine session"
+       $vmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
+       # lock the vm session
+       Write-Verbose "Locking the machine session"
+       $global:vbox.IMachine_lockMachine($vmachine.Id,$vmachine.ISession,1)
+       # get the machine IConsole session
+       Write-Verbose "Getting the machine IConsole session"
+       $iconsole = $global:vbox.ISession_getConsole($vmachine.ISession)
+       # suspend the vm
+       Write-Verbose "Pausing the virtual machine"
+       $global:vbox.IConsole_pause($iconsole)
+       # unlock the machine session
+       Write-Verbose "Unlocking the machine session"
+       $global:vbox.ISession_unlockMachine($vmachine.ISession)
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session"
+       $global:vbox.IManagedObjectRef_release($iconsole)
+      } # end if $vmachine.State -eq 'Running'
+      else {Write-Verbose "The requested virtual machine `"$($vmachine.Name)`" can't be resumed because it is not paused (State: $($vmachine.State))"}
      } # foreach matched $vmachine
     } # end if $vmachines
     else {Write-Verbose "Failed to find virtual machine with the name $item"}
    } # foreach $Name
   } # end if Name
+  elseif ($Guid) {
+   foreach ($item in $Guid) {
+    # get the virtual machine by GUID
+    $vmachines = Get-VirtualBoxVM -Guid $item -SkipCheck
+    Write-Verbose "VM Name: $($vmachines.Name)"
+    if ($vmachines) {
+     foreach ($vmachine in $vmachines) {
+      if ($vmachine.State -eq 'Running') {
+       Write-Verbose "Suspending $($vmachine.Name)"
+       # get the machine session
+       Write-Verbose "Getting the machine session"
+       $vmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
+       # lock the vm session
+       Write-Verbose "Locking the machine session"
+       $global:vbox.IMachine_lockMachine($vmachine.Id,$vmachine.ISession,1)
+       # get the machine IConsole session
+       Write-Verbose "Getting the machine IConsole session"
+       $iconsole = $global:vbox.ISession_getConsole($vmachine.ISession)
+       # suspend the vm
+       Write-Verbose "Pausing the virtual machine"
+       $global:vbox.IConsole_pause($iconsole)
+       # unlock the machine session
+       Write-Verbose "Unlocking the machine session"
+       $global:vbox.ISession_unlockMachine($vmachine.ISession)
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session"
+       $global:vbox.IManagedObjectRef_release($iconsole)
+      } # end if $vmachine.State -eq 'Running'
+      else {Write-Verbose "The requested virtual machine `"$($vmachine.Name)`" can't be resumed because it is not paused (State: $($vmachine.State))"}
+     } # foreach matched $vmachine
+    } # end if $vmachines
+    else {Write-Verbose "Failed to find virtual machine with the GUID $item"}
+   } # foreach $Guid
+  } # end if Guid
  } # Try
  catch {
-  Write-Verbose '$_.Exception'
-  Write-Host $_.Exception -ForegroundColor Red
+  Write-Verbose 'Exception suspending machine'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # Catch
- if ($isession) {
-  Write-Verbose "Unlocking the machine session"
-  $global:vbox.ISession_unlockMachine($isession)
- } # end if $isession
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Resume-VirtualBoxVM {
+<#
+.SYNOPSIS
+Resume a virtual machine
+.DESCRIPTION
+Resumes a paused virtual machine to the running state.
+.PARAMETER Name
+The Name of at least one paused virtual machine.
+.PARAMETER GUID
+The GUID of at least one paused virtual machine.
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Paused | Resume-VirtualBoxVM
+Resume all paused virtual machines
+.EXAMPLE
+PS C:\> Resume-VirtualBoxVM -Name "2016"
+Resume the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Resume-VirtualBoxVM -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Resume the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Resume-VirtualBoxVM
+VERSION     :  1.0
+LAST UPDATED:  1/9/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Suspend-VirtualBoxVM
+.INPUTS
+System.Array[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+None
+#>
+[CmdletBinding(DefaultParameterSetName='None')]
+Param(
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [System.Object[]]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)")]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
+ try {
+  if ($Machine) {
+   foreach ($vmachine in $Machine) {
+    # write the virtual machine Name
+    Write-Verbose "VM Name: $($vmachine.Name)"
+    if ($vmachine.State -eq 'Paused') {
+     Write-Verbose "Resuming $($vmachine.Name)"
+     # get the machine session
+     Write-Verbose "Getting the machine session"
+     $vmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
+     # lock the vm session
+     Write-Verbose "Locking the machine session"
+     $global:vbox.IMachine_lockMachine($vmachine.Id,$vmachine.ISession,1)
+     # get the machine IConsole session
+     Write-Verbose "Getting the machine IConsole session"
+     $iconsole = $global:vbox.ISession_getConsole($vmachine.ISession)
+     # resume the vm
+     Write-Verbose "Resuming the virtual machine"
+     $global:vbox.IConsole_resume($iconsole)
+     # unlock the machine session
+     Write-Verbose "Unlocking the machine session"
+     $global:vbox.ISession_unlockMachine($vmachine.ISession)
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session"
+     $global:vbox.IManagedObjectRef_release($iconsole)
+    } # end if $vmachine.State -eq 'Paused'
+    else {Write-Verbose "The requested virtual machine `"$($vmachine.Name)`" can't be resumed because it is not paused (State: $($vmachine.State))"}
+   } # foreach $Machine
+  } # end if Machine
+  elseif ($Name) {
+   foreach ($item in $Name) {
+    # get the virtual machine by Name
+    $vmachines = Get-VirtualBoxVM -Name $item -SkipCheck
+    Write-Verbose "VM Name: $($vmachines.Name)"
+    if ($vmachines) {
+     foreach ($vmachine in $vmachines) {
+      if ($vmachine.State -eq 'Paused') {
+       Write-Verbose "Resuming $($vmachine.Name)"
+       # get the machine session
+       Write-Verbose "Getting the machine session"
+       $vmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
+       # lock the vm session
+       Write-Verbose "Locking the machine session"
+       $global:vbox.IMachine_lockMachine($vmachine.Id,$vmachine.ISession,1)
+       # get the machine IConsole session
+       Write-Verbose "Getting the machine IConsole session"
+       $iconsole = $global:vbox.ISession_getConsole($vmachine.ISession)
+       # resume the vm
+       Write-Verbose "Resuming the virtual machine"
+       $global:vbox.IConsole_resume($iconsole)
+       # unlock the machine session
+       Write-Verbose "Unlocking the machine session"
+       $global:vbox.ISession_unlockMachine($vmachine.ISession)
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session"
+       $global:vbox.IManagedObjectRef_release($iconsole)
+      } # end if $vmachine.State -eq 'Paused'
+      else {Write-Verbose "The requested virtual machine `"$($vmachine.Name)`" can't be resumed because it is not paused (State: $($vmachine.State))"}
+     } # foreach matched $vmachine
+    } # end if $vmachines
+    else {Write-Verbose "Failed to find virtual machine with the name $item"}
+   } # foreach $Name
+  } # end if Name
+  elseif ($Guid) {
+   foreach ($item in $Guid) {
+    # get the virtual machine by Guid
+    $vmachines = Get-VirtualBoxVM -Guid $item -SkipCheck
+    Write-Verbose "VM Name: $($vmachines.Name)"
+    if ($vmachines) {
+     foreach ($vmachine in $vmachines) {
+      if ($vmachine.State -eq 'Paused') {
+       Write-Verbose "Resuming $($vmachine.Name)"
+       # get the machine session
+       Write-Verbose "Getting the machine session"
+       $vmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmachine.Id)
+       # lock the vm session
+       Write-Verbose "Locking the machine session"
+       $global:vbox.IMachine_lockMachine($vmachine.Id,$vmachine.ISession,1)
+       # get the machine IConsole session
+       Write-Verbose "Getting the machine IConsole session"
+       $iconsole = $global:vbox.ISession_getConsole($vmachine.ISession)
+       # resume the vm
+       Write-Verbose "Resuming the virtual machine"
+       $global:vbox.IConsole_resume($iconsole)
+       # unlock the machine session
+       Write-Verbose "Unlocking the machine session"
+       $global:vbox.ISession_unlockMachine($vmachine.ISession)
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session"
+       $global:vbox.IManagedObjectRef_release($iconsole)
+      } # end if $vmachine.State -eq 'Paused'
+      else {Write-Verbose "The requested virtual machine `"$($vmachine.Name)`" can't be resumed because it is not paused (State: $($vmachine.State))"}
+     } # foreach matched $vmachine
+    } # end if $vmachines
+    else {Write-Verbose "Failed to find virtual machine with the GUID $item"}
+   } # foreach $Guid
+  } # end if Guid
+ } # Try
+ catch {
+  Write-Verbose 'Exception resuming machine'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -787,17 +1046,16 @@ A switch to skip service update (for development use).
 PS C:\> Start-VirtualBoxVM "Win10"
 Starts the virtual machine called Win10 in GUI mode.
 .EXAMPLE
-PS C:\> Start-VirtualBoxVM "2016 Core" -Headless -Encrypted -Credential
-Starts the virtual machine called 2016 Core in headless mode and provides credentials to decrypt the disk(s) on boot.
+PS C:\> Start-VirtualBoxVM "2016" -Headless -Encrypted -Credential
+Starts the virtual machine called "2016 Core" in headless mode and provides credentials to decrypt the disk(s) on boot.
 .NOTES
-NAME        :  Suspend-VirtualBoxVM
+NAME        :  Start-VirtualBoxVM
 VERSION     :  1.1
 LAST UPDATED:  1/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxVM
-Start-VirtualBoxVM
 Stop-VirtualBoxVM
 .INPUTS
 System.Array[]:  Array for virtual machine objects
@@ -810,7 +1068,7 @@ None
 [CmdletBinding(DefaultParameterSetName='None')]
 Param(
 [Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine name(s)",
+HelpMessage="Enter one or more virtual machine object(s)",
 Position=0)]
 [ValidateNotNullorEmpty()]
   [System.Object[]]$Machine,
@@ -925,7 +1183,7 @@ Process {
       Write-Verbose "Password sent"
      } # Try
      catch {
-      Write-Host $_.Exception -ForegroundColor Red
+      Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
       return
      } # Catch
     } # end foreach $disk in $disks
@@ -1322,6 +1580,7 @@ New-Alias -Name resvboxws -Value Restart-VirtualBoxWebSrv
 New-Alias -Name refvboxws -Value Update-VirtualBoxWebSrv
 New-Alias -Name gvboxvm -Value Get-VirtualBoxVM
 New-Alias -Name suvboxvm -Value Suspend-VirtualBoxVM
+New-Alias -Name revboxvm -Value Resume-VirtualBoxVM
 New-Alias -Name stavboxvm -Value Start-VirtualBoxVM
 New-Alias -Name stovboxvm -Value Stop-VirtualBoxVM
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisks
