@@ -65,8 +65,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 * Suspend-VirtualBoxVM doesn't work (Back-burner)
     
 ### **VERSION**
-	0.1.12.10
-	January 8, 2020
+	0.1.13.12
+	January 9, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
