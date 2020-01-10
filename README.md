@@ -62,7 +62,6 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 
 ### **KNOWN ISSUES**
 * Stop-VirtualBoxVM -PsShutdown doesn't work [(Forum post)](https://forums.virtualbox.org/viewtopic.php?f=34&t=95930#p467095)
-* Suspend-VirtualBoxVM doesn't work (Back-burner)
     
 ### **VERSION**
 	0.1.13.12
@@ -79,6 +78,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Get-VirtualBoxProcess
 	Get-VirtualBoxVM
 	Suspend-VirtualBoxVM
+	Resume-VirtualBoxVM
 	Start-VirtualBoxVM
 	Stop-VirtualBoxVM
 	Get-VirtualBoxDisks
