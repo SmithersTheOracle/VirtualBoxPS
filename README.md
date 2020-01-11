@@ -25,8 +25,8 @@ For this module to work, a simple "installation" script has been included for Wi
 	
 	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxweb.wsdl
 	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl
-	$($env:PSModulePath)\VirtualBoxPS\VirtualBoxPS.psd1
-	$($env:PSModulePath)\VirtualBoxPS\VirtualBoxPS.psm1
+	C:\Windows\system32\WindowsPowerShell\v1.0\Modules\VirtualBoxPS\VirtualBoxPS.psd1
+	C:\Windows\system32\WindowsPowerShell\v1.0\Modules\VirtualBoxPS\VirtualBoxPS.psm1
 	
 	
 Additionally, a new startup task will be created in Task Scheduler by importing the xml file:
@@ -66,7 +66,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
     
 ### **VERSION**
 	0.2.3.15
-	January 10, 2020
+	January 11, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
