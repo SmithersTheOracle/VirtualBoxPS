@@ -2,6 +2,7 @@
 <#
 TODO:
 Finish Integrating Progress bar
+Invoke-VirtualBoxGuestProcess
 Create new VM
 Create a new Disk
 #>
@@ -129,7 +130,7 @@ Process {
  #$global:vbox = New-Object -ComObject "VirtualBox.VirtualBox"
  $global:vbox = New-WebServiceProxy -Uri "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl" -Namespace "VirtualBox" -Class "VirtualBox"
  # write variable to the pipeline
- $global:vbox
+ Write-Output $global:vbox
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -292,7 +293,7 @@ Process {
   if ($global:vboxwebsrvtask.Status -and $global:vboxwebsrvtask.Status -ne 'Running') {
    # start the web service task
    Write-Verbose "Starting the VirtualBox Web Service ($($global:vboxwebsrvtask.Name))"
-   & cmd /c schtasks.exe /run /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`"
+   & cmd /c schtasks.exe /run /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
   }
   else {
    # return a message
@@ -342,7 +343,7 @@ Process {
  Write-Verbose 'Ending the VirtualBox Web Service'
  try {
   # tell vboxwebsrv to end the current session
-  & cmd /c schtasks.exe /end /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`"
+  & cmd /c schtasks.exe /end /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
  } # end try
  catch {
   Write-Verbose '$_.Exception'
@@ -627,7 +628,7 @@ Process {
    }
   }
  } # end if $Name and not *
- if ($Guid) {
+ elseif ($Guid) {
   Write-Verbose "Filtering virtual machines by GUID: $Guid"
   foreach ($vm in $vminventory) {
    Write-Verbose "Matching $($vm.Guid) to $($Guid)"
@@ -637,7 +638,7 @@ Process {
    }
   }
  } # end if $Guid
- if ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
+ elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
   if ($State) {
    Write-Verbose "Filtering all virtual machines by state: $State"
    foreach ($vm in $vminventory) {
@@ -655,7 +656,7 @@ Process {
  Write-Verbose "Found $($obj.Guid)"
  if ($obj) {
   # write virtual machines object to the pipeline as an array
-  [System.Array]$obj
+  Write-Output ([System.Array]$obj)
  } # end if $obj
  else {
   Write-Host "[Warning] No matching virtual machines found" -ForegroundColor DarkYellow
@@ -703,11 +704,11 @@ None
 #>
 [CmdletBinding(DefaultParameterSetName='None')]
 Param(
-[Parameter(ValueFromPipelineByPropertyName=$true,
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-Position=0)]
+ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
-  [System.Object[]]$Machine,
+  [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -733,7 +734,7 @@ Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  # initialize $imachines array
  $imachines = @()
  # get vm inventory (by $Machine)
@@ -845,11 +846,11 @@ None
 #>
 [CmdletBinding(DefaultParameterSetName='None')]
 Param(
-[Parameter(ValueFromPipelineByPropertyName=$true,
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-Position=0)]
+ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
-  [System.Object[]]$Machine,
+  [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -875,7 +876,7 @@ Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  # initialize $imachines array
  $imachines = @()
  # get vm inventory (by $Machine)
@@ -998,11 +999,11 @@ None
 #>
 [CmdletBinding(DefaultParameterSetName='None')]
 Param(
-[Parameter(ValueFromPipelineByPropertyName=$true,
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-Position=0)]
+ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
-  [System.Object[]]$Machine,
+  [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -1039,7 +1040,7 @@ Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  # initialize $imachines array
  $imachines = @()
  # get vm inventory (by $Machine)
@@ -1197,11 +1198,11 @@ None
 #>
 [cmdletbinding(DefaultParameterSetName="None")]
 Param(
-[Parameter(ValueFromPipelineByPropertyName=$true,
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-Position=0)]
+ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
-  [System.Object[]]$Machine,
+  [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -1238,7 +1239,7 @@ Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one machine object, VM name, or VM GUID."}
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  # initialize $imachines array
  $imachines = @()
  # get vm inventory (by $Machine)
@@ -1274,9 +1275,7 @@ Process {
       Write-verbose "Sending ACPI Shutdown signal to the machine"
       $global:vbox.IConsole_powerButton($imachine.IConsole)
      }
-     else {
-      return "Only machines that are running may be stopped."
-     }
+     else {return "Only machines that are running may be stopped."}
     }
     elseif ($PsShutdown) {
      Write-Verbose "PowerShell Shutdown requested"
@@ -1298,11 +1297,9 @@ Process {
       Write-Verbose "Guest console status: $iguestsessionstatus"
       # create the powershell process in the guest machine and send it a stop-computer -force command and wait for 10 seconds
       Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command (timeout: 10s)'
-      $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, 'C:\\Windows\\System32\\cmd.exe', [array]@('cmd.exe','/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false'), [array]@(), 3, 10000) #"powershell.exe", '-ExecutionPolicy Bypass -Command Stop-Computer -Force -Confirm:$false', @(), 3, 10000)
+      $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, 'C:\\Windows\\System32\\cmd.exe', [array]@('cmd.exe','/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false'), [array]@(), 3, 10000)
      }
-     else {
-      return "Only machines that are running may be stopped."
-     }
+     else {return "Only machines that are running may be stopped."}
     }
     else {
      Write-Verbose "Power-off requested"
@@ -1316,9 +1313,7 @@ Process {
       Write-verbose "Powering off the machine"
       $iprogress = $global:vbox.IConsole_powerDown($imachine.IConsole)
      }
-     else {
-      return "Only machines that are running may be stopped."
-     }
+     else {return "Only machines that are running may be stopped."}
     }
    } #foreach
   } # end if $imachines
@@ -1344,7 +1339,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    # next 2 ifs only for stop command
+    # next 2 ifs only for in-guest sessions
     if ($imachine.IGuestSession) {
      # release the iconsole session
      Write-verbose "Releasing the IGuestSession for VM $($imachine.Name)"
@@ -1362,7 +1357,7 @@ Process {
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
-    # next 2 only for stop command
+    # next 2 only for in-guest sessions
     $imachine.IGuestSession = $null
     $imachine.IConsoleGuest = $null
    } # end foreach $imachine in $imachines
@@ -1474,10 +1469,11 @@ System.Array[]
 #>
 [cmdletbinding(DefaultParameterSetName="All")]
 Param(
-[Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine name(s)",
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Position=0)]
-  [System.Object]$Machine,
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="MachineName",Position=0)]
@@ -1501,6 +1497,11 @@ Begin {
  if (-Not $global:ivbox) {Start-VirtualBoxSession}
 } # Begin
 Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - MachineName: `"$MachineName`""
+ Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $MachineName -or $MachineGuid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  $disks = @()
  $obj = @()
  # get virtual machine inventory
@@ -1567,11 +1568,287 @@ Process {
  Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  if ($obj) {
   # write virtual machines object to the pipeline as an array
-  [System.Array]$obj
+  Write-Output ([System.Array]$obj)
  } # end if $obj
  else {
   Write-Host "[Warning] No virtual disks found." -ForegroundColor DarkYellow
  } # end else
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Submit-VirtualBoxVMProcess {
+<#
+.SYNOPSIS
+Stop a virtual machine
+.DESCRIPTION
+Stop one or more virtual box machines by powering them off. You may also provide the -Acpi switch to send an ACPI shutdown signal. Alternatively, if a machine will not respond to an ACPI shutdown signal, you may try the -PsShutdown switch which will send a shutdown command via PowerShell. Credentials will be required if -PsShutdown is used.
+.PARAMETER Name
+The name of at least one virtual machine.
+.PARAMETER Acpi
+A switch to send an ACPI shutdown signal to the machine.
+.PARAMETER PsShutdown
+A switch to send the Stop-Computer PowerShell command to the machine.
+.PARAMETER Credential
+Administrator credentials for the machine. Required for PsShutdown
+.EXAMPLE
+PS C:\> Submit-VirtualBoxVMProcess "Win10"
+Stops the virtual machine called Win10
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM | Submit-VirtualBoxVMProcess
+Stops all running virtual machines
+.NOTES
+NAME        :  Submit-VirtualBoxVMProcess
+VERSION     :  1.0
+LAST UPDATED:  1/4/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxVM
+Start-VirtualBoxVM
+Suspend-VirtualBoxVM
+.INPUTS
+String[]    :  
+.OUTPUTS
+None
+#>
+[cmdletbinding(DefaultParameterSetName="Machine")]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Position=0)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Enter the full path to the executable",
+Position=1,Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$PathToExecutable,
+[Parameter(HelpMessage="Enter an array of arguments to use when creating the process",
+Position=2)]
+  [string[]]$Arguments,
+[Parameter(Mandatory=$true,
+HelpMessage="Enter the credentials to login to the guest OS")]
+  [pscredential]$Credential,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ # get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
+ if ($Arguments) {$Arguments = ,$PathToExecutable + $Arguments}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    Write-verbose "Locking the machine session"
+    $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
+    # create iconsole session to vm
+    Write-verbose "Creating IConsole session to the machine"
+    $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
+    # create iconsole guest session to vm
+    Write-verbose "Creating IConsole guest session to the machine"
+    $imachine.IConsoleGuest = $global:vbox.IConsole_getGuest($imachine.IConsole)
+    # create a guest session
+    Write-Verbose "Creating a guest console session"
+    $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsShutdown")
+    # wait 10 seconds for the session to be created successfully - this needs to be merged with the previous call
+    Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
+    $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, 1, 10000)
+    Write-Verbose "Guest console status: $iguestsessionstatus"
+    # create the process in the guest machine and send it a list of arguments
+    Write-Verbose "Sending `"$($PathToExecutable) $($Arguments)`" command (timeout: 10s)"
+    $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), 3, 10000)
+   } #foreach
+  } # end if $imachines
+  else {throw "No matching virtual machines were found using specified parameters"}
+ } # Try
+ catch {
+  Write-Verbose 'Exception running process in guest machine'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession) {
+     if ($global:vbox.IMachine_getSessionState($imachine.Id) > 1) {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.Id)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    # next 2 ifs only for in-guest sessions
+    if ($imachine.IGuestSession) {
+     # release the iconsole session
+     Write-verbose "Releasing the IGuestSession for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IGuestSession)
+    } # end if $imachine.IConsole
+    if ($imachine.IConsoleGuest) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsoleGuest for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
+    } # end if $imachine.IConsole
+    $imachine.ISession = $null
+    $imachine.IConsole = $null
+    $imachine.IProgress = $null
+    $imachine.IPercent = $null
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+    # next 2 only for in-guest sessions
+    $imachine.IGuestSession = $null
+    $imachine.IConsoleGuest = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+ } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Submit-VirtualBoxVMPowerShellScript {
+<#
+.SYNOPSIS
+Stop a virtual machine
+.DESCRIPTION
+Stop one or more virtual box machines by powering them off. You may also provide the -Acpi switch to send an ACPI shutdown signal. Alternatively, if a machine will not respond to an ACPI shutdown signal, you may try the -PsShutdown switch which will send a shutdown command via PowerShell. Credentials will be required if -PsShutdown is used.
+.PARAMETER Name
+The name of at least one virtual machine.
+.PARAMETER Acpi
+A switch to send an ACPI shutdown signal to the machine.
+.PARAMETER PsShutdown
+A switch to send the Stop-Computer PowerShell command to the machine.
+.PARAMETER Credential
+Administrator credentials for the machine. Required for PsShutdown
+.EXAMPLE
+PS C:\> Submit-VirtualBoxVMPowerShellScript "Win10"
+Stops the virtual machine called Win10
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM | Submit-VirtualBoxVMPowerShellScript
+Stops all running virtual machines
+.NOTES
+NAME        :  Submit-VirtualBoxVMPowerShellScript
+VERSION     :  1.0
+LAST UPDATED:  1/4/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxVM
+Start-VirtualBoxVM
+Suspend-VirtualBoxVM
+.INPUTS
+String[]    :  
+.OUTPUTS
+None
+#>
+[cmdletbinding(DefaultParameterSetName="Machine")]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Position=0)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(Position=1,Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$ScriptBlock,
+[Parameter(Mandatory=$true,
+HelpMessage="Enter the credentials to login to the guest OS")]
+  [pscredential]$Credential,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ # get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  foreach ($item in $Name) {
+   Write-Verbose "Submitting PowerShell command to VM $($Machine.Name) by VM object"
+   Submit-VirtualBoxVMProcess -Machine $Machine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck
+  }
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Submitting PowerShell command to VM $($Name) by Name"
+   Submit-VirtualBoxVMProcess -Name $Name -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck
+  }
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  foreach ($item in $Name) {
+   Write-Verbose "Submitting PowerShell command to VM $((Get-VirtualBoxVM -Guid $Guid -SkipCheck).Name) by GUID"
+   Submit-VirtualBoxVMProcess -Guid $Guid -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck
+  }
+ }
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -1605,5 +1882,7 @@ New-Alias -Name revboxvm -Value Resume-VirtualBoxVM
 New-Alias -Name stavboxvm -Value Start-VirtualBoxVM
 New-Alias -Name stovboxvm -Value Stop-VirtualBoxVM
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisks
+New-Alias -Name subvboxvmp -Value Submit-VirtualBoxVMProcess
+New-Alias -Name subvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
 # export module members
 Export-ModuleMember -Alias * -Function * -Variable @('vbox','vboxwebsrvtask','vboxerror')
