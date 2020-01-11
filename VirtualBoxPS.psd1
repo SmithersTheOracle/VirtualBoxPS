@@ -69,23 +69,16 @@ PowerShellHostVersion = '2.0'
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = 'Get-VirtualBox', 'Start-VirtualBoxVM', 'Update-VirtualBoxWebSrv', 
-               'Stop-VirtualBoxSession', 'Get-VirtualBoxVM', 'Stop-VirtualBoxVM', 
-               'Start-VirtualBoxSession', 'Resume-VirtualBoxVM', 
-               'Stop-VirtualBoxWebSrv', 'Start-VirtualBoxWebSrv', 
-               'Get-VirtualBoxDisks', 'Suspend-VirtualBoxVM', 
-               'Restart-VirtualBoxWebSrv'
+FunctionsToExport = '*'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
 
 # Variables to export from this module
-VariablesToExport = 'vbox'
+VariablesToExport = @('vbox','vboxwebsrvtask','vboxerror')
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
-AliasesToExport = 'resvboxws', 'gvboxd', 'gvbox', 'refvboxws', 'revboxvm', 'suvboxvm', 
-               'stovboxws', 'stavboxvm', 'stovboxs', 'stavboxs', 'stavboxws', 'gvboxvm', 
-               'stovboxvm'
+AliasesToExport = '*'
 
 # DSC resources to export from this module
 # DscResourcesToExport = @()

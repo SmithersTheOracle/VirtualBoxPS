@@ -2,7 +2,6 @@
 <#
 TODO:
 Finish Integrating Progress bar
-Invoke-VirtualBoxGuestProcess
 Create new VM
 Create a new Disk
 #>
@@ -702,7 +701,7 @@ Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
 None
 #>
-[CmdletBinding(DefaultParameterSetName='None')]
+[CmdletBinding()]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
@@ -710,11 +709,13 @@ ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine name(s)")]
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name")]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine GUID(s)")]
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
@@ -844,7 +845,7 @@ Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
 None
 #>
-[CmdletBinding(DefaultParameterSetName='None')]
+[CmdletBinding()]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
@@ -852,11 +853,13 @@ ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine name(s)")]
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name")]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine GUID(s)")]
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
@@ -997,11 +1000,11 @@ PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
 #>
-[CmdletBinding(DefaultParameterSetName='None')]
+[CmdletBinding()]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
@@ -1196,11 +1199,11 @@ String[]    :
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="None")]
+[cmdletbinding()]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
@@ -1211,10 +1214,10 @@ HelpMessage="Enter one or more virtual machine name(s)")]
 HelpMessage="Enter one or more virtual machine GUID(s)")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
-[Parameter(ParameterSetName="Acpi",Mandatory=$false,
+[Parameter(ParameterSetName="Acpi",Mandatory=$true,
 HelpMessage="Use this switch to send the ACPI Shutdown command to the VM")]
   [switch]$Acpi,
-[Parameter(ParameterSetName="PsShutdown",Mandatory=$false,
+[Parameter(ParameterSetName="PsShutdown",Mandatory=$true,
 HelpMessage="Use this switch send the Stop-Computer PowerShell command to the guest OS")]
   [switch]$PsShutdown,
 [Parameter(ParameterSetName="PsShutdown",Mandatory=$true,
@@ -1581,39 +1584,46 @@ End {
 Function Submit-VirtualBoxVMProcess {
 <#
 .SYNOPSIS
-Stop a virtual machine
+Start a guest virtual machine process
 .DESCRIPTION
-Stop one or more virtual box machines by powering them off. You may also provide the -Acpi switch to send an ACPI shutdown signal. Alternatively, if a machine will not respond to an ACPI shutdown signal, you may try the -PsShutdown switch which will send a shutdown command via PowerShell. Credentials will be required if -PsShutdown is used.
+Will start the requested process, with optional arguments, in the guest operating system.
+.PARAMETER Machine
+At least one running virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
-The name of at least one virtual machine.
-.PARAMETER Acpi
-A switch to send an ACPI shutdown signal to the machine.
-.PARAMETER PsShutdown
-A switch to send the Stop-Computer PowerShell command to the machine.
+The Name of at least one running virtual machine.
+.PARAMETER GUID
+The GUID of at least one running virtual machine.
+.PARAMETER PathToExecutable
+The full path to the executable.
+.PARAMETER Arguments
+An array of arguments to pass the executable.
 .PARAMETER Credential
-Administrator credentials for the machine. Required for PsShutdown
+Administrator/Root credentials for the machine.
 .EXAMPLE
-PS C:\> Submit-VirtualBoxVMProcess "Win10"
-Stops the virtual machine called Win10
+PS C:\> Submit-VirtualBoxVMProcess Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
+Runs cmd.exe in the virtual machine guest OS with the argument list "/c shutdown /s /f"
 .EXAMPLE
-PS C:\> Get-VirtualBoxVM | Submit-VirtualBoxVMProcess
-Stops all running virtual machines
+PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.GuestOS -match 'windows'} | Submit-VirtualBoxVMProcess -PathToExecutable 'C:\\Windows\\System32\\gpupdate.exe' -Credential $credentials
+Runs gpupdate.exe on all running virtual machines with a Windows guest OS
 .NOTES
 NAME        :  Submit-VirtualBoxVMProcess
 VERSION     :  1.0
-LAST UPDATED:  1/4/2020
+LAST UPDATED:  1/11/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
-Get-VirtualBoxVM
-Start-VirtualBoxVM
-Suspend-VirtualBoxVM
+Submit-VirtualBoxVMPowerShellScript
 .INPUTS
-String[]    :  
+System.Array[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for process to create
+String[]      :  Strings for arguments to process
+PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="Machine")]
+[cmdletbinding()]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
@@ -1753,39 +1763,46 @@ End {
 Function Submit-VirtualBoxVMPowerShellScript {
 <#
 .SYNOPSIS
-Stop a virtual machine
+Start a guest virtual machine process
 .DESCRIPTION
-Stop one or more virtual box machines by powering them off. You may also provide the -Acpi switch to send an ACPI shutdown signal. Alternatively, if a machine will not respond to an ACPI shutdown signal, you may try the -PsShutdown switch which will send a shutdown command via PowerShell. Credentials will be required if -PsShutdown is used.
+Will start the requested process, with optional arguments, in the guest operating system.
+.PARAMETER Machine
+At least one running virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
-The name of at least one virtual machine.
-.PARAMETER Acpi
-A switch to send an ACPI shutdown signal to the machine.
-.PARAMETER PsShutdown
-A switch to send the Stop-Computer PowerShell command to the machine.
+The Name of at least one running virtual machine.
+.PARAMETER GUID
+The GUID of at least one running virtual machine.
+.PARAMETER PathToExecutable
+The full path to the executable.
+.PARAMETER Arguments
+An array of arguments to pass the executable.
 .PARAMETER Credential
-Administrator credentials for the machine. Required for PsShutdown
+Administrator/Root credentials for the machine.
 .EXAMPLE
-PS C:\> Submit-VirtualBoxVMPowerShellScript "Win10"
-Stops the virtual machine called Win10
+PS C:\> Submit-VirtualBoxVMPowerShellScript Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
+Runs cmd.exe in the virtual machine guest OS with the argument list "/c shutdown /s /f"
 .EXAMPLE
-PS C:\> Get-VirtualBoxVM | Submit-VirtualBoxVMPowerShellScript
-Stops all running virtual machines
+PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.GuestOS -match 'windows'} | Submit-VirtualBoxVMPowerShellScript -PathToExecutable 'C:\\Windows\\System32\\gpupdate.exe' -Credential $credentials
+Runs gpupdate.exe on all running virtual machines with a Windows guest OS
 .NOTES
 NAME        :  Submit-VirtualBoxVMPowerShellScript
 VERSION     :  1.0
-LAST UPDATED:  1/4/2020
+LAST UPDATED:  1/11/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
-Get-VirtualBoxVM
-Start-VirtualBoxVM
-Suspend-VirtualBoxVM
+Submit-VirtualBoxVMPowerShellScript
 .INPUTS
-String[]    :  
+System.Array[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for process to create
+String[]      :  Strings for arguments to process
+PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="Machine")]
+[cmdletbinding()]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
