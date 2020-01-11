@@ -65,7 +65,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
     (Workaround) Press cancel when prompted for the disk password, then press cancel when asked what to do next.
     
 ### **VERSION**
-	0.2.13.13
+	0.2.3.15
 	January 10, 2020
     
 ### **SEE ALSO**
@@ -83,3 +83,5 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Start-VirtualBoxVM
 	Stop-VirtualBoxVM
 	Get-VirtualBoxDisks
+	Submit-VirtualBoxVMProcess
+	Submit-VirtualBoxVMPowerShellScript
