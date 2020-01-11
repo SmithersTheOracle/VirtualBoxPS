@@ -25,8 +25,8 @@ For this module to work, a simple "installation" script has been included for Wi
 	
 	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxweb.wsdl
 	$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl
-	$($env:PSModulePath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psd1
-	$($env:PSModulePath)\Oracle.PowerVBox\1.0\VirtualBoxPS.psm1
+	$($env:PSModulePath)\VirtualBoxPS\VirtualBoxPS.psd1
+	$($env:PSModulePath)\VirtualBoxPS\VirtualBoxPS.psm1
 	
 	
 Additionally, a new startup task will be created in Task Scheduler by importing the xml file:
