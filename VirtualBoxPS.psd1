@@ -33,7 +33,7 @@ Copyright = 'GPL-2.0'
 Description = 'A PowerShell module for managing VirtualBox and its virtual machines'
 
 # Minimum version of the Windows PowerShell engine required by this module
-PowerShellVersion = '2.0'
+PowerShellVersion = '3.0'
 
 # Name of the Windows PowerShell host required by this module
 # PowerShellHostName = ''
@@ -75,7 +75,7 @@ FunctionsToExport = '*'
 CmdletsToExport = @()
 
 # Variables to export from this module
-VariablesToExport = @('vbox','vboxwebsrvtask','vboxerror')
+VariablesToExport = 'vbox', 'vboxwebsrvtask', 'vboxerror'
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
 AliasesToExport = '*'

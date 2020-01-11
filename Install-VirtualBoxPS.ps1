@@ -18,11 +18,10 @@ try{
  Write-Host '[INFO] Copying files'
  if (!(Test-Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\")) {New-Item -ItemType Directory -Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose}
  Copy-Item -Path "$((Get-Location).Path)\*.wsdl" -Destination "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose
- foreach ($pspath in (($env:PSModulePath).Split(';'))) {
-  if (!(Test-Path "$($pspath)\VirtualBoxPS\")) {New-Item -ItemType Directory -Path "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
-  Copy-Item -Path "$((Get-Location).Path)\*.psm*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
-  Copy-Item -Path "$((Get-Location).Path)\*.psd*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
- }
+ $pspath = (($env:PSModulePath).Split(';') | Where-Object {$_ -like 'c:\windows\system32*'})
+ if (!(Test-Path "$($pspath)\VirtualBoxPS\")) {New-Item -ItemType Directory -Path "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
+ Copy-Item -Path "$((Get-Location).Path)\*.psm*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
+ Copy-Item -Path "$((Get-Location).Path)\*.psd*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
  Write-Host '[SUCCESS] Installation complete' -ForegroundColor Green
  Pause
 }

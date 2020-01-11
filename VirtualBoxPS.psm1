@@ -1,7 +1,7 @@
-# Requires -version 2.0
+# Requires -version 3.0
 <#
 TODO:
-Finish Integrating Progress bar
+Finish integrating progress bar
 Create new VM
 Create a new Disk
 #>
@@ -163,15 +163,19 @@ None
 #>
 [cmdletbinding()]
 Param(
-[Parameter(Position=0)]
+[Parameter(HelpMessage="Enter protocol to be used to connect to the web service (Default: http)",
+Mandatory=$false,Position=0)]
 [ValidateSet("http","https")]
   [string]$Protocol = "http",
 # localhost ONLY for now since we haven't enabled https
-[Parameter(Position=1)]
+[Parameter(HelpMessage="Enter the domain or IP address running the web service (Default: localhost)",
+Mandatory=$false,Position=1)]
   [string]$Domain = "localhost",
-[Parameter(Position=2)]
+[Parameter(HelpMessage="Enter the TCP port the web service is listening on (Default: 18083)",
+Mandatory=$false,Position=2)]
   [string]$Port = "18083",
-[Parameter(Position=3)]
+[Parameter(HelpMessage="Enter the credentials used to run the web service",
+Mandatory=$true,Position=3)]
   [pscredential]$Credential
 ) # Param
 Begin {
@@ -549,11 +553,11 @@ System.Array[]
 Param(
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="Name",Position=0)]
+ParameterSetName="Name",Mandatory=$true,Position=0)]
   [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="Guid",Position=0)]
+ParameterSetName="Guid",Mandatory=$true,Position=0)]
   [guid[]]$Guid,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter a virtual machine state you wish to filter by")]
@@ -705,17 +709,17 @@ None
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="Name")]
+ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="Guid")]
+ParameterSetName="Guid",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
@@ -849,17 +853,17 @@ None
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="Name")]
+ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="Guid")]
+ParameterSetName="Guid",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
@@ -1000,28 +1004,46 @@ PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
 #>
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName="Unencrypted")]
 Param(
-[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine object(s)",
-Position=0)]
+[Parameter(ParameterSetName='Unencrypted',Mandatory=$false,
+ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)"
+,Position=0)]
+[Parameter(ParameterSetName='Encrypted',Mandatory=$false,
+ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)"
+,Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
-[Parameter(ValueFromPipelineByPropertyName=$true,
+[Parameter(ParameterSetName='Unencrypted',Mandatory=$false,
+ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)")]
+[ValidateNotNullorEmpty()]
+[Parameter(ParameterSetName='Encrypted',Mandatory=$false,
+ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
   [string]$Name,
-[Parameter(ValueFromPipelineByPropertyName=$true,
+[Parameter(ParameterSetName='Unencrypted',Mandatory=$false,
+ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)")]
+[ValidateNotNullorEmpty()]
+[Parameter(ParameterSetName='Encrypted',Mandatory=$false,
+ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
-[Parameter(HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
+[Parameter(ParameterSetName='Unencrypted',Mandatory=$true,
+HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
+[Parameter(ParameterSetName='Encrypted',Mandatory=$true,
+HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
 [ValidateSet("Headless","Gui")]
   [string]$Type = 'Gui',
-[Parameter(ParameterSetName='Encryption',Mandatory=$false,
+[Parameter(ParameterSetName='Encrypted',Mandatory=$true,
 HelpMessage="Use this switch if VM disk(s) are encrypted")]
   [switch]$Encrypted,
-[Parameter(ParameterSetName='Encryption',Mandatory=$true,
+[Parameter(ParameterSetName='Encrypted',Mandatory=$true,
 HelpMessage="Enter the credentials to unlock the VM disk(s)")]
   [pscredential]$Credential,
 [Parameter(HelpMessage="Use this switch to display a progress bar")]
@@ -1199,7 +1221,7 @@ String[]    :
 .OUTPUTS
 None
 #>
-[cmdletbinding()]
+[cmdletbinding(DefaultParameterSetName="PowerOff")]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
@@ -1474,17 +1496,17 @@ System.Array[]
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="MachineName",Position=0)]
+ParameterSetName="MachineName",Mandatory=$true,Position=0)]
 [Alias('Name')]
   [string[]]$MachineName,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="MachineGuid",Position=0)]
+ParameterSetName="MachineGuid",Mandatory=$true,Position=0)]
   [guid[]]$MachineGuid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
@@ -1627,17 +1649,17 @@ None
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+Mandatory=$true,ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="Name",Position=0)]
+Mandatory=$true,ParameterSetName="Name",Position=0)]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="Guid")]
+Mandatory=$true,ParameterSetName="Guid")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Enter the full path to the executable",
@@ -1705,8 +1727,9 @@ Process {
     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, 1, 10000)
     Write-Verbose "Guest console status: $iguestsessionstatus"
     # create the process in the guest machine and send it a list of arguments
-    Write-Verbose "Sending `"$($PathToExecutable) $($Arguments)`" command (timeout: 10s)"
+    Write-Verbose "Sending `"$($PathToExecutable) -- $($Arguments)`" command (timeout: 10s)"
     $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), 3, 10000)
+    #Write-Verbose $global:vbox.IGuestProcessEvent_getProcess($imachine.iguestsessionstatus)
    } #foreach
   } # end if $imachines
   else {throw "No matching virtual machines were found using specified parameters"}
@@ -1806,17 +1829,17 @@ None
 Param(
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Position=0)]
+Mandatory=$true,ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="Name",Position=0)]
+Mandatory=$true,ParameterSetName="Name",Position=0)]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="Guid")]
+Mandatory=$true,ParameterSetName="Guid")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(Position=1,Mandatory=$true)]
