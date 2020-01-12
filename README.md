@@ -17,7 +17,7 @@ These functions are wrappers to the APIs that you can use to manage a virtual ma
 ### **LONG DESCRIPTION**
 The free virtualization application from Oracle, VirtualBox, offers an application SDK which at this point does not include native PowerShell support. This module is an attempt to utilize the VirtualBox Web Service to perform common management tasks for virtual machines running in the VirtualBox environment.
 
-This module currently requires PowerShell 3.0 (use $PSVersionTable.PSVersion to check your version) or higher to run. However, like any ongoing project, this is subject to change without notice. The module has currently been tested on Windows 7 and Windows 10, and is being developed on Windows 7.
+This module currently requires PowerShell 5.0 (use $PSVersionTable.PSVersion to check your primary version and $Host.Version to check the version of each host type like PS vs. PS_ISE) or higher to run. PS 5.0 introduced classes, which are used somewhat heavily in the module. However, like any ongoing project, all of this is subject to change without notice. The module has currently been tested on Windows 7 and Windows 10, and is being developed on Windows 7.
 
 ### **THE GOAL**
 This module is being designed to provide as much of the capability as VirtualBox's VBoxManage.exe command line tool or better. The idea is that the module will support greater security, portability, and expandability. That being said, the API being used will be the VirtualBox Web Service. VBoxWebSrv.exe can be launched using certificate based encryption, so it can be accessed using https (still working on a certificate provider for this.) It's also web based so it can be setup to be accessed remotely.
