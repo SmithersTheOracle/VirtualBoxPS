@@ -1,4 +1,4 @@
-# Requires -version 3.0
+# Requires -version 5.0
 <#
 TODO:
 Finish integrating progress bar
@@ -86,11 +86,89 @@ class VirtualBoxError {
         else {return $null}
     }
 }
+class VBoxEventType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Invalid'       {$ToInt = 0} # must always be first
+                'Any'           {$ToInt = 1}
+                'Vetoable'      {$ToInt = 2}
+                'MachineEvent'  {$ToInt = 3}
+                'SnapshotEvent' {$ToInt = 4}
+                'InputEvent'    {$ToInt = 5}
+                'LastWildcard'  {$ToInt = 6}
+                Default         {$ToInt = 0}
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [int]ToStr ([string]$FromInt) {
+        if ($FromInt){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Invalid'} # must always be first
+                1       {$ToStr = 'Any'}
+                2       {$ToStr = 'Vetoable'}
+                3       {$ToStr = 'MachineEvent'}
+                4       {$ToStr = 'SnapshotEvent'}
+                5       {$ToStr = 'InputEvent'}
+                6       {$ToStr = 'LastWildcard'}
+                Default {$ToStr = 'Invalid'}
+            }
+            return [int]$ToStr
+        }
+        else {return $null}
+    }
+}
+class ProcessCreateFlag {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'                    {$ToInt = 0} # No flag set
+                'WaitForProcessStartOnly' {$ToInt = 1}
+                'IgnoreOrphanedProcesses' {$ToInt = 2}
+                'Hidden'                  {$ToInt = 3}
+                'Profile'                 {$ToInt = 4}
+                'WaitForStdOut'           {$ToInt = 5}
+                'WaitForStdErr'           {$ToInt = 6}
+                'ExpandArguments'         {$ToInt = 7} # This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                'UnquotedArguments'       {$ToInt = 8} # Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                Default                   {$ToInt = 0}
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [int]ToStr ([string]$FromInt) {
+        if ($FromInt){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No flag set
+                1       {$ToStr = 'WaitForProcessStartOnly'}
+                2       {$ToStr = 'IgnoreOrphanedProcesses'}
+                3       {$ToStr = 'Hidden'}
+                4       {$ToStr = 'Profile'}
+                5       {$ToStr = 'WaitForStdOut'}
+                6       {$ToStr = 'WaitForStdErr'}
+                6       {$ToStr = 'ExpandArguments'} # This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                6       {$ToStr = 'UnquotedArguments'} # Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                Default {$ToStr = 'None'}
+            }
+            return [int]$ToStr
+        }
+        else {return $null}
+    }
+}
 #########################################################################################
 # Variable Declarations
 $authtype = "VBoxAuth"
 $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
 $vboxerror = New-Object VirtualBoxError
+$global:vboxeventtype = New-Object VBoxEventType
+$global:processcreateflag = New-Object ProcessCreateFlag
 #########################################################################################
 # Includes
 # N/A
@@ -1034,9 +1112,9 @@ ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
-[Parameter(ParameterSetName='Unencrypted',Mandatory=$true,
+[Parameter(ParameterSetName='Unencrypted',Mandatory=$false,
 HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
-[Parameter(ParameterSetName='Encrypted',Mandatory=$true,
+[Parameter(ParameterSetName='Encrypted',Mandatory=$false,
 HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
 [ValidateSet("Headless","Gui")]
   [string]$Type = 'Gui',
@@ -1305,24 +1383,10 @@ Process {
     elseif ($PsShutdown) {
      Write-Verbose "PowerShell Shutdown requested"
      if ($imachine.State -eq 'Running') {
-      Write-verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
-      # create iconsole session to vm
-      Write-verbose "Creating IConsole session to the machine"
-      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-      # create iconsole guest session to vm
-      Write-verbose "Creating IConsole guest session to the machine"
-      $imachine.IConsoleGuest = $global:vbox.IConsole_getGuest($imachine.IConsole)
-      # create a guest session
-      Write-Verbose "Creating a guest console session"
-      $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsShutdown")
-      # wait 10 seconds for the session to be created successfully - this needs to be merged with the previous call
-      Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
-      $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, 1, 10000)
-      Write-Verbose "Guest console status: $iguestsessionstatus"
-      # create the powershell process in the guest machine and send it a stop-computer -force command and wait for 10 seconds
-      Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command (timeout: 10s)'
-      $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, 'C:\\Windows\\System32\\cmd.exe', [array]@('cmd.exe','/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false'), [array]@(), 3, 10000)
+      # send a stop-computer -force command to the guest machine
+      Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command to guest machine'
+      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential)
+      #$iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, 'C:\\Windows\\System32\\cmd.exe', [array]@('cmd.exe','/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false'), [array]@(), 3, 10000)
      }
      else {return "Only machines that are running may be stopped."}
     }
@@ -1721,15 +1785,60 @@ Process {
     $imachine.IConsoleGuest = $global:vbox.IConsole_getGuest($imachine.IConsole)
     # create a guest session
     Write-Verbose "Creating a guest console session"
-    $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsShutdown")
+    $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsLaunchProcess_$($imachine.IConsoleGuest)")
     # wait 10 seconds for the session to be created successfully - this needs to be merged with the previous call
     Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, 1, 10000)
     Write-Verbose "Guest console status: $iguestsessionstatus"
     # create the process in the guest machine and send it a list of arguments
     Write-Verbose "Sending `"$($PathToExecutable) -- $($Arguments)`" command (timeout: 10s)"
-    $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), 3, 10000)
-    #Write-Verbose $global:vbox.IGuestProcessEvent_getProcess($imachine.iguestsessionstatus)
+    $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('Hidden'), 10000)
+    # create event source
+    Write-Verbose "Creating event source"
+    $ieventsource = $global:vbox.IConsole_getEventSource($imachine.IConsole)
+    # create event listener
+    Write-Verbose "Creating event listener"
+    $ieventlistener = $global:vbox.IEventSource_createListener($ieventsource)
+    # register event listener
+    Write-Verbose "Registering event listener"
+    $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, $global:vboxeventtype.ToInt('Any'), $false)
+    try {
+     # wait for process creation
+     Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
+     $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, 1, 10000)
+     Write-Verbose "Process wait result: $($processwaitresult)"
+     do {
+      Write-Debug '[DEBUG] Start loop'
+      # get new events
+      $ievent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventlistener, 200)
+      if ($ievent -ne '') {
+       # process new event
+       Write-Verbose "Encountered event ID: $($ievent)"
+       $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
+      }
+      $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @(4,2), 200)
+      Write-Debug "[DEBUG] Process wait result: $($processwaitresult)"
+      $stdout = $global:vbox.IProcess_read($iguestprocess, 0, 64, 0)
+      Write-Debug "[DEBUG] StdOut: $($stdout)"
+      if ($stdout) {Write-Output ($stdout -join '')}
+      $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
+      if ($iprocessstatus -notmatch 'Start') {Write-Verbose "Process status: $($iprocessstatus)"}
+      $keeplooping = !$iprocessstatus.toString().contains('Terminated')
+      Write-Debug '[DEBUG] End loop'
+     } until (!$keeplooping)
+    }
+    catch {
+     Write-Verbose 'Exception while running process in guest machine'
+     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    }
+    finally {
+     Write-Verbose 'Unregistering listener'
+     $global:vbox.IEventSource_unregisterListener($ieventsource, $ieventlistener)
+     if (!($global:vbox.IProcess_getStatus($iguestprocess)).toString().contains('Terminated')) {
+      Write-Verbose 'Terminating guest process'
+      $global:vbox.IProcess_terminate($iguestprocess)
+     }
+    }
    } #foreach
   } # end if $imachines
   else {throw "No matching virtual machines were found using specified parameters"}
