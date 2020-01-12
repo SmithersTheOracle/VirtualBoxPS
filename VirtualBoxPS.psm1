@@ -15,6 +15,7 @@ Create a new Disk
 #>
 #########################################################################################
 # Class Definitions
+# property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
     [string]$Name
@@ -72,6 +73,7 @@ class VirtualBoxWebSrvTask {
     [string]$Status
 }
 Update-TypeData -TypeName VirtualBoxWebSrvTask -DefaultDisplayPropertySet @("Name","Path","Status") -Force
+# method classes
 class VirtualBoxError {
     [string]Call ($ErrInput) {
         if ($ErrInput){return $ErrInput.ToString().Substring($ErrInput.ToString().IndexOf('"')).Split('"')[1]}
@@ -85,90 +87,265 @@ class VirtualBoxError {
         if ($ErrInput){return $ErrInput.ToString().Substring($ErrInput.ToString().IndexOf('rc=')+14).Split('(')[0].TrimEnd(' ')}
         else {return $null}
     }
-}
-class VBoxEventType {
+} # probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
+class IVirtualBoxErrorInfo {
+# https://www.virtualbox.org/sdkref/group___virtual_box___c_o_m__result__codes.html
+# https://www.virtualbox.org/sdkref/interface_i_virtual_box_error_info.html
+    [long]resultCode ($Id) {
+        if ($Id -ne $null){return $global:vbox.IVirtualBoxErrorInfo_getResultCode($Id)}
+        else {return $null}
+    } # Result code of the error. Usually, it will be the same as the result code returned by the method that provided this error information, but not always.
+    <#
+    Example: onWin32, CoCreateInstance() will most likely return E_NOINTERFACE upon 
+    unsuccessful component instantiation attempt, but not the value the component factory returned. 
+    Value is typed ’long’, not ’result’, to make interface usable from scripting languages.
+    ***Note: In MS COM, there is no equivalent. In XPCOM, it is the same as nsIException::result.
+    #>
+    [long]resultDetail ($Id) {
+        if ($Id -ne $null){return $global:vbox.IVirtualBoxErrorInfo_getResultDetail($Id)}
+        else {return $null}
+    } # Optional result data of this error. This will vary depending on the actual error usage. By default this attribute is not being used.
+    [guid]interfaceID ($Id) {
+        if ($Id -ne $null){return $global:vbox.IVirtualBoxErrorInfo_getInterfaceID($Id)}
+        else {return $null}
+    } # UUID of the interface that defined the error.
+    <#
+    ***Note: In MS COM, it is the same as IErrorInfo::GetGUID, except for the data type. In XPCOM, there is no equivalent.
+    #>
+    [string]component ($Id) {
+        if ($Id -ne $null){return $global:vbox.IVirtualBoxErrorInfo_getComponent($Id)}
+        else {return $null}
+    <#
+    ***Note: In MS COM, it is the same as IErrorInfo::GetSource. In XPCOM, there is no equivalent.
+    #>
+    } # Name of the component that generated the error.
+    [string]text ($Id) {
+        if ($Id -ne $null){return $global:vbox.IVirtualBoxErrorInfo_getText($Id)}
+        else {return $null}
+    } # Text description of the error.
+    <#
+    ***Note: In MS COM, it is the same as IErrorInfo::GetDescription. In XPCOM, it is the same as nsIException::message.
+    #>
+    [string]next ($Id) {
+        if ($Id -ne $null){return $global:vbox.IVirtualBoxErrorInfo_getNext($Id)}
+        else {return $null}
+    } # Next error object if there is any, or null otherwise.
+    <#
+    ***Note: In MS COM, there is no equivalent. In XPCOM, it is the same as nsIException::inner.
+    #>
+} # The IVirtualBoxErrorInfo interface represents extended error information.
+class GuestSessionWaitForFlag {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'None'      {$ToULong = 0} # No waiting flags specified. Do not use this.
+                'Start'     {$ToULong = 1} # Wait for the guest session being started.
+                'Terminate' {$ToULong = 2} # Wait for the guest session being terminated.
+                'Status'    {$ToULong = 3} # Wait for the next guest session status change.
+                Default     {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'None'} # No waiting flags specified. Do not use this.
+                1       {$ToStr = 'Start'} # Wait for the guest session being started.
+                2       {$ToStr = 'Terminate'} # Wait for the guest session being terminated.
+                3       {$ToStr = 'Status'} # Wait for the next guest session status change.
+                Default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
+class LockType {
     [int]ToInt ([string]$FromStr) {
         if ($FromStr){
             $ToInt = $null
             Switch ($FromStr) {
-                'Invalid'       {$ToInt = 0} # must always be first
-                'Any'           {$ToInt = 1}
-                'Vetoable'      {$ToInt = 2}
-                'MachineEvent'  {$ToInt = 3}
-                'SnapshotEvent' {$ToInt = 4}
-                'InputEvent'    {$ToInt = 5}
-                'LastWildcard'  {$ToInt = 6}
-                Default         {$ToInt = 0}
+                'Null'   {$ToInt = 0} # Placeholder value, do not use when obtaining a lock.
+                'Shared' {$ToInt = 1} # Request only a shared lock for remote-controlling the machine. Such a lock allows changing certain VM settings which can be safely modified for a running VM.
+                'Write'  {$ToInt = 2} # Lock the machine for writing. This requests an exclusive lock, i.e. there cannot be any other API client holding any type of lock for this VM concurrently. Remember that a VM process counts as an API client which implicitly holds the equivalent of a shared lock during the entire VM runtime.
+                'VM'     {$ToInt = 3} # Lock the machine for writing, and create objects necessary for running a VM in this process.
+                Default  {$ToInt = 0} # Default to 0.
             }
             return [int]$ToInt
         }
         else {return $null}
     }
-    [int]ToStr ([string]$FromInt) {
+    [string]ToStr ([int]$FromInt) {
         if ($FromInt){
             $ToStr = $null
             Switch ($FromInt) {
-                0       {$ToStr = 'Invalid'} # must always be first
-                1       {$ToStr = 'Any'}
-                2       {$ToStr = 'Vetoable'}
-                3       {$ToStr = 'MachineEvent'}
-                4       {$ToStr = 'SnapshotEvent'}
-                5       {$ToStr = 'InputEvent'}
-                6       {$ToStr = 'LastWildcard'}
-                Default {$ToStr = 'Invalid'}
+                0       {$ToStr = 'Null'} # Placeholder value, do not use when obtaining a lock.
+                1       {$ToStr = 'Shared'} # Request only a shared lock for remote-controlling the machine. Such a lock allows changing certain VM settings which can be safely modified for a running VM.
+                2       {$ToStr = 'Write'} # Lock the machine for writing. This requests an exclusive lock, i.e. there cannot be any other API client holding any type of lock for this VM concurrently. Remember that a VM process counts as an API client which implicitly holds the equivalent of a shared lock during the entire VM runtime.
+                3       {$ToStr = 'VM'} # Lock the machine for writing, and create objects necessary for running a VM in this process.
+                Default {$ToStr = 'None'} # Default to Null.
             }
-            return [int]$ToStr
+            return [string]$ToStr
         }
         else {return $null}
     }
-}
+} # Int
 class ProcessCreateFlag {
     [int]ToInt ([string]$FromStr) {
         if ($FromStr){
             $ToInt = $null
             Switch ($FromStr) {
                 'None'                    {$ToInt = 0} # No flag set
-                'WaitForProcessStartOnly' {$ToInt = 1}
-                'IgnoreOrphanedProcesses' {$ToInt = 2}
-                'Hidden'                  {$ToInt = 3}
-                'Profile'                 {$ToInt = 4}
-                'WaitForStdOut'           {$ToInt = 5}
-                'WaitForStdErr'           {$ToInt = 6}
-                'ExpandArguments'         {$ToInt = 7} # This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
-                'UnquotedArguments'       {$ToInt = 8} # Present since VirtualBox 4.3.28 and 5.0 beta 3.
-                Default                   {$ToInt = 0}
+                'WaitForProcessStartOnly' {$ToInt = 1} # Only use the specified timeout value to wait for starting the guest process - the guest process itself then uses an infinite timeout.
+                'IgnoreOrphanedProcesses' {$ToInt = 2} # Do not report an error when executed processes are still alive when VBoxService or the guest OS is shutting down.
+                'Hidden'                  {$ToInt = 3} # Do not show the started process according to the guest OS guidelines.
+                'Profile'                 {$ToInt = 4} # Utilize the user’s profile data when exeuting a process. Only available for Windows guests at the moment.
+                'WaitForStdOut'           {$ToInt = 5} # The guest process waits until all data from stdout is read out.
+                'WaitForStdErr'           {$ToInt = 6} # The guest process waits until all data from stderr is read out.
+                'ExpandArguments'         {$ToInt = 7} # Expands environment variables in process arguments. ***Note: This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                'UnquotedArguments'       {$ToInt = 8} # Work around for Windows and OS/2 applications not following normal argument quoting and escaping rules. The arguments are passed to the application without any extra quoting, just a single space between each. ***Note: Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                Default                   {$ToInt = 0} # Default to 0.
             }
             return [int]$ToInt
         }
         else {return $null}
     }
-    [int]ToStr ([string]$FromInt) {
+    [string]ToStr ([int]$FromInt) {
         if ($FromInt){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'None'} # No flag set
-                1       {$ToStr = 'WaitForProcessStartOnly'}
-                2       {$ToStr = 'IgnoreOrphanedProcesses'}
-                3       {$ToStr = 'Hidden'}
-                4       {$ToStr = 'Profile'}
-                5       {$ToStr = 'WaitForStdOut'}
-                6       {$ToStr = 'WaitForStdErr'}
-                6       {$ToStr = 'ExpandArguments'} # This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
-                6       {$ToStr = 'UnquotedArguments'} # Present since VirtualBox 4.3.28 and 5.0 beta 3.
-                Default {$ToStr = 'None'}
+                1       {$ToStr = 'WaitForProcessStartOnly'} # Only use the specified timeout value to wait for starting the guest process - the guest process itself then uses an infinite timeout.
+                2       {$ToStr = 'IgnoreOrphanedProcesses'} # Do not report an error when executed processes are still alive when VBoxService or the guest OS is shutting down.
+                3       {$ToStr = 'Hidden'} # Do not show the started process according to the guest OS guidelines.
+                4       {$ToStr = 'Profile'} # Utilize the user’s profile data when exeuting a process. Only available for Windows guests at the moment.
+                5       {$ToStr = 'WaitForStdOut'} # The guest process waits until all data from stdout is read out.
+                6       {$ToStr = 'WaitForStdErr'} # The guest process waits until all data from stderr is read out.
+                6       {$ToStr = 'ExpandArguments'} # Expands environment variables in process arguments. ***Note: This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                6       {$ToStr = 'UnquotedArguments'} # Work around for Windows and OS/2 applications not following normal argument quoting and escaping rules. The arguments are passed to the application without any extra quoting, just a single space between each. ***Note: Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                Default {$ToStr = 'None'} # Default to None.
             }
-            return [int]$ToStr
+            return [string]$ToStr
         }
         else {return $null}
     }
-}
+} # Int
+class ProcessWaitForFlag {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'None'      {$ToULong = 0} # No waiting flags specified. Do not use this.
+                'Start'     {$ToULong = 1} # Wait for the process being started.
+                'Terminate' {$ToULong = 2} # Wait for the process being terminated.
+                'StdIn'     {$ToULong = 3} # Wait for stdin becoming available.
+                'StdOut'    {$ToULong = 4} # Wait for data becoming available on stdout.
+                'StdErr'    {$ToULong = 5} # Wait for data becoming available on stderr.
+                Default     {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'None'} # No waiting flags specified. Do not use this.
+                1       {$ToStr = 'Start'} # Wait for the process being started.
+                2       {$ToStr = 'Terminate'} # Wait for the process being terminated.
+                3       {$ToStr = 'StdIn'} # Wait for stdin becoming available.
+                4       {$ToStr = 'StdOut'} # Wait for data becoming available on stdout.
+                5       {$ToStr = 'StdErr'} # Wait for data becoming available on stderr.
+                Default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
+class VBoxEventType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Invalid'       {$ToInt = 0} # must always be first - not sure what this means Oracle...
+                'Any'           {$ToInt = 1} # Wildcard for all events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                'Vetoable'      {$ToInt = 2} # Wildcard for all vetoable events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                'MachineEvent'  {$ToInt = 3} # Wildcard for all machine events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                'SnapshotEvent' {$ToInt = 4} # Wildcard for all snapshot events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                'InputEvent'    {$ToInt = 5} # Wildcard for all input device (keyboard, mouse) events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                'LastWildcard'  {$ToInt = 6} # Last wildcard.
+                Default         {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Invalid'} # must always be first - not sure what this means Oracle...
+                1       {$ToStr = 'Any'} # Wildcard for all events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                2       {$ToStr = 'Vetoable'} # Wildcard for all vetoable events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                3       {$ToStr = 'MachineEvent'} # Wildcard for all machine events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                4       {$ToStr = 'SnapshotEvent'} # Wildcard for all snapshot events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                5       {$ToStr = 'InputEvent'} # Wildcard for all input device (keyboard, mouse) events. Events of this type are never delivered, and only used in IEventSource::registerListener() call to simplify registration.
+                6       {$ToStr = 'LastWildcard'} # Last wildcard.
+                Default {$ToStr = 'Invalid'} # Default to Invalid.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int 375
+class Handle {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'StdIn'  {$ToULong = 0} # 0 is usually stdin.
+                'StdOut' {$ToULong = 1} # 1 is usually stdout.
+                'StdErr' {$ToULong = 2} # 2 is usually stderr.
+                Default  {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'StdIn'} # 0 is usually stdin.
+                1       {$ToStr = 'StdOut'} # 1 is usually stdout.
+                2       {$ToStr = 'StdErr'} # 2 is usually stderr.
+                Default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
 #########################################################################################
 # Variable Declarations
 $authtype = "VBoxAuth"
 $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
+# probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
 $vboxerror = New-Object VirtualBoxError
-$global:vboxeventtype = New-Object VBoxEventType
+# global method variables
+$global:ivirtualboxerrorinfo = New-Object IVirtualBoxErrorInfo
+$global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
+$global:locktype = New-Object LockType
 $global:processcreateflag = New-Object ProcessCreateFlag
+$global:processwaitforflag = New-Object ProcessWaitForFlag
+$global:vboxeventtype = New-Object VBoxEventType
+$global:handle = New-Object Handle
 #########################################################################################
 # Includes
 # N/A
@@ -205,7 +382,7 @@ Process {
  # create vbox app
  Write-Verbose 'Creating the VirtualBox Web Service object ($global:vbox)'
  #$global:vbox = New-Object -ComObject "VirtualBox.VirtualBox"
- $global:vbox = New-WebServiceProxy -Uri "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl" -Namespace "VirtualBox" -Class "VirtualBox"
+ $global:vbox = New-WebServiceProxy -Uri "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl" -Namespace "VirtualBox" -Class "VirtualBoxWebSrv"
  # write variable to the pipeline
  Write-Output $global:vbox
 } # Process
@@ -845,7 +1022,7 @@ Process {
      $imachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
      # lock the vm session
      Write-Verbose "Locking the machine session"
-     $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
      # get the machine IConsole session
      Write-Verbose "Getting the machine IConsole session"
      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
@@ -989,7 +1166,7 @@ Process {
      $imachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
      # lock the vm session
      Write-Verbose "Locking the machine session"
-     $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
      # get the machine IConsole session
      Write-Verbose "Getting the machine IConsole session"
      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
@@ -1370,7 +1547,7 @@ Process {
      Write-Verbose "ACPI Shutdown requested"
      if ($imachine.State -eq 'Running') {
       Write-verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
       # create iconsole session to vm
       Write-verbose "Creating IConsole session to the machine"
       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
@@ -1394,7 +1571,7 @@ Process {
      Write-Verbose "Power-off requested"
      if ($imachine.State -eq 'Running') {
       Write-verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
       # create iconsole session to vm
       Write-verbose "Creating IConsole session to the machine"
       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
@@ -1431,12 +1608,12 @@ Process {
     # next 2 ifs only for in-guest sessions
     if ($imachine.IGuestSession) {
      # release the iconsole session
-     Write-verbose "Releasing the IGuestSession for VM $($imachine.Name)"
+     Write-verbose "Releasing the IGuestSession object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IGuestSession)
     } # end if $imachine.IConsole
     if ($imachine.IConsoleGuest) {
      # release the iconsole session
-     Write-verbose "Releasing the IConsoleGuest for VM $($imachine.Name)"
+     Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
     } # end if $imachine.IConsole
     $imachine.ISession = $null
@@ -1776,7 +1953,7 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     Write-verbose "Locking the machine session"
-    $global:vbox.IMachine_lockMachine($imachine.Id,$imachine.ISession,1)
+    $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
     # create iconsole session to vm
     Write-verbose "Creating IConsole session to the machine"
     $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
@@ -1788,7 +1965,7 @@ Process {
     $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsLaunchProcess_$($imachine.IConsoleGuest)")
     # wait 10 seconds for the session to be created successfully - this needs to be merged with the previous call
     Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
-    $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, 1, 10000)
+    $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
     Write-Verbose "Guest console status: $iguestsessionstatus"
     # create the process in the guest machine and send it a list of arguments
     Write-Verbose "Sending `"$($PathToExecutable) -- $($Arguments)`" command (timeout: 10s)"
@@ -1805,41 +1982,71 @@ Process {
     try {
      # wait for process creation
      Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
-     $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, 1, 10000)
+     $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
      Write-Verbose "Process wait result: $($processwaitresult)"
+     $ieventsublistener = $null
      do {
-      Write-Debug '[DEBUG] Start loop'
       # get new events
       $ievent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventlistener, 200)
       if ($ievent -ne '') {
        # process new event
        Write-Verbose "Encountered event ID: $($ievent)"
+       $ieventtype = $global:vbox.IEvent_getType($ievent)
+       Write-Verbose "Event type: $($ieventtype)"
+       if ($ieventtype -eq 'OnEventSourceChanged') {
+        $ieventsublistener = $global:vbox.IEventSourceChangedEvent_getListener($ievent)
+        Write-Verbose "New event listener object found: $($ieventsublistener)"
+       } # end if event source changed
        $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
+      } # end if $ievent -ne ''
+      if ($ieventsublistener -ne $null) {$isubevent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventsublistener, 200)}
+      if ($isubevent -ne '') {
+       Write-Verbose "Encountered sub event ID: $($isubevent)"
+       $ieventtype = $global:vbox.IEvent_getType($isubevent)
+       Write-Verbose "Sub event type: $($ieventtype)"
       }
-      $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @(4,2), 200)
-      Write-Debug "[DEBUG] Process wait result: $($processwaitresult)"
-      $stdout = $global:vbox.IProcess_read($iguestprocess, 0, 64, 0)
-      Write-Debug "[DEBUG] StdOut: $($stdout)"
-      if ($stdout) {Write-Output ($stdout -join '')}
+      # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over anyway
+      $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('Terminate')), 200)
+      #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
+      # read guest process stdout
+      [char[]]$stdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), 64, 0)
+      Write-Verbose "[DEBUG] StdOut: $($stdout)"
+      # this should be removed after debugging $stdout
+      if ($stdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($stdout.GetType())"}
+      if ($stdout) {
+       # write stdout to pipeline
+       Write-Verbose "Writing StdOut to pipeline"
+       Write-Output ($stdout -join '')
+      } # end if $stdout
+      # read guest process stderr
+      $stderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), 64, 0)
+      Write-Debug "[DEBUG] StdErr: $($stdout)"
+      # write stderr to the host as error text if it contains anything
+      if ($stderr) {Write-Host ($stderr -join '') -ForegroundColor Red -BackgroundColor Black}
       $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
-      if ($iprocessstatus -notmatch 'Start') {Write-Verbose "Process status: $($iprocessstatus)"}
+      # note the process status to look for abnormal return
+      if ($iprocessstatus -notmatch 'Start') {
+       if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
+       else {Write-Debug "Process status: $($iprocessstatus)"}
+      } # end if $iprocessstatus -notmatch 'Start'
       $keeplooping = !$iprocessstatus.toString().contains('Terminated')
-      Write-Debug '[DEBUG] End loop'
      } until (!$keeplooping)
-    }
+    } # Try
     catch {
      Write-Verbose 'Exception while running process in guest machine'
      Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
-    }
+    } # Catch
     finally {
+     # unregister listener object
      Write-Verbose 'Unregistering listener'
      $global:vbox.IEventSource_unregisterListener($ieventsource, $ieventlistener)
      if (!($global:vbox.IProcess_getStatus($iguestprocess)).toString().contains('Terminated')) {
+      # kill guest process if it hasn't ended yet
       Write-Verbose 'Terminating guest process'
       $global:vbox.IProcess_terminate($iguestprocess)
-     }
-    }
-   } #foreach
+     } # end if process hasn't terminated
+    } # Finally
+   } # foreach $imachine in $imachines
   } # end if $imachines
   else {throw "No matching virtual machines were found using specified parameters"}
  } # Try
@@ -1859,19 +2066,22 @@ Process {
      } # end if session state not unlocked
     } # end if $imachine.ISession
     if ($imachine.IConsole) {
-     # release the iconsole session
-     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     # release the iconsole session object
+     Write-verbose "Releasing the IConsole session object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
     # next 2 ifs only for in-guest sessions
     if ($imachine.IGuestSession) {
+     # close the iconsole session
+     Write-verbose "Closing the IGuestSession session for VM $($imachine.Name)"
+     $global:vbox.IGuestSession_close($imachine.IGuestSession)
      # release the iconsole session
-     Write-verbose "Releasing the IGuestSession for VM $($imachine.Name)"
+     Write-verbose "Releasing the IGuestSession object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IGuestSession)
     } # end if $imachine.IConsole
     if ($imachine.IConsoleGuest) {
      # release the iconsole session
-     Write-verbose "Releasing the IConsoleGuest for VM $($imachine.Name)"
+     Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
     } # end if $imachine.IConsole
     $imachine.ISession = $null
