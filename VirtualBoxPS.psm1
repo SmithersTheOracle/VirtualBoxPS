@@ -1045,9 +1045,9 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.ISession) {
-     if ($global:vbox.IMachine_getSessionState($imachine.Id) > 1) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.Id)
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
      } # end if session state not unlocked
     } # end if $imachine.ISession
     if ($imachine.IConsole) {
@@ -1189,9 +1189,9 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.ISession) {
-     if ($global:vbox.IMachine_getSessionState($imachine.Id) > 1) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.Id)
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
      } # end if session state not unlocked
     } # end if $imachine.ISession
     if ($imachine.IConsole) {
@@ -1368,7 +1368,7 @@ Process {
     elseif ($Encrypted) {
      # start the vm in $Type mode
      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-     $imachine.IProgress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
+     $imachine.IProgress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(), $null)
      $imachine.IPercent = $global:vbox.IProgress_getOperationPercent($imachine.IProgress)
      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($imachine.IProgress)): $($imachine.IPercent)%” -percentComplete ($imachine.IPercent)}
      Write-Verbose "Waiting for VM $($imachine.Name) to pause"
@@ -1416,9 +1416,9 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.ISession) {
-     if ($global:vbox.IMachine_getSessionState($imachine.Id) > 1) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.Id)
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
      } # end if session state not unlocked
     } # end if $imachine.ISession
     if ($imachine.IConsole) {
@@ -1595,9 +1595,9 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.ISession) {
-     if ($global:vbox.IMachine_getSessionState($imachine.Id) > 1) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.Id)
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
      } # end if session state not unlocked
     } # end if $imachine.ISession
     if ($imachine.IConsole) {
@@ -1994,17 +1994,39 @@ Process {
        $ieventtype = $global:vbox.IEvent_getType($ievent)
        Write-Verbose "Event type: $($ieventtype)"
        if ($ieventtype -eq 'OnEventSourceChanged') {
+        # new event source... let's listen
         $ieventsublistener = $global:vbox.IEventSourceChangedEvent_getListener($ievent)
         Write-Verbose "New event listener object found: $($ieventsublistener)"
        } # end if event source changed
+       if ($ieventtype -eq 'OnGuestPropertyChanged') {
+        $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($ievent)
+        $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($ievent)
+        $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($ievent)
+        $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
+        Write-Verbose "Guest property name: $($guestpropertyname)"
+        Write-Verbose "Guest property value: $($guestpropertyvalue)"
+        Write-Verbose "Guest property flags: $($guestpropertyflags)"
+        Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
+       }
        $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
       } # end if $ievent -ne ''
       if ($ieventsublistener -ne $null) {$isubevent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventsublistener, 200)}
       if ($isubevent -ne '') {
        Write-Verbose "Encountered sub event ID: $($isubevent)"
-       $ieventtype = $global:vbox.IEvent_getType($isubevent)
+       $isubeventtype = $global:vbox.IEvent_getType($isubevent)
        Write-Verbose "Sub event type: $($ieventtype)"
-      }
+       if ($isubeventtype -eq 'OnGuestPropertyChanged') {
+        $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($isubevent)
+        $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($isubevent)
+        $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($isubevent)
+        $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
+        Write-Verbose "Guest property name: $($guestpropertyname)"
+        Write-Verbose "Guest property value: $($guestpropertyvalue)"
+        Write-Verbose "Guest property flags: $($guestpropertyflags)"
+        Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
+       }
+       $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
+      } # end if $isubevent -ne ''
       # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over anyway
       $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('Terminate')), 200)
       #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
@@ -2035,6 +2057,8 @@ Process {
     catch {
      Write-Verbose 'Exception while running process in guest machine'
      Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Host ' '
+     Write-Host
     } # Catch
     finally {
      # unregister listener object
@@ -2060,9 +2084,9 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.ISession) {
-     if ($global:vbox.IMachine_getSessionState($imachine.Id) > 1) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.Id)
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
      } # end if session state not unlocked
     } # end if $imachine.ISession
     if ($imachine.IConsole) {
