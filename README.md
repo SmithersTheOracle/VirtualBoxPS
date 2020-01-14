@@ -66,8 +66,13 @@ When you import the module, a global variable is created for the main VirtualBox
 The Get-VirtualBoxVM is used to get virtual machine objects and most other functions in the module will take pipelined input from this function when everything is completed. Get-VirtualBoxVM writes an array of custom objects to the pipeline with commonly used properties.
 
 ### **KNOWN ISSUES**
-* Start-VirtualBoxVM -Type Gui -Encrypted will still display a password prompt, even though the VM starts properly
-    (Workaround) Press cancel when prompted for the disk password, then press cancel when asked what to do next.
+* Submit-VirtualBoxVMProcess isn't recieving anything from stdout or stderr.
+
+### **WORK AROUNDS**
+* Start-VirtualBoxVM -Type Gui -Encrypted will still display a password prompt, even though the VM starts properly.
+	(Workaround) Press cancel when prompted for the disk password, then press cancel when asked what to do next.
+* Submit-VirtualBoxVMProcess will crash and abort your VM if VBox tools closes before the command completes.
+	(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -Bypass switch.
     
 ### **VERSION**
 	0.2.3.15
