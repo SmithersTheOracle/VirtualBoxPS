@@ -88,7 +88,6 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Stop-VirtualBoxWebSrv
 	Restart-VirtualBoxWebSrv
 	Update-VirtualBoxWebSrv
-	Get-VirtualBoxProcess
 	Get-VirtualBoxVM
 	Suspend-VirtualBoxVM
 	Resume-VirtualBoxVM
