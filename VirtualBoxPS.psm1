@@ -2,7 +2,8 @@
 <#
 TODO:
 Add support for credential arrays
-Create new VM
+Create new VM - 60%
+ - Convert 'Custom' parameter set parameters to dynamic parameters
 Create a new Disk
 -WhatIf support
 #>
@@ -141,6 +142,35 @@ class VirtualBoxWebSrvTask {
     [string]$Status
 }
 Update-TypeData -TypeName VirtualBoxWebSrvTask -DefaultDisplayPropertySet @("Name","Path","Status") -Force
+class ISystemPropertiesSupported {
+    [string[]]$ParavirtProviders
+    [string[]]$ClipboardModes
+    [string[]]$DndModes
+    [string[]]$FirmwareTypes
+    [string[]]$PointingHidTypes
+    [string[]]$KeyboardHidTypes
+    [string[]]$VfsTypes
+    [string[]]$ImportOptions
+    [string[]]$ExportOptions
+    [string[]]$RecordingAudioCodecs
+    [string[]]$RecordingVideoCodecs
+    [string[]]$RecordingVsMethods
+    [string[]]$RecordingVrcModes
+    [string[]]$GraphicsControllerTypes
+    [string[]]$CloneOptions
+    [string[]]$AutostopTypes
+    [string[]]$VmProcPriorities
+    [string[]]$NetworkAttachmentTypes
+    [string[]]$NetworkAdapterTypes
+    [string[]]$PortModes
+    [string[]]$UartTypes
+    [string[]]$USBControllerTypes
+    [string[]]$AudioDriverTypes
+    [string[]]$AudioControllerTypes
+    [string[]]$StorageBuses
+    [string[]]$StorageControllerTypes
+    [string[]]$ChipsetTypes
+}
 # method classes
 class VirtualBoxError {
     [string]Call ($ErrInput) {
@@ -406,7 +436,8 @@ $authtype = "VBoxAuth"
 $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
 # probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
 $vboxerror = New-Object VirtualBoxError
-# global method variables
+$global:systempropertiessupported = New-Object ISystemPropertiesSupported
+# global automatic method variables
 $global:ivirtualboxerrorinfo = New-Object IVirtualBoxErrorInfo
 $global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
 $global:locktype = New-Object LockType
@@ -465,6 +496,14 @@ Function Start-VirtualBoxSession {
 Starts a VirtualBox Web Service session and populates the $global:ivbox managed object reference
 .DESCRIPTION
 Create a PowerShell managed object reference to the VirtualBox Web Service managed object.
+.PARAMETER Protocol
+The protocol of the VirtualBox Web Service. Default is http.
+.PARAMETER Domain
+The domain name or IP address of the VirtualBox Web Service. Default is localhost.
+.PARAMETER Port
+The TCP port of the VirtualBox Web Service. Default is 18083.
+.PARAMETER Force
+A switch to force updating global properties.
 .EXAMPLE
 PS C:\> Start-VirtualBoxSession -Protocol "http" -Domain "localhost" -Port "18083" -Credential $Credential
 Populates the $global:ivbox variable to referece the VirtualBox Web Service managed object
@@ -492,7 +531,7 @@ Mandatory=$false,Position=0)]
 [ValidateSet("http","https")]
   [string]$Protocol = "http",
 # localhost ONLY for now since we haven't enabled https
-[Parameter(HelpMessage="Enter the domain or IP address running the web service (Default: localhost)",
+[Parameter(HelpMessage="Enter the domain name or IP address running the web service (Default: localhost)",
 Mandatory=$false,Position=1)]
   [string]$Domain = "localhost",
 [Parameter(HelpMessage="Enter the TCP port the web service is listening on (Default: 18083)",
@@ -500,7 +539,9 @@ Mandatory=$false,Position=2)]
   [string]$Port = "18083",
 [Parameter(HelpMessage="Enter the credentials used to run the web service",
 Mandatory=$true,Position=3)]
-  [pscredential]$Credential
+  [pscredential]$Credential,
+[Parameter(HelpMessage="Use this switch to force updating global properties")]
+  [switch]$Force
 ) # Param
 Begin {
  Write-Verbose "Starting $($myinvocation.mycommand)"
@@ -520,6 +561,75 @@ Process {
   # login to web service
   Write-Verbose 'Creating the VirtualBox Web Service session ($global:ivbox)'
   $global:ivbox = $global:vbox.IWebsessionManager_logon($Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password)
+  # get guest OS type IDs
+  Write-Verbose 'Fetching guest OS type data ($global:iguestostype)'
+  $global:iguestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
+  if (!$global:systemproperties -or $Force) {
+   # create a local copy of capabilities for quick reference
+   Write-Verbose 'Fetching system properties object ($global:systemproperties)'
+   $global:systemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
+   try {
+    Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+    Write-Verbose 'Fetching system properties: ParavirtProviders'
+    $global:systempropertiessupported.ParavirtProviders = $global:vbox.ISystemProperties_getSupportedParavirtProviders($global:systemproperties)
+    Write-Verbose 'Fetching system properties: ClipboardModes'
+    $global:systempropertiessupported.ClipboardModes = $global:vbox.ISystemProperties_getSupportedClipboardModes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: DndModes'
+    $global:systempropertiessupported.DndModes = $global:vbox.ISystemProperties_getSupportedDnDModes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: FirmwareTypes'
+    $global:systempropertiessupported.FirmwareTypes = $global:vbox.ISystemProperties_getSupportedFirmwareTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: PointingHidTypes'
+    $global:systempropertiessupported.PointingHidTypes = $global:vbox.ISystemProperties_getSupportedPointingHIDTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: KeyboardHidTypes'
+    $global:systempropertiessupported.KeyboardHidTypes = $global:vbox.ISystemProperties_getSupportedKeyboardHIDTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: VfsTypes'
+    $global:systempropertiessupported.VfsTypes = $global:vbox.ISystemProperties_getSupportedVFSTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: ImportOptions'
+    $global:systempropertiessupported.ImportOptions = $global:vbox.ISystemProperties_getSupportedImportOptions($global:systemproperties)
+    Write-Verbose 'Fetching system properties: ExportOptions'
+    $global:systempropertiessupported.ExportOptions = $global:vbox.ISystemProperties_getSupportedExportOptions($global:systemproperties)
+    Write-Verbose 'Fetching system properties: RecordingAudioCodecs'
+    $global:systempropertiessupported.RecordingAudioCodecs = $global:vbox.ISystemProperties_getSupportedRecordingAudioCodecs($global:systemproperties)
+    Write-Verbose 'Fetching system properties: RecordingVideoCodecs'
+    $global:systempropertiessupported.RecordingVideoCodecs = $global:vbox.ISystemProperties_getSupportedRecordingVideoCodecs($global:systemproperties)
+    Write-Verbose 'Fetching system properties: RecordingVsMethods'
+    $global:systempropertiessupported.RecordingVsMethods = $global:vbox.ISystemProperties_getSupportedRecordingVSMethods($global:systemproperties)
+    Write-Verbose 'Fetching system properties: RecordingVrcModes'
+    $global:systempropertiessupported.RecordingVrcModes = $global:vbox.ISystemProperties_getSupportedRecordingVRCModes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: GraphicsControllerTypes'
+    $global:systempropertiessupported.GraphicsControllerTypes = $global:vbox.ISystemProperties_getSupportedGraphicsControllerTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: CloneOptions'
+    $global:systempropertiessupported.CloneOptions = $global:vbox.ISystemProperties_getSupportedCloneOptions($global:systemproperties)
+    Write-Verbose 'Fetching system properties: AutostopTypes'
+    $global:systempropertiessupported.AutostopTypes = $global:vbox.ISystemProperties_getSupportedAutostopTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: VmProcPriorities'
+    $global:systempropertiessupported.VmProcPriorities = $global:vbox.ISystemProperties_getSupportedVMProcPriorities($global:systemproperties)
+    Write-Verbose 'Fetching system properties: NetworkAttachmentTypes'
+    $global:systempropertiessupported.NetworkAttachmentTypes = $global:vbox.ISystemProperties_getSupportedNetworkAttachmentTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: NetworkAdapterTypes'
+    $global:systempropertiessupported.NetworkAdapterTypes = $global:vbox.ISystemProperties_getSupportedNetworkAdapterTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: PortModes'
+    $global:systempropertiessupported.PortModes = $global:vbox.ISystemProperties_getSupportedPortModes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: UartTypes'
+    $global:systempropertiessupported.UartTypes = $global:vbox.ISystemProperties_getSupportedUartTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: UsbControllerTypes'
+    $global:systempropertiessupported.UsbControllerTypes = $global:vbox.ISystemProperties_getSupportedUSBControllerTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: AudioDriverTypes'
+    $global:systempropertiessupported.AudioDriverTypes = $global:vbox.ISystemProperties_getSupportedAudioDriverTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: AudioControllerTypes'
+    $global:systempropertiessupported.AudioControllerTypes = $global:vbox.ISystemProperties_getSupportedAudioControllerTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: StorageBuses'
+    $global:systempropertiessupported.StorageBuses = $global:vbox.ISystemProperties_getSupportedStorageBuses($global:systemproperties)
+    Write-Verbose 'Fetching system properties: StorageControllerTypes'
+    $global:systempropertiessupported.StorageControllerTypes = $global:vbox.ISystemProperties_getSupportedStorageControllerTypes($global:systemproperties)
+    Write-Verbose 'Fetching system properties: ChipsetTypes'
+    $global:systempropertiessupported.ChipsetTypes = $global:vbox.ISystemProperties_getSupportedChipsetTypes($global:systemproperties)
+   } # Try
+   catch {
+    Write-Verbose 'Exception fetching supported system properties'
+    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   } # Catch
+  }
  }
  catch {
   Write-Verbose 'Exception creating the VirtualBox Web Service session'
@@ -1743,6 +1853,277 @@ End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
 } # End
 } # end function
+Function New-VirtualBoxVM {
+<#
+.SYNOPSIS
+Suspend a virtual machine
+.DESCRIPTION
+Suspends a running virtual machine to the paused state.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | New-VirtualBoxVM
+Suspend all running virtual machines
+.EXAMPLE
+PS C:\> New-VirtualBoxVM -Name "2016"
+Suspend the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> New-VirtualBoxVM -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Suspend the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  New-VirtualBoxVM
+VERSION     :  1.0
+LAST UPDATED:  1/9/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Resume-VirtualBoxVM
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+None
+#>
+[CmdletBinding(DefaultParameterSetName='Template')]
+Param(
+[Parameter(HelpMessage="Enter a virtual machine name",
+Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(HelpMessage="Enter the type ID for the virtual machine guest OS",
+Mandatory=$true,Position=1)]
+[ValidateSet("Other","Other_64","Windows31","Windows95","Windows98","WindowsMe",
+"WindowsNT3x","WindowsNT4","Windows2000","WindowsXP","WindowsXP_64",
+"Windows2003","Windows2003_64","WindowsVista","WindowsVista_64",
+"Windows2008","Windows2008_64","Windows7","Windows7_64","Windows8",
+"Windows8_64","Windows81","Windows81_64","Windows2012_64","Windows10",
+"Windows10_64","Windows2016_64","Windows2019_64","WindowsNT",
+"WindowsNT_64","Linux22","Linux24","Linux24_64","Linux26","Linux26_64",
+"ArchLinux","ArchLinux_64","Debian","Debian_64","Fedora","Fedora_64",
+"Gentoo","Gentoo_64","Mandriva","Mandriva_64","Oracle","Oracle_64",
+"RedHat","RedHat_64","OpenSUSE","OpenSUSE_64","Turbolinux",
+"Turbolinux_64","Ubuntu","Ubuntu_64","Xandros","Xandros_64","Linux",
+"Linux_64","Solaris","Solaris_64","OpenSolaris","OpenSolaris_64",
+"Solaris11_64","FreeBSD","FreeBSD_64","OpenBSD","OpenBSD_64","NetBSD",
+"NetBSD_64","OS2Warp3","OS2Warp4","OS2Warp45","OS2eCS","OS21x","OS2",
+"MacOS","MacOS_64","MacOS106","MacOS106_64","MacOS107_64","MacOS108_64",
+"MacOS109_64","MacOS1010_64","MacOS1011_64","MacOS1012_64",
+"MacOS1013_64","DOS","Netware","L4","QNX","JRockitVE","VBoxBS_64")]
+  [string]$OsTypeId,
+[Parameter(HelpMessage="Enter the path for the virtual machine",
+Mandatory=$false)]
+  [string]$Path,
+[Parameter(HelpMessage="Enter optional virtual machine group(s)",
+Mandatory=$false)]
+  [string[]]$Group,
+[Parameter(HelpMessage="Enter optional flags for the virtual machine",
+Mandatory=$false)]
+  [string]$Flags,
+[Parameter(HelpMessage="Enter the description for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Description,
+[Parameter(HelpMessage="Enter the hardware UUID for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [guid]$HardwareUuid,
+[Parameter(HelpMessage="Enter the number of CPUs available to the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint64]$CpuCount,
+[Parameter(HelpMessage="Enable or disable CPU hotplug for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$CpuHotPlugEnabled,
+[Parameter(HelpMessage="Enter the CPU execution cap for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint64]$CpuExecutionCap,
+[Parameter(HelpMessage="Enter the CPUID portability level for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint64]$CpuIdPortabilityLevel,
+[Parameter(HelpMessage="Enter the memory size in MB for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint64]$MemorySize,
+[Parameter(HelpMessage="Enter the memory balloon size in MB for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint64]$MemoryBalloonSize,
+[Parameter(HelpMessage="Enable or disable page fusion for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$PageFusionEnabled,
+[Parameter(HelpMessage="Enter the firmware type for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$FirmwareType,
+[Parameter(HelpMessage="Enter the pointing HID type for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$PointingHidType,
+[Parameter(HelpMessage="Enter the keyboard HID type for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$KeyboardHidType,
+[Parameter(HelpMessage="Enable or disable HPET for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$HpetEnabled,
+[Parameter(HelpMessage="Enter the chipset type for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$ChipsetType,
+[Parameter(HelpMessage="Enable or disable emulated USB card reader for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$EmulatedUsbCardReaderEnabled,
+[Parameter(HelpMessage="Enter the clipboard mode for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$ClipboardMode,
+[Parameter(HelpMessage="Enable or disable clipboard file transfers for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$ClipboardFileTransfersEnabled,
+[Parameter(HelpMessage="Enter the drag n' drop mode for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$DndMode,
+[Parameter(HelpMessage="Enable or disable teleporter for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$TeleporterEnabled,
+[Parameter(HelpMessage="Enter the teleporter TCP port for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint16]$TeleporterPort,
+[Parameter(HelpMessage="Enter the teleporter address for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$TeleporterAddress,
+[Parameter(HelpMessage="Enter the teleporter password for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [securestring]$TeleporterPassword,
+[Parameter(HelpMessage="Enter the paravirtual provider for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$ParavirtProvider,
+[Parameter(HelpMessage="Enable or disable RTC to UTC conversion for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$RtcUseUtc,
+[Parameter(HelpMessage="Enable or disable IO cache for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$IoCacheEnabled,
+[Parameter(HelpMessage="Enter the IO cache size in MB for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint32]$IoCacheSize,
+[Parameter(HelpMessage="Enable or disable tracing for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$TracingEnabled,
+[Parameter(HelpMessage="Enter the tracing configuration for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$TracingConfig,
+[Parameter(HelpMessage="Enable or disable tracing access for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$AllowTracingToAccessVM,
+[Parameter(HelpMessage="Enable or disable auto start for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [bool]$AutostartEnabled,
+[Parameter(HelpMessage="Enter the auto start delay in seconds for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [uint32]$AutostartDelay,
+[Parameter(HelpMessage="Enter the auto stop type for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$AutostopType,
+[Parameter(HelpMessage="Enter the CPU profile for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CPUProfile,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ $defaultsettings = $global:iguestostype | Where-Object {$_.id -eq $OsTypeId}
+ try {
+  # create a reference object for the new machine
+  Write-Verbose "Creating reference object for $Name"
+  $imachine = New-Object VirtualBoxVM
+  $imachine.Id = $global:vbox.IVirtualBox_createMachine($global:ivbox, $Path, $Name, $Group, $OsTypeId, $Flags)
+  $global:vbox.IMachine_applyDefaults($imachine.Id, $null)
+  if ($PsCmdlet.ParameterSetName -eq 'Custom') {
+   try {
+    if ($Description) {$global:vbox.IMachine_setDescription($imachine.Id, $Description)}
+    if ($HardwareUuid) {$global:vbox.IMachine_setHardwareUUID($imachine.Id, $HardwareUuid)}
+    if ($CpuCount) {$global:vbox.IMachine_setCPUCount($imachine.Id, $CpuCount)}
+    if ($CpuHotPlugEnabled) {$global:vbox.IMachine_setCPUHotPlugEnabled($imachine.Id, $CpuHotPlugEnabled)}
+    if ($CpuExecutionCap) {$global:vbox.IMachine_setCPUExecutionCap($imachine.Id, $CpuExecutionCap)}
+    if ($CpuIdPortabilityLevel) {$global:vbox.IMachine_setCPUIDPortabilityLevel($imachine.Id, $CpuIdPortabilityLevel)}
+    if ($MemorySize) {$global:vbox.IMachine_setMemorySize($imachine.Id, $MemorySize)}
+    if ($MemoryBalloonSize) {$global:vbox.IMachine_setMemoryBalloonSize($imachine.Id, $MemoryBalloonSize)}
+    if ($PageFusionEnabled) {$global:vbox.IMachine_setPageFusionEnabled($imachine.Id, $PageFusionEnabled)}
+    # need to get Virtualbox.FirmwareType for this
+    #if ($FirmwareType) {$global:vbox.IMachine_setFirmwareType($imachine.Id, $FirmwareType)}
+    if ($PointingHidType) {$global:vbox.IMachine_setPointingHIDType($imachine.Id, $PointingHidType)}
+    if ($KeyboardHidType) {$global:vbox.IMachine_setKeyboardHIDType($imachine.Id, $KeyboardHidType)}
+    if ($HpetEnabled) {$global:vbox.IMachine_setHPETEnabled($imachine.Id, $HpetEnabled)}
+    if ($ChipsetType) {$global:vbox.IMachine_setChipsetType($imachine.Id, $ChipsetType)}
+    if ($EmulatedUsbCardReaderEnabled) {$global:vbox.IMachine_setEmulatedUSBCardReaderEnabled($imachine.Id, $EmulatedUsbCardReaderEnabled)}
+    if ($ClipboardMode) {$global:vbox.IMachine_setClipboardMode($imachine.Id, $ClipboardMode)}
+    if ($ClipboardFileTransfersEnabled) {$global:vbox.IMachine_setClipboardFileTransfersEnabled($imachine.Id, $ClipboardFileTransfersEnabled)}
+    if ($DndMode) {$global:vbox.IMachine_setDnDMode($imachine.Id, $DndMode)}
+    if ($TeleporterEnabled) {$global:vbox.IMachine_setTeleporterEnabled($imachine.Id, $TeleporterEnabled)}
+    if ($TeleporterPort) {$global:vbox.IMachine_setTeleporterPort($imachine.Id, $TeleporterPort)}
+    if ($TeleporterAddress) {$global:vbox.IMachine_setTeleporterAddress($imachine.Id, $TeleporterAddress)}
+    if ($TeleporterPassword) {$global:vbox.IMachine_setTeleporterPassword($imachine.Id, [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword)))}
+    if ($ParavirtProvider) {$global:vbox.IMachine_setParavirtProvider($imachine.Id, $ParavirtProvider)}
+    if ($RtcUseUtc) {$global:vbox.IMachine_setRTCUseUTC($imachine.Id, $RtcUseUtc)}
+    if ($IoCacheEnabled) {$global:vbox.IMachine_setIOCacheEnabled($imachine.Id, $IoCacheEnabled)}
+    if ($IoCacheSize) {$global:vbox.IMachine_setIOCacheSize($imachine.Id, $IoCacheSize)}
+    if ($TracingEnabled) {$global:vbox.IMachine_setTracingEnabled($imachine.Id, $TracingEnabled)}
+    if ($TracingConfig) {$global:vbox.IMachine_setTracingConfig($imachine.Id, $TracingConfig)}
+    if ($AllowTracingToAccessVM) {$global:vbox.IMachine_setAllowTracingToAccessVM($imachine.Id, $AllowTracingToAccessVM)}
+    if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($imachine.Id, $AutostartEnabled)}
+    if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($imachine.Id, $AutostartDelay)}
+    if ($AutostopType) {$global:vbox.IMachine_setAutostopType($imachine.Id, $AutostopType)}
+    if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($imachine.Id, $CPUProfile)}
+   }
+   catch {
+    Write-Verbose 'Exception applying custom parameters to machine'
+    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   }
+  }
+  $global:vbox.IMachine_saveSettings($imachine.Id)
+  $global:vbox.IVirtualBox_registerMachine($global:ivbox, $imachine.Id)
+ } # Try
+ catch {
+  Write-Verbose 'Exception creating machine'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    $imachine.ISession = $null
+    $imachine.IConsole = $null
+    $imachine.IPercent = $null
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+ } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
 Function Get-VirtualBoxDisks {
 <#
 .SYNOPSIS
@@ -2366,13 +2747,13 @@ End {
 # Entry
 if (!(Get-Process -ErrorAction Stop | Where-Object {$_.ProcessName -match 'VBoxWebSrv'})) {
  if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxWebSrv.exe") {
-  Start-Process -FilePath "`"$($env:VBOX_MSI_INSTALL_PATH)VBoxWebSrv.exe`"" -ArgumentList "--authentication `"$authtype`"" -WindowStyle Hidden -Verbose
+  Start-VirtualBoxWebSrv
  }
  else {throw "VBoxWebSrv not found."}
 } # end if VBoxWebSrv check
 # get the global reference to the virtualbox web service object
 Write-Verbose "Initializing VirtualBox environment"
-$vbox = Get-VirtualBox
+if (!$vbox) {$vbox = Get-VirtualBox}
 # get the web service task
 Write-Verbose "Updating VirtualBoxWebSrv"
 $vboxwebsrvtask = Update-VirtualBoxWebSrv
@@ -2389,6 +2770,7 @@ New-Alias -Name suvboxvm -Value Suspend-VirtualBoxVM
 New-Alias -Name revboxvm -Value Resume-VirtualBoxVM
 New-Alias -Name stavboxvm -Value Start-VirtualBoxVM
 New-Alias -Name stovboxvm -Value Stop-VirtualBoxVM
+New-Alias -Name nvboxvm -Value Stop-VirtualBoxVM
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisks
 New-Alias -Name subvboxvmp -Value Submit-VirtualBoxVMProcess
 New-Alias -Name subvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
