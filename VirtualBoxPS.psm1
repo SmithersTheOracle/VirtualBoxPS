@@ -1,8 +1,10 @@
 # Requires -version 5.0
 <#
 TODO:
+Add support for credential arrays
 Create new VM
 Create a new Disk
+-WhatIf support
 #>
 <#
 ****************************************************************
@@ -420,12 +422,12 @@ $global:handle = New-Object Handle
 Function Get-VirtualBox {
 <#
 .SYNOPSIS
-Get the VirtualBox Web Service.
+Get the VirtualBox Web Service
 .DESCRIPTION
-Create a PowerShell object for the VirtualBox Web Service object. This command is run when the VirtualBoxPS module is loaded.
+Create a PowerShell reference object for the VirtualBox Web Service. This command is run by default when the VirtualBoxPS module is loaded.
 .EXAMPLE
 PS C:\> $vbox = Get-VirtualBox
-Creates a $vbox variable to referece the VirtualBox Web Service
+Creates a $vbox variable to reference the VirtualBox Web Service
 .NOTES
 NAME        :  Get-VirtualBox
 VERSION     :  1.0
@@ -434,6 +436,7 @@ AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
 Start-VirtualBoxSession
+Stop-VirtualBoxSession
 .INPUTS
 None
 .OUTPUTS
@@ -459,9 +462,9 @@ End {
 Function Start-VirtualBoxSession {
 <#
 .SYNOPSIS
-Starts a VirtualBox Web Service session and populates the $global:ivbox managed object reference.
+Starts a VirtualBox Web Service session and populates the $global:ivbox managed object reference
 .DESCRIPTION
-Create a PowerShell object reference to the VirtualBox Web Service managed object.
+Create a PowerShell managed object reference to the VirtualBox Web Service managed object.
 .EXAMPLE
 PS C:\> Start-VirtualBoxSession -Protocol "http" -Domain "localhost" -Port "18083" -Credential $Credential
 Populates the $global:ivbox variable to referece the VirtualBox Web Service managed object
@@ -475,12 +478,12 @@ EDITOR      :  SmithersTheOracle
 Get-VirtualBox
 Stop-VirtualBoxSession
 .INPUTS
-Pos0: string       : <"http">
-Pos1: string       : <"localhost">
-Pos2: string       : <"18083">
-Pos3: pscredential :
+string       : string for protocol
+string       : string for IP/FQDN
+string       : string for TCP port
+pscredential :
 .OUTPUTS
-None
+$global:ivbox
 #>
 [cmdletbinding()]
 Param(
@@ -519,7 +522,7 @@ Process {
   $global:ivbox = $global:vbox.IWebsessionManager_logon($Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password)
  }
  catch {
-  Write-Verbose '$_.Exception'
+  Write-Verbose 'Exception creating the VirtualBox Web Service session'
   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  }
 } # Process
@@ -530,9 +533,9 @@ End {
 Function Stop-VirtualBoxSession {
 <#
 .SYNOPSIS
-Closes the VirtualBox Web Service session.
+Stops the current VirtualBox Web Service session
 .DESCRIPTION
-Instruct the VirtualBox Web Service to close the current managed object session.
+Instruct the VirtualBox Web Service to close the current managed object session referenced by $global:ivbox.
 .EXAMPLE
 PS C:\> Stop-VirtualBoxSession
 .NOTES
@@ -561,16 +564,15 @@ Begin {
  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
 } # Begin
 Process {
- # login to web service
- Write-Verbose 'Creating the VirtualBox Web Service session ($global:ivbox)'
  if ($global:ivbox) {
   try {
    # tell vboxwebsrv to end the current session
+  Write-Verbose 'Closing the VirtualBox Web Service session ($global:ivbox)'
    $global:vbox.IWebsessionManager_logoff($global:ivbox)
    $global:ivbox = $null
   } # end try
   catch {
-   Write-Verbose '$_.Exception'
+   Write-Verbose 'Exception closing the VirtualBox Web Service session'
    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
   }
  }
@@ -582,7 +584,7 @@ End {
 Function Start-VirtualBoxWebSrv {
 <#
 .SYNOPSIS
-Starts the VirtualBox Web Service.
+Starts the VirtualBox Web Service
 .DESCRIPTION
 Starts the VirtualBox Web Service using schtask.exe.
 .EXAMPLE
@@ -625,7 +627,7 @@ Process {
   }
  }
  catch {
-  Write-Verbose '$_.Exception'
+  Write-Verbose 'Exception starting the VirtualBox Web Service'
   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  }
 } # Process
@@ -636,7 +638,7 @@ End {
 Function Stop-VirtualBoxWebSrv {
 <#
 .SYNOPSIS
-Stops the VirtualBox Web Service.
+Stops the VirtualBox Web Service
 .DESCRIPTION
 Stops the VirtualBox Web Service using schtask.exe.
 .EXAMPLE
@@ -670,7 +672,7 @@ Process {
   & cmd /c schtasks.exe /end /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
  } # end try
  catch {
-  Write-Verbose '$_.Exception'
+  Write-Verbose 'Exception ending the VirtualBox Web Service'
   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # end catch
 } # Process
@@ -681,12 +683,12 @@ End {
 Function Restart-VirtualBoxWebSrv {
 <#
 .SYNOPSIS
-Restarts the VirtualBox Web Service.
+Restarts the VirtualBox Web Service
 .DESCRIPTION
 Stops then starts the VirtualBox Web Service using schtask.exe.
 .EXAMPLE
 PS C:\> Restart-VirtualBoxWebSrv
-Restarts the VirtualBox Web Service
+Restarts the VirtualBox Web Service if it is running
 .NOTES
 NAME        :  Restart-VirtualBoxWebSrv
 VERSION     :  1.0
@@ -719,11 +721,11 @@ End {
 Function Update-VirtualBoxWebSrv {
 <#
 .SYNOPSIS
-Gets the updated status of the VirtualBox Web Service.
+Gets the updated status of the VirtualBox Web Service
 .DESCRIPTION
 Gets the updated status of the VirtualBox Web Service using schtask.exe.
 .EXAMPLE
-PS C:\> if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+PS C:\> Update-VirtualBoxWebSrv
 Returns the updated status of the VirtualBox Web Service
 .NOTES
 NAME        :  Update-VirtualBoxWebSrv
@@ -764,7 +766,7 @@ Process {
   $vboxwebsrvtask.Status = (& cmd /c schtasks.exe /query /fo csv | ConvertFrom-Csv | Where-Object {$_.TaskName -match 'VirtualBox API Web Service'}).Status
  } # end try
  catch {
-  Write-Verbose '$_.Exception'
+  Write-Verbose 'Exception updating the VirtualBox Web Service'
   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # end catch
  if (!$vboxwebsrvtask) {throw 'Failed to update $vboxwebsrvtask'}
@@ -787,7 +789,7 @@ The name of a virtual machine.
 The GUID of a virtual machine.
 .PARAMETER State
 Return virtual machines based on their state. Valid values are:
-"Stopped","Running","Saved","Teleported","Aborted","Paused","Stuck","Snapshotting",
+"PoweredOff","Running","Saved","Teleported","Aborted","Paused","Stuck","Snapshotting",
 "Starting","Stopping","Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
 "DeletingSnapshotOnline","DeletingSnapshot", and "SettingUp"
 .PARAMETER SkipCheck
@@ -906,85 +908,91 @@ Process {
  Write-Verbose "Getting virtual machine inventory"
  # initialize array object to hold virtual machine values
  $vminventory = @()
- # get virtual machine inventory
- foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
-   $tempobj = New-Object VirtualBoxVM
-   $tempobj.Name = $global:vbox.IMachine_getName($vmid)
-   $tempobj.Description = $global:vbox.IMachine_getDescription($vmid)
-   $tempobj.State = $global:vbox.IMachine_getState($vmid)
-   $tempobj.GuestOS = $global:vbox.IMachine_getOSTypeId($vmid)
-   $tempobj.MemoryMb = $global:vbox.IMachine_getMemorySize($vmid)
-   $tempobj.Id = $vmid
-   $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
-   $tempobj.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmid)
-   # decode state
-   Switch ($tempobj.State) {
-    1 {$tempobj.State = "PoweredOff"}
-    2 {$tempobj.State = "Saved"}
-    3 {$tempobj.State = "Teleported"}
-    4 {$tempobj.State = "Aborted"}
-    5 {$tempobj.State = "Running"}
-    6 {$tempobj.State = "Paused"}
-    7 {$tempobj.State = "Stuck"}
-    8 {$tempobj.State = "Snapshotting"}
-    9 {$tempobj.State = "Starting"}
-    10 {$tempobj.State = "Stopping"}
-    11 {$tempobj.State = "Restoring"}
-    12 {$tempobj.State = "TeleportingPausedVM"}
-    13 {$tempobj.State = "TeleportingIn"}
-    14 {$tempobj.State = "FaultTolerantSync"}
-    15 {$tempobj.State = "DeletingSnapshotOnline"}
-    16 {$tempobj.State = "DeletingSnapshot"}
-    17 {$tempobj.State = "SettingUp"}
-    Default {$tempobj.State = $tempobj.State}
-   }
-   Write-Verbose "Found $($tempobj.Name) and adding to inventory"
-   $vminventory += $tempobj
- } # end foreach loop inventory
- # filter virtual machines
- if ($Name -and $Name -ne "*") {
-  Write-Verbose "Filtering virtual machines by name: $Name"
-  foreach ($vm in $vminventory) {
-   Write-Verbose "Matching $($vm.Name) to $($Name)"
-   if ($vm.Name -match $Name) {
-    if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession}}
-    elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession}}
-   }
-  }
- } # end if $Name and not *
- elseif ($Guid) {
-  Write-Verbose "Filtering virtual machines by GUID: $Guid"
-  foreach ($vm in $vminventory) {
-   Write-Verbose "Matching $($vm.Guid) to $($Guid)"
-   if ($vm.Guid -match $Guid) {
-    if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
-    elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
-   }
-  }
- } # end if $Guid
- elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
-  if ($State) {
-   Write-Verbose "Filtering all virtual machines by state: $State"
+ try {
+  # get virtual machine inventory
+  foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+    $tempobj = New-Object VirtualBoxVM
+    $tempobj.Name = $global:vbox.IMachine_getName($vmid)
+    $tempobj.Description = $global:vbox.IMachine_getDescription($vmid)
+    $tempobj.State = $global:vbox.IMachine_getState($vmid)
+    $tempobj.GuestOS = $global:vbox.IMachine_getOSTypeId($vmid)
+    $tempobj.MemoryMb = $global:vbox.IMachine_getMemorySize($vmid)
+    $tempobj.Id = $vmid
+    $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
+    $tempobj.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmid)
+    # decode state
+    Switch ($tempobj.State) {
+     1 {$tempobj.State = "PoweredOff"}
+     2 {$tempobj.State = "Saved"}
+     3 {$tempobj.State = "Teleported"}
+     4 {$tempobj.State = "Aborted"}
+     5 {$tempobj.State = "Running"}
+     6 {$tempobj.State = "Paused"}
+     7 {$tempobj.State = "Stuck"}
+     8 {$tempobj.State = "Snapshotting"}
+     9 {$tempobj.State = "Starting"}
+     10 {$tempobj.State = "Stopping"}
+     11 {$tempobj.State = "Restoring"}
+     12 {$tempobj.State = "TeleportingPausedVM"}
+     13 {$tempobj.State = "TeleportingIn"}
+     14 {$tempobj.State = "FaultTolerantSync"}
+     15 {$tempobj.State = "DeletingSnapshotOnline"}
+     16 {$tempobj.State = "DeletingSnapshot"}
+     17 {$tempobj.State = "SettingUp"}
+     Default {$tempobj.State = $tempobj.State}
+    }
+    Write-Verbose "Found $($tempobj.Name) and adding to inventory"
+    $vminventory += $tempobj
+  } # end foreach loop inventory
+  # filter virtual machines
+  if ($Name -and $Name -ne "*") {
+   Write-Verbose "Filtering virtual machines by name: $Name"
    foreach ($vm in $vminventory) {
-    if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
+    Write-Verbose "Matching $($vm.Name) to $($Name)"
+    if ($vm.Name -match $Name) {
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession}}
+    }
    }
-  }
+  } # end if $Name and not *
+  elseif ($Guid) {
+   Write-Verbose "Filtering virtual machines by GUID: $Guid"
+   foreach ($vm in $vminventory) {
+    Write-Verbose "Matching $($vm.Guid) to $($Guid)"
+    if ($vm.Guid -match $Guid) {
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
+    }
+   }
+  } # end if $Guid
+  elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
+   if ($State) {
+    Write-Verbose "Filtering all virtual machines by state: $State"
+    foreach ($vm in $vminventory) {
+     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
+    }
+   }
+   else {
+    Write-Verbose "Filtering all virtual machines"
+    foreach ($vm in $vminventory) {
+     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}
+    }
+   }
+  } # end if All
+  Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
+  Write-Verbose "Found $($obj.Guid)"
+  if ($obj) {
+   # write virtual machines object to the pipeline as an array
+   Write-Output ([System.Array]$obj)
+  } # end if $obj
   else {
-   Write-Verbose "Filtering all virtual machines"
-   foreach ($vm in $vminventory) {
-    [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}
-   }
-  }
- } # end if All
- Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
- Write-Verbose "Found $($obj.Guid)"
- if ($obj) {
-  # write virtual machines object to the pipeline as an array
-  Write-Output ([System.Array]$obj)
- } # end if $obj
- else {
-  Write-Host "[Warning] No matching virtual machines found" -ForegroundColor DarkYellow
- } # end else
+   Write-Host "[Warning] No matching virtual machines found" -ForegroundColor DarkYellow
+  } # end else
+ } # Try
+ catch {
+  Write-Verbose 'Exception retreiving machine information'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -997,11 +1005,13 @@ Suspend a virtual machine
 .DESCRIPTION
 Suspends a running virtual machine to the paused state.
 .PARAMETER Machine
-At least one running virtual machine object. The object must be wrapped as a [System.Array]. Can be received via pipeline input.
+At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
-The Name of at least one running virtual machine.
-.PARAMETER GUID
-The GUID of at least one running virtual machine.
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Suspend-VirtualBoxVM
 Suspend all running virtual machines
@@ -1020,9 +1030,9 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Resume-VirtualBoxVM
 .INPUTS
-System.Array[]:  Array for virtual machine objects
+VirtualBoxVM[]:  Array for virtual machine objects
 String[]      :  Strings for virtual machine names
-Guid[]        :  GUIDs for virtual machine GUIDs 
+Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
 None
 #>
@@ -1141,10 +1151,14 @@ Function Resume-VirtualBoxVM {
 Resume a virtual machine
 .DESCRIPTION
 Resumes a paused virtual machine to the running state.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
-The Name of at least one paused virtual machine.
-.PARAMETER GUID
-The GUID of at least one paused virtual machine.
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Paused | Resume-VirtualBoxVM
 Resume all paused virtual machines
@@ -1163,7 +1177,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Suspend-VirtualBoxVM
 .INPUTS
-System.Array[]:  Array for virtual machine objects
+VirtualBoxVM[]:  Array for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -1283,9 +1297,9 @@ Function Start-VirtualBoxVM {
 .SYNOPSIS
 Start a virtual machine
 .DESCRIPTION
-Start virtual box machines by machine object, name, or GUID. The default Type is to start them in GUI mode. You can also run them headless mode which will start a new, hidden process window. If the machine(s) disk(s) are encrypted, you must specify the -Encrypted switch and supply credentials using the -Credential parameter. The username (identifier) is the name of the virtual machine by default, unless it has been otherwise specified.
+Start VirtualBox VMs by machine object, name, or GUID. The default Type is to start them in GUI mode. You can also run them headless mode which will start a new hidden process. If the machine(s) disk(s) are encrypted, you must specify the -Encrypted switch and supply credentials using the -Credential parameter. The username (identifier) is the name of the virtual machine by default, unless it has been otherwise specified.
 .PARAMETER Machine
-At least one virtual machine object. The object must be wrapped as a [System.Array]. Can be received via pipeline input.
+At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
 The name of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER Guid
@@ -1304,7 +1318,7 @@ A switch to skip service update (for development use).
 PS C:\> Start-VirtualBoxVM "Win10"
 Starts the virtual machine called Win10 in GUI mode.
 .EXAMPLE
-PS C:\> Start-VirtualBoxVM "2016" -Headless -Encrypted -Credential
+PS C:\> Start-VirtualBoxVM "2016" -Headless -Encrypted -Credential $diskCredentials
 Starts the virtual machine called "2016 Core" in headless mode and provides credentials to decrypt the disk(s) on boot.
 .NOTES
 NAME        :  Start-VirtualBoxVM
@@ -1316,10 +1330,10 @@ EDITOR      :  SmithersTheOracle
 Get-VirtualBoxVM
 Stop-VirtualBoxVM
 .INPUTS
-System.Array[]:  Array for virtual machine objects
+VirtualBoxVM[]:  Array for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
-PsCredential[]:  Credential for virtual machine disks
+PsCredential  :  Credential for virtual machine disks
 .OUTPUTS
 None
 #>
@@ -1470,7 +1484,6 @@ Process {
       } # Try
       catch {
        Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
-       return
       } # Catch
      } # end foreach $disk in $disks
     } # end elseif Encrypted
@@ -1519,21 +1532,30 @@ Function Stop-VirtualBoxVM {
 .SYNOPSIS
 Stop a virtual machine
 .DESCRIPTION
-Stop one or more virtual box machines by powering them off. You may also provide the -Acpi switch to send an ACPI shutdown signal. Alternatively, if a machine will not respond to an ACPI shutdown signal, you may try the -PsShutdown switch which will send a shutdown command via PowerShell. Credentials will be required if -PsShutdown is used.
+Stop one or more virtual box machines by powering them off. You may also provide the -Acpi switch to send an ACPI shutdown signal. Alternatively, if a machine will not respond to an ACPI shutdown signal, you may try the -PsShutdown switch which will send a shutdown command via PowerShell. Valid administrator credentials will be required if -PsShutdown is used. You can supply credentials with the -Credential parameter.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
-The name of at least one virtual machine.
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER Acpi
 A switch to send an ACPI shutdown signal to the machine.
 .PARAMETER PsShutdown
 A switch to send the Stop-Computer PowerShell command to the machine.
 .PARAMETER Credential
-Administrator credentials for the machine. Required for PsShutdown
+Administrator credentials for the machine. Required if the PsShutdown switch is used.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Stop-VirtualBoxVM "Win10"
-Stops the virtual machine called Win10
+Stops the VM named Win10
 .EXAMPLE
-PS C:\> Get-VirtualBoxVM | Stop-VirtualBoxVM
-Stops all running virtual machines
+PS C:\> Get-VirtualBoxVM -State 'Running' | Stop-VirtualBoxVM
+Stops all running VMs
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State 'Running' | Where-Object {$_.GuestOS -match 'win'} | Stop-VirtualBoxVM -PsShutdown -Credential $domainAdminCredentials
+Sends a PowerShell shutdown command to all running Windows VMs using domain administrator credentials stored in $domainAdminCredentials
 .NOTES
 NAME        :  Stop-VirtualBoxVM
 VERSION     :  1.0
@@ -1545,7 +1567,10 @@ Get-VirtualBoxVM
 Start-VirtualBoxVM
 Suspend-VirtualBoxVM
 .INPUTS
-String[]    :  
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+PsCredential  :  Credential for virtual machine guests
 .OUTPUTS
 None
 #>
@@ -1725,11 +1750,13 @@ Get VirtualBox disk information
 .DESCRIPTION
 Retrieve VirtualBox disks by machine object, machine name, machine GUID, or all.
 .PARAMETER Machine
-At least one virtual machine object. The object must be wrapped as a [System.Array]. Can be received via pipeline input.
+At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER MachineName
 The name of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER MachineGuid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxDisks
 
@@ -1811,7 +1838,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 None (Yet)
 .INPUTS
-System.Array[]:  Array for virtual machine objects
+VirtualBoxVM[]:  Array for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -1854,7 +1881,8 @@ Process {
  if (!($Machine -or $MachineName -or $MachineGuid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  $disks = @()
  $obj = @()
- # get virtual machine inventory
+ try {
+ # get virtual machine disk inventory
  Write-Verbose "Getting virtual disk inventory"
  foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
   Write-Verbose "Getting disk: $($imediumid)"
@@ -1923,6 +1951,11 @@ Process {
  else {
   Write-Host "[Warning] No virtual disks found." -ForegroundColor DarkYellow
  } # end else
+ }
+ catch {
+  Write-Verbose 'Exception retrieving virtual disk information'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -1946,6 +1979,8 @@ The full path to the executable.
 An array of arguments to pass the executable.
 .PARAMETER Credential
 Administrator/Root credentials for the machine.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Submit-VirtualBoxVMProcess Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
 Runs cmd.exe in the virtual machine guest OS with the argument list "/c shutdown /s /f"
@@ -1997,7 +2032,7 @@ Position=2)]
 [Parameter(Mandatory=$true,
 HelpMessage="Enter the credentials to login to the guest OS")]
   [pscredential]$Credential,
-[Parameter(HelpMessage="Use this switch ONLY to skip if you send a shutdown command")]
+[Parameter(HelpMessage="Use this switch ONLY if you send a shutdown command")]
   [switch]$Bypass,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
@@ -2232,6 +2267,8 @@ The full path to the executable.
 An array of arguments to pass the executable.
 .PARAMETER Credential
 Administrator/Root credentials for the machine.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Submit-VirtualBoxVMPowerShellScript Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
 Runs cmd.exe in the virtual machine guest OS with the argument list "/c shutdown /s /f"
