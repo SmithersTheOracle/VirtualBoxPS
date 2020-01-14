@@ -1,7 +1,6 @@
 # Requires -version 5.0
 <#
 TODO:
-Finish integrating progress bar
 Create new VM
 Create a new Disk
 #>
@@ -15,6 +14,74 @@ Create a new Disk
 #>
 #########################################################################################
 # Class Definitions
+# subclasses
+class IProgress {
+    [ValidateNotNullOrEmpty()]
+    [string]$Id
+    [ValidateNotNullOrEmpty()]
+	[guid]$Guid
+	[string]$Description
+	[string]$Initiator
+	[bool]$Cancelable
+	[uint64]$Percent
+	[long]$TimeRemaining
+	[bool]$Completed
+	[bool]$Canceled
+	[long]$ResultCode
+	[string]$ErrorInfo
+	[uint64]$OperationCount
+	[uint64]$Operation
+	[string]$OperationDescription
+	[uint64]$OperationPercent
+	[uint64]$OperationWeight
+	[uint64]$Timeout
+    [IProgress]Fetch ([string]$Id) {
+        $Variable = [IProgress]::new()
+        if ($Variable){
+			$Variable.Id = $Id
+			$Variable.Guid = $global:vbox.IProgress_getId($Id)
+			$Variable.Description = $global:vbox.IProgress_getDescription($Id)
+			$Variable.Initiator = $global:vbox.IProgress_getInitiator($Id)
+			$Variable.Cancelable = $global:vbox.IProgress_getCancelable($Id)
+			$Variable.Percent = $global:vbox.IProgress_getPercent($Id)
+			$Variable.TimeRemaining = $global:vbox.IProgress_getTimeRemaining($Id)
+			$Variable.Completed = $global:vbox.IProgress_getCompleted($Id)
+			$Variable.Canceled = $global:vbox.IProgress_getCanceled($Id)
+			#$Variable.ResultCode = $global:vbox.IProgress_getResultCode($Id)
+			#$Variable.ErrorInfo = $global:vbox.IProgress_getErrorInfo($Id)
+			$Variable.OperationCount = $global:vbox.IProgress_getOperationCount($Id)
+			$Variable.Operation = $global:vbox.IProgress_getOperation($Id)
+			$Variable.OperationDescription = $global:vbox.IProgress_getOperationDescription($Id)
+			$Variable.OperationPercent = $global:vbox.IProgress_getOperationPercent($Id)
+			$Variable.OperationWeight = $global:vbox.IProgress_getOperationWeight($Id)
+			#$Variable.getTimeout = $global:vbox.IProgress_getTimeout($Id)
+            return $Variable
+        }
+        else {return $null}
+    }
+    [IProgress]Update ([string]$Id) {
+        $Variable = [IProgress]::new()
+        if ($Variable){
+			$Variable.Id = $Id
+			$Variable.Initiator = $global:vbox.IProgress_getInitiator($Id)
+			$Variable.Percent = $global:vbox.IProgress_getPercent($Id)
+			$Variable.TimeRemaining = $global:vbox.IProgress_getTimeRemaining($Id)
+			$Variable.Completed = $global:vbox.IProgress_getCompleted($Id)
+			$Variable.Canceled = $global:vbox.IProgress_getCanceled($Id)
+			#$Variable.ResultCode = $global:vbox.IProgress_getResultCode($Id)
+			#$Variable.ErrorInfo = $global:vbox.IProgress_getErrorInfo($Id)
+			$Variable.OperationCount = $global:vbox.IProgress_getOperationCount($Id)
+			$Variable.Operation = $global:vbox.IProgress_getOperation($Id)
+			$Variable.OperationDescription = $global:vbox.IProgress_getOperationDescription($Id)
+			$Variable.OperationPercent = $global:vbox.IProgress_getOperationPercent($Id)
+			$Variable.OperationWeight = $global:vbox.IProgress_getOperationWeight($Id)
+			#$Variable.getTimeout = $global:vbox.IProgress_getTimeout($Id)
+            return $Variable
+        }
+        else {return $null}
+    }
+}
+Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description") -Force
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
@@ -33,10 +100,9 @@ class VirtualBoxVM {
     [string]$MSession
     [string]$IConsole
     [string]$MConsole
-    [string]$IProgress
+    [IProgress]$IProgress = [IProgress]::new()
     [string]$IConsoleGuest
     [string]$IGuestSession
-    [uint64]$IPercent
 }
 Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force
 class VirtualBoxVHD {
@@ -1057,7 +1123,6 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IProgress = $null
     $imachine.IPercent = $null
     $imachine.MSession = $null
     $imachine.MConsole = $null
@@ -1201,7 +1266,6 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IProgress = $null
     $imachine.IPercent = $null
     $imachine.MSession = $null
     $imachine.MConsole = $null
@@ -1357,26 +1421,36 @@ Process {
     if (-not $Encrypted) {
      # start the vm in $Type mode
      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-     $iprogress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
-     $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
-     if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
+     $imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
+     # collect iprogress data
+     Write-Verbose "Fetching IProgress data"
+     $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+     if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
      do {
-      $ipercent = $global:vbox.IProgress_getOperationPercent($iprogress)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($iprogress)): $($ipercent)%” -percentComplete ($ipercent)}
-     } until ($ipercent -eq '100') # continue once the progress reaches 100%
+      # get the current machine state
+      $machinestate = $global:vbox.IMachine_getState($imachine.Id)
+      # update iprogress data
+      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity “$($imachine.IProgress.OperationDescription)” -status “$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%” -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } until ($machinestate -eq 'Running') # continue once the vm is running
     } # end if not Encrypted
     elseif ($Encrypted) {
      # start the vm in $Type mode
      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-     $imachine.IProgress = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(), $null)
-     $imachine.IPercent = $global:vbox.IProgress_getOperationPercent($imachine.IProgress)
-     if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($imachine.IProgress)): $($imachine.IPercent)%” -percentComplete ($imachine.IPercent)}
-     Write-Verbose "Waiting for VM $($imachine.Name) to pause"
+     $imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(), $null)
+     # collect iprogress data
+     Write-Verbose "Fetching IProgress data"
+     $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+     if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+     Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
      do {
       # get the current machine state
       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
-      $imachine.IPercent = $global:vbox.IProgress_getOperationPercent($imachine.IProgress)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($global:vbox.IProgress_getOperationDescription($imachine.IProgress)): $($imachine.IPercent)%” -percentComplete ($imachine.IPercent)}
+      # update iprogress data
+      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity “$($imachine.IProgress.OperationDescription)” -status “$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%” -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
      } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
      Write-Verbose "VM $($imachine.Name) paused"
      # create new session object for iconsole
@@ -1428,7 +1502,6 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IProgress = $null
     $imachine.IPercent = $null
     $imachine.MSession = $null
     $imachine.MConsole = $null
@@ -1562,7 +1635,7 @@ Process {
      if ($imachine.State -eq 'Running') {
       # send a stop-computer -force command to the guest machine
       Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command to guest machine'
-      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential)
+      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential -Bypass)
       #$iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, 'C:\\Windows\\System32\\cmd.exe', [array]@('cmd.exe','/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false'), [array]@(), 3, 10000)
      }
      else {return "Only machines that are running may be stopped."}
@@ -1577,7 +1650,19 @@ Process {
       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
       # Power off the machine
       Write-verbose "Powering off the machine"
-      $iprogress = $global:vbox.IConsole_powerDown($imachine.IConsole)
+      $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
+      # collect iprogress data
+      Write-Verbose "Fetching IProgress data"
+      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      do {
+       # get the current machine state
+       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
+       # update iprogress data
+       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+       if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity “$($imachine.IProgress.OperationDescription)” -status “$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%” -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($machinestate -eq 'Running') # continue once the vm is running
      }
      else {return "Only machines that are running may be stopped."}
     }
@@ -1618,7 +1703,6 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IProgress = $null
     $imachine.IPercent = $null
     $imachine.MSession = $null
     $imachine.MConsole = $null
@@ -1913,6 +1997,8 @@ Position=2)]
 [Parameter(Mandatory=$true,
 HelpMessage="Enter the credentials to login to the guest OS")]
   [pscredential]$Credential,
+[Parameter(HelpMessage="Use this switch ONLY to skip if you send a shutdown command")]
+  [switch]$Bypass,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
@@ -1932,6 +2018,7 @@ Process {
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
  if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
  if ($Arguments) {$Arguments = ,$PathToExecutable + $Arguments}
+ $command = "$($PathToExecutable) -- $($Arguments)"
  # initialize $imachines array
  $imachines = @()
  # get vm inventory (by $Machine)
@@ -1968,108 +2055,110 @@ Process {
     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
     Write-Verbose "Guest console status: $iguestsessionstatus"
     # create the process in the guest machine and send it a list of arguments
-    Write-Verbose "Sending `"$($PathToExecutable) -- $($Arguments)`" command (timeout: 10s)"
+    Write-Verbose "Sending `"$command`" command (timeout: 10s)"
     $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('Hidden'), 10000)
-    # create event source
-    Write-Verbose "Creating event source"
-    $ieventsource = $global:vbox.IConsole_getEventSource($imachine.IConsole)
-    # create event listener
-    Write-Verbose "Creating event listener"
-    $ieventlistener = $global:vbox.IEventSource_createListener($ieventsource)
-    # register event listener
-    Write-Verbose "Registering event listener"
-    $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, $global:vboxeventtype.ToInt('Any'), $false)
-    try {
-     # wait for process creation
-     Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
-     $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
-     Write-Verbose "Process wait result: $($processwaitresult)"
-     $ieventsublistener = $null
-     do {
-      # get new events
-      $ievent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventlistener, 200)
-      if ($ievent -ne '') {
-       # process new event
-       Write-Verbose "Encountered event ID: $($ievent)"
-       $ieventtype = $global:vbox.IEvent_getType($ievent)
-       Write-Verbose "Event type: $($ieventtype)"
-       if ($ieventtype -eq 'OnEventSourceChanged') {
-        # new event source... let's listen
-        $ieventsublistener = $global:vbox.IEventSourceChangedEvent_getListener($ievent)
-        Write-Verbose "New event listener object found: $($ieventsublistener)"
-       } # end if event source changed
-       if ($ieventtype -eq 'OnGuestPropertyChanged') {
-        $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($ievent)
-        $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($ievent)
-        $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($ievent)
-        $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
-        Write-Verbose "Guest property name: $($guestpropertyname)"
-        Write-Verbose "Guest property value: $($guestpropertyvalue)"
-        Write-Verbose "Guest property flags: $($guestpropertyflags)"
-        Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
-       }
-       $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
-      } # end if $ievent -ne ''
-      if ($ieventsublistener -ne $null) {$isubevent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventsublistener, 200)}
-      if ($isubevent -ne '') {
-       Write-Verbose "Encountered sub event ID: $($isubevent)"
-       $isubeventtype = $global:vbox.IEvent_getType($isubevent)
-       Write-Verbose "Sub event type: $($ieventtype)"
-       if ($isubeventtype -eq 'OnGuestPropertyChanged') {
-        $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($isubevent)
-        $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($isubevent)
-        $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($isubevent)
-        $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
-        Write-Verbose "Guest property name: $($guestpropertyname)"
-        Write-Verbose "Guest property value: $($guestpropertyvalue)"
-        Write-Verbose "Guest property flags: $($guestpropertyflags)"
-        Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
-       }
-       $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
-      } # end if $isubevent -ne ''
-      # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over anyway
-      $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('Terminate')), 200)
-      #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
-      # read guest process stdout
-      [char[]]$stdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), 64, 0)
-      Write-Verbose "[DEBUG] StdOut: $($stdout)"
-      # this should be removed after debugging $stdout
-      if ($stdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($stdout.GetType())"}
-      if ($stdout) {
-       # write stdout to pipeline
-       Write-Verbose "Writing StdOut to pipeline"
-       Write-Output ($stdout -join '')
-      } # end if $stdout
-      # read guest process stderr
-      $stderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), 64, 0)
-      Write-Debug "[DEBUG] StdErr: $($stdout)"
-      # write stderr to the host as error text if it contains anything
-      if ($stderr) {Write-Host ($stderr -join '') -ForegroundColor Red -BackgroundColor Black}
-      $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
-      # note the process status to look for abnormal return
-      if ($iprocessstatus -notmatch 'Start') {
-       if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
-       else {Write-Debug "Process status: $($iprocessstatus)"}
-      } # end if $iprocessstatus -notmatch 'Start'
-      $keeplooping = !$iprocessstatus.toString().contains('Terminated')
-     } until (!$keeplooping)
-    } # Try
-    catch {
-     Write-Verbose 'Exception while running process in guest machine'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
-     Write-Host ' '
-     Write-Host
-    } # Catch
-    finally {
-     # unregister listener object
-     Write-Verbose 'Unregistering listener'
-     $global:vbox.IEventSource_unregisterListener($ieventsource, $ieventlistener)
-     if (!($global:vbox.IProcess_getStatus($iguestprocess)).toString().contains('Terminated')) {
-      # kill guest process if it hasn't ended yet
-      Write-Verbose 'Terminating guest process'
-      $global:vbox.IProcess_terminate($iguestprocess)
-     } # end if process hasn't terminated
-    } # Finally
+    if (!$Bypass) {
+     # create event source
+     Write-Verbose "Creating event source"
+     $ieventsource = $global:vbox.IConsole_getEventSource($imachine.IConsole)
+     # create event listener
+     Write-Verbose "Creating event listener"
+     $ieventlistener = $global:vbox.IEventSource_createListener($ieventsource)
+     # register event listener
+     Write-Verbose "Registering event listener"
+     $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, $global:vboxeventtype.ToInt('Any'), $false)
+     try {
+      # wait for process creation
+      Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
+      $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
+      Write-Verbose "Process wait result: $($processwaitresult)"
+      $ieventsublistener = $null
+      do {
+       # get new events
+       $ievent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventlistener, 200)
+       if ($ievent -ne '') {
+        # process new event
+        Write-Verbose "Encountered event ID: $($ievent)"
+        $ieventtype = $global:vbox.IEvent_getType($ievent)
+        Write-Verbose "Event type: $($ieventtype)"
+        if ($ieventtype -eq 'OnEventSourceChanged') {
+         # new event source... let's listen
+         $ieventsublistener = $global:vbox.IEventSourceChangedEvent_getListener($ievent)
+         Write-Verbose "New event listener object found: $($ieventsublistener)"
+        } # end if event source changed
+        if ($ieventtype -eq 'OnGuestPropertyChanged') {
+         $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($ievent)
+         $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($ievent)
+         $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($ievent)
+         $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
+         Write-Verbose "Guest property name: $($guestpropertyname)"
+         Write-Verbose "Guest property value: $($guestpropertyvalue)"
+         Write-Verbose "Guest property flags: $($guestpropertyflags)"
+         Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
+        }
+        $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
+       } # end if $ievent -ne ''
+       if ($ieventsublistener -ne $null) {$isubevent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventsublistener, 200)}
+       if ($isubevent -ne '') {
+        Write-Verbose "Encountered sub event ID: $($isubevent)"
+        $isubeventtype = $global:vbox.IEvent_getType($isubevent)
+        Write-Verbose "Sub event type: $($ieventtype)"
+        if ($isubeventtype -eq 'OnGuestPropertyChanged') {
+         $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($isubevent)
+         $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($isubevent)
+         $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($isubevent)
+         $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
+         Write-Verbose "Guest property name: $($guestpropertyname)"
+         Write-Verbose "Guest property value: $($guestpropertyvalue)"
+         Write-Verbose "Guest property flags: $($guestpropertyflags)"
+         Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
+        }
+        $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
+       } # end if $isubevent -ne ''
+       # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over anyway
+       $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('Terminate')), 200)
+       #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
+       # read guest process stdout
+       [char[]]$stdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), 64, 0)
+       Write-Verbose "[DEBUG] StdOut: $($stdout)"
+       # this should be removed after debugging $stdout
+       if ($stdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($stdout.GetType())"}
+       if ($stdout) {
+        # write stdout to pipeline
+        Write-Verbose "Writing StdOut to pipeline"
+        Write-Output ($stdout -join '')
+       } # end if $stdout
+       # read guest process stderr
+       $stderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), 64, 0)
+       Write-Debug "[DEBUG] StdErr: $($stdout)"
+       # write stderr to the host as error text if it contains anything
+       if ($stderr) {Write-Host ($stderr -join '') -ForegroundColor Red -BackgroundColor Black}
+       $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
+       # note the process status to look for abnormal return
+       if ($iprocessstatus -notmatch 'Start') {
+        if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
+        else {Write-Debug "Process status: $($iprocessstatus)"}
+       } # end if $iprocessstatus -notmatch 'Start'
+       $keeplooping = !$iprocessstatus.toString().contains('Terminated')
+      } until (!$keeplooping)
+     } # Try
+     catch {
+      Write-Verbose 'Exception while running process in guest machine'
+      Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+      Write-Host ' '
+      Write-Host
+     } # Catch
+     finally {
+      # unregister listener object
+      Write-Verbose 'Unregistering listener'
+      $global:vbox.IEventSource_unregisterListener($ieventsource, $ieventlistener)
+      if (!($global:vbox.IProcess_getStatus($iguestprocess)).toString().contains('Terminated')) {
+       # kill guest process if it hasn't ended yet
+       Write-Verbose 'Terminating guest process'
+       $global:vbox.IProcess_terminate($iguestprocess)
+      } # end if process hasn't terminated
+     } # Finally
+    } # end if not bypass
    } # foreach $imachine in $imachines
   } # end if $imachines
   else {throw "No matching virtual machines were found using specified parameters"}
@@ -2095,14 +2184,14 @@ Process {
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
     # next 2 ifs only for in-guest sessions
-    if ($imachine.IGuestSession) {
+    if ($imachine.IGuestSession -and !$Bypass) {
      # close the iconsole session
      Write-verbose "Closing the IGuestSession session for VM $($imachine.Name)"
      $global:vbox.IGuestSession_close($imachine.IGuestSession)
      # release the iconsole session
      Write-verbose "Releasing the IGuestSession object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IGuestSession)
-    } # end if $imachine.IConsole
+    } # end if $imachine.IConsole and not bypass
     if ($imachine.IConsoleGuest) {
      # release the iconsole session
      Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
@@ -2110,7 +2199,6 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IProgress = $null
     $imachine.IPercent = $null
     $imachine.MSession = $null
     $imachine.MConsole = $null
