@@ -1,9 +1,12 @@
 # Requires -version 5.0
 <#
 TODO:
-Add support for credential arrays
-Create a new Disk
+Standardize data types (Immediate priority)
+Remove a VM
 Modify a VM
+Remove a Disk
+Modify a Disk
+Add support for credential arrays
 -WhatIf support (Extremely low priority)
 #>
 <#
@@ -124,6 +127,7 @@ class VirtualBoxVHD {
     [string]$Parent
     [string[]]$Children
     [string]$Id
+    [IProgress]$IProgress = [IProgress]::new()
     [string]$ReadOnly
     [string]$AutoReset
     [string]$LastAccessError
@@ -141,7 +145,37 @@ class VirtualBoxWebSrvTask {
     [string]$Status
 }
 Update-TypeData -TypeName VirtualBoxWebSrvTask -DefaultDisplayPropertySet @("Name","Path","Status") -Force
-class ISystemPropertiesSupported {
+class MediumFormats {
+    [string[]]$Name
+    [string[]]$Extensions
+    [string[]]$Capabilities
+    [string[]]$Id
+    Fetch () {
+        $Ids = $global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties)
+        $this.Id = $Ids
+        foreach ($Id in $Ids) {
+            $devicetypevar = New-Object VirtualBox.DeviceType
+            $this.Name += $global:vbox.IMediumFormat_getName($Id)
+            $this.Capabilities += $global:vbox.IMediumFormat_getCapabilities($Id)
+            $this.Extensions += $global:vbox.IMediumFormat_describeFileExtensions($Id, [ref]$devicetypevar)
+        }
+    }
+    [array]FetchObject ([string[]]$Ids) {
+        $ret = New-Object MediumFormats
+        foreach ($Id in $Ids) {
+            $somevar = New-Object MediumFormats
+            $devicetypevar = New-Object VirtualBox.DeviceType
+            $somevar.Id = $Id
+		    $somevar.Name = $global:vbox.IMediumFormat_getName($Id)
+		    $somevar.Capabilities = $global:vbox.IMediumFormat_getCapabilities($Id)
+            $somevar.Extensions = @($global:vbox.IMediumFormat_describeFileExtensions($Id, [ref]$devicetypevar))
+            [array]$ret += [MediumFormats]@{Id=$somevar.Id;Name=$somevar.Name;Capabilities=$somevar.Capabilities;Extensions=$somevar.Extensions}
+        }
+        return $ret
+    }
+}
+Update-TypeData -TypeName MediumFormats -DefaultDisplayPropertySet @("Name","Extensions") -Force
+class SystemPropertiesSupported {
     [string[]]$ParavirtProviders
     [string[]]$ClipboardModes
     [string[]]$DndModes
@@ -175,8 +209,50 @@ class ISystemPropertiesSupported {
     [uint64]$MaxGuestVRam
     [uint64]$MinGuestCpuCount
     [uint64]$MaxGuestCpuCount
+    Fetch () {
+		$this.ParavirtProviders = $global:vbox.ISystemProperties_getSupportedParavirtProviders($global:isystemproperties)
+		$this.ClipboardModes = $global:vbox.ISystemProperties_getSupportedClipboardModes($global:isystemproperties)
+		$this.DndModes = $global:vbox.ISystemProperties_getSupportedDnDModes($global:isystemproperties)
+		$this.FirmwareTypes = $global:vbox.ISystemProperties_getSupportedFirmwareTypes($global:isystemproperties)
+		$this.PointingHidTypes = $global:vbox.ISystemProperties_getSupportedPointingHIDTypes($global:isystemproperties)
+		$this.KeyboardHidTypes = $global:vbox.ISystemProperties_getSupportedKeyboardHIDTypes($global:isystemproperties)
+		$this.VfsTypes = $global:vbox.ISystemProperties_getSupportedVFSTypes($global:isystemproperties)
+		$this.ImportOptions = $global:vbox.ISystemProperties_getSupportedImportOptions($global:isystemproperties)
+		$this.ExportOptions = $global:vbox.ISystemProperties_getSupportedExportOptions($global:isystemproperties)
+		$this.RecordingAudioCodecs = $global:vbox.ISystemProperties_getSupportedRecordingAudioCodecs($global:isystemproperties)
+		$this.RecordingVideoCodecs = $global:vbox.ISystemProperties_getSupportedRecordingVideoCodecs($global:isystemproperties)
+		$this.RecordingVsMethods = $global:vbox.ISystemProperties_getSupportedRecordingVSMethods($global:isystemproperties)
+		$this.RecordingVrcModes = $global:vbox.ISystemProperties_getSupportedRecordingVRCModes($global:isystemproperties)
+		$this.GraphicsControllerTypes = $global:vbox.ISystemProperties_getSupportedGraphicsControllerTypes($global:isystemproperties)
+		$this.CloneOptions = $global:vbox.ISystemProperties_getSupportedCloneOptions($global:isystemproperties)
+		$this.AutostopTypes = $global:vbox.ISystemProperties_getSupportedAutostopTypes($global:isystemproperties)
+		$this.VmProcPriorities = $global:vbox.ISystemProperties_getSupportedVMProcPriorities($global:isystemproperties)
+		$this.NetworkAttachmentTypes = $global:vbox.ISystemProperties_getSupportedNetworkAttachmentTypes($global:isystemproperties)
+		$this.NetworkAdapterTypes = $global:vbox.ISystemProperties_getSupportedNetworkAdapterTypes($global:isystemproperties)
+		$this.PortModes = $global:vbox.ISystemProperties_getSupportedPortModes($global:isystemproperties)
+		$this.UartTypes = $global:vbox.ISystemProperties_getSupportedUartTypes($global:isystemproperties)
+		$this.UsbControllerTypes = $global:vbox.ISystemProperties_getSupportedUSBControllerTypes($global:isystemproperties)
+		$this.AudioDriverTypes = $global:vbox.ISystemProperties_getSupportedAudioDriverTypes($global:isystemproperties)
+		$this.AudioControllerTypes = $global:vbox.ISystemProperties_getSupportedAudioControllerTypes($global:isystemproperties)
+		$this.StorageBuses = $global:vbox.ISystemProperties_getSupportedStorageBuses($global:isystemproperties)
+		$this.StorageControllerTypes = $global:vbox.ISystemProperties_getSupportedStorageControllerTypes($global:isystemproperties)
+		$this.ChipsetTypes = $global:vbox.ISystemProperties_getSupportedChipsetTypes($global:isystemproperties)
+		$this.MinGuestRam = $global:vbox.ISystemProperties_getMinGuestRAM($global:isystemproperties)
+		$this.MaxGuestRam = $global:vbox.ISystemProperties_getMaxGuestRAM($global:isystemproperties)
+		$this.MinGuestVRam = $global:vbox.ISystemProperties_getMinGuestVRAM($global:isystemproperties)
+		$this.MaxGuestVRam = $global:vbox.ISystemProperties_getMaxGuestVRAM($global:isystemproperties)
+		$this.MinGuestCPUCount = $global:vbox.ISystemProperties_getMinGuestCPUCount($global:isystemproperties)
+		$this.MaxGuestCPUCount = $global:vbox.ISystemProperties_getMaxGuestCPUCount($global:isystemproperties)
+    }
 }
-# method classes
+class MediumVariantsSupported {
+    [string[]]$Type = @('Standard','VmdkSplit2G','VmdkRawDisk','VmdkStreamOptimized','VmdkESX','VdiZeroExpand')
+    [string[]]$Flags = @('Fixed','Diff','Formatted','NoCreateDir')
+}
+class AccessModesSupported {
+    [string[]]$Type = @('ReadOnly','ReadWrite')
+}
+# method classes - mostly for conversions
 class VirtualBoxError {
     [string]Call ($ErrInput) {
         if ($ErrInput){return $ErrInput.ToString().Substring($ErrInput.ToString().IndexOf('"')).Split('"')[1]}
@@ -237,6 +313,70 @@ class IVirtualBoxErrorInfo {
     ***Note: In MS COM, there is no equivalent. In XPCOM, it is the same as nsIException::inner.
     #>
 } # The IVirtualBoxErrorInfo interface represents extended error information.
+class DeviceType {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'Null'         {$ToULong = 0} # Null value, may also mean "no device". ***Note: Not allowed for IConsole_getDeviceActivity()
+                'Floppy'       {$ToULong = 1} # Floppy device.
+                'DVD'          {$ToULong = 2} # CD/DVD-ROM device.
+                'HardDisk'     {$ToULong = 3} # Hard disk device.
+                'Network'      {$ToULong = 4} # Network device.
+                'USB'          {$ToULong = 5} # USB device.
+                'SharedFolder' {$ToULong = 6} # Shared folder device.
+                'Graphics3D'   {$ToULong = 7} # Graphics device 3D activity.
+                Default        {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'Null'} # Null value, may also mean "no device". ***Note: Not allowed for IConsole_getDeviceActivity()
+                1       {$ToStr = 'Floppy'} # Floppy device.
+                2       {$ToStr = 'DVD'} # CD/DVD-ROM device.
+                3       {$ToStr = 'HardDisk'} # Hard disk device.
+                4       {$ToStr = 'Network'} # Network device.
+                5       {$ToStr = 'USB'} # USB device.
+                6       {$ToStr = 'SharedFolder'} # Shared folder device.
+                7       {$ToStr = 'Graphics3D'} # Graphics device 3D activity.
+                Default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
+class AccessMode {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'ReadOnly'  {$ToULong = 0}
+                'ReadWrite' {$ToULong = 1}
+                Default     {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'ReadOnly'}
+                1       {$ToStr = 'ReadWrite'}
+                Default {$ToStr = 'ReadOnly'} # Default to ReadOnly.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
 class GuestSessionWaitForFlag {
     [uint64]ToULong ([string]$FromStr) {
         if ($FromStr){
@@ -261,6 +401,48 @@ class GuestSessionWaitForFlag {
                 2       {$ToStr = 'Terminate'} # Wait for the guest session being terminated.
                 3       {$ToStr = 'Status'} # Wait for the next guest session status change.
                 Default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
+class MediumVariant {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'Standard'            {$ToULong = 0} # No particular variant requested, results in using the backend default.
+                'VmdkSplit2G'         {$ToULong = 1} # VMDK image split in chunks of less than 2GByte.
+                'VmdkRawDisk'         {$ToULong = 2} # VMDK image representing a raw disk.
+                'VmdkStreamOptimized' {$ToULong = 3} # VMDK streamOptimized image. Special import/export format which is read-only/append-only.
+                'VmdkESX'             {$ToULong = 4} # VMDK format variant used on ESX products.
+                'VdiZeroExpand'       {$ToULong = 5} # Fill new blocks with zeroes while expanding image file.
+                'Fixed'               {$ToULong = 6} # Fixed image. Only allowed for base images.
+                'Diff'                {$ToULong = 7} # Differencing image. Only allowed for child images.
+                'Formatted'           {$ToULong = 8} # Special flag which requests formatting the disk image. Right now supported for floppy images only.
+                'NoCreateDir'         {$ToULong = 9} # Special flag which suppresses automatic creation of the subdirectory. Only used when passing the medium variant as an input parameter.
+                Default               {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'Standard'} # No particular variant requested, results in using the backend default.
+                1       {$ToStr = 'VmdkSplit2G'} # VMDK image split in chunks of less than 2GByte.
+                2       {$ToStr = 'VmdkRawDisk'} # VMDK image representing a raw disk.
+                3       {$ToStr = 'VmdkStreamOptimized'} # VMDK streamOptimized image. Special import/export format which is read-only/append-only.
+                4       {$ToStr = 'VmdkESX'} # VMDK format variant used on ESX products.
+                5       {$ToStr = 'VdiZeroExpand'} # Fill new blocks with zeroes while expanding image file.
+                6       {$ToStr = 'Fixed'} # Fixed image. Only allowed for base images.
+                7       {$ToStr = 'Diff'} # Differencing image. Only allowed for child images.
+                8       {$ToStr = 'Formatted'} # Special flag which requests formatting the disk image. Right now supported for floppy images only.
+                9       {$ToStr = 'NoCreateDir'} # Special flag which suppresses automatic creation of the subdirectory. Only used when passing the medium variant as an input parameter.
+                Default {$ToStr = 'Standard'} # Default to Standard.
             }
             return [string]$ToStr
         }
@@ -371,6 +553,46 @@ class ProcessWaitForFlag {
         else {return $null}
     }
 } # Unsigned Long
+class StorageBus {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'Null'       {$ToULong = 0} # Null value. Never used by the API.
+                'IDE'        {$ToULong = 1}
+                'SATA'       {$ToULong = 2}
+                'SCSI'       {$ToULong = 3}
+                'Floppy'     {$ToULong = 4}
+                'SAS'        {$ToULong = 5}
+                'USB'        {$ToULong = 6}
+                'PCIe'       {$ToULong = 7}
+                'VirtioSCSI' {$ToULong = 8}
+                Default      {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'Null'} # Null value. Never used by the API.
+                1       {$ToStr = 'IDE'}
+                2       {$ToStr = 'SATA'}
+                3       {$ToStr = 'SCSI'}
+                4       {$ToStr = 'Floppy'}
+                5       {$ToStr = 'SAS'}
+                6       {$ToStr = 'USB'}
+                7       {$ToStr = 'PCIe'}
+                8       {$ToStr = 'VirtioSCSI'}
+                Default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
 class VBoxEventType {
     [int]ToInt ([string]$FromStr) {
         if ($FromStr){
@@ -441,13 +663,21 @@ $authtype = "VBoxAuth"
 $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
 # probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
 $vboxerror = New-Object VirtualBoxError
-$global:systempropertiessupported = New-Object ISystemPropertiesSupported
-# global automatic method variables
+$global:mediumformats = New-Object MediumFormats
+$global:mediumformatspso = New-Object MediumFormats
+$global:systempropertiessupported = New-Object SystemPropertiesSupported
+$global:mediumvariantssupported = New-Object MediumVariantsSupported
+$global:accessmodessupported = New-Object AccessModesSupported
+# global automatic variables for conversion
 $global:ivirtualboxerrorinfo = New-Object IVirtualBoxErrorInfo
+$global:devicetype = New-Object DeviceType
+$global:accessmode = New-Object AccessMode
 $global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
+$global:mediumvariant = New-Object MediumVariant
 $global:locktype = New-Object LockType
 $global:processcreateflag = New-Object ProcessCreateFlag
 $global:processwaitforflag = New-Object ProcessWaitForFlag
+$global:storagebus = New-Object StorageBus
 $global:vboxeventtype = New-Object VBoxEventType
 $global:handle = New-Object Handle
 #########################################################################################
@@ -492,17 +722,17 @@ Process {
  if ($global:ivbox) {
   try {
    # get guest OS type IDs
-   Write-Verbose 'Fetching guest OS type data ($global:iguestostype)'
-   $global:iguestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
+   Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+   $global:guestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
   } # Try
   catch {
    Write-Verbose 'Exception fetching guest OS type data'
    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
-   # create a local copy of capabilities for quick reference
-   Write-Verbose 'Fetching system properties object ($global:systemproperties)'
-   $global:systemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
+   # get system properties interface reference
+   Write-Verbose 'Fetching system properties object ($global:isystemproperties)'
+   $global:isystemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
   } # Try
   catch {
    Write-Verbose 'Exception fetching system properties'
@@ -510,75 +740,21 @@ Process {
   } # Catch
   try {
    Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
-   Write-Verbose 'Fetching system properties: ParavirtProviders'
-   $global:systempropertiessupported.ParavirtProviders = $global:vbox.ISystemProperties_getSupportedParavirtProviders($global:systemproperties)
-   Write-Verbose 'Fetching system properties: ClipboardModes'
-   $global:systempropertiessupported.ClipboardModes = $global:vbox.ISystemProperties_getSupportedClipboardModes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: DndModes'
-   $global:systempropertiessupported.DndModes = $global:vbox.ISystemProperties_getSupportedDnDModes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: FirmwareTypes'
-   $global:systempropertiessupported.FirmwareTypes = $global:vbox.ISystemProperties_getSupportedFirmwareTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: PointingHidTypes'
-   $global:systempropertiessupported.PointingHidTypes = $global:vbox.ISystemProperties_getSupportedPointingHIDTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: KeyboardHidTypes'
-   $global:systempropertiessupported.KeyboardHidTypes = $global:vbox.ISystemProperties_getSupportedKeyboardHIDTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: VfsTypes'
-   $global:systempropertiessupported.VfsTypes = $global:vbox.ISystemProperties_getSupportedVFSTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: ImportOptions'
-   $global:systempropertiessupported.ImportOptions = $global:vbox.ISystemProperties_getSupportedImportOptions($global:systemproperties)
-   Write-Verbose 'Fetching system properties: ExportOptions'
-   $global:systempropertiessupported.ExportOptions = $global:vbox.ISystemProperties_getSupportedExportOptions($global:systemproperties)
-   Write-Verbose 'Fetching system properties: RecordingAudioCodecs'
-   $global:systempropertiessupported.RecordingAudioCodecs = $global:vbox.ISystemProperties_getSupportedRecordingAudioCodecs($global:systemproperties)
-   Write-Verbose 'Fetching system properties: RecordingVideoCodecs'
-   $global:systempropertiessupported.RecordingVideoCodecs = $global:vbox.ISystemProperties_getSupportedRecordingVideoCodecs($global:systemproperties)
-   Write-Verbose 'Fetching system properties: RecordingVsMethods'
-   $global:systempropertiessupported.RecordingVsMethods = $global:vbox.ISystemProperties_getSupportedRecordingVSMethods($global:systemproperties)
-   Write-Verbose 'Fetching system properties: RecordingVrcModes'
-   $global:systempropertiessupported.RecordingVrcModes = $global:vbox.ISystemProperties_getSupportedRecordingVRCModes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: GraphicsControllerTypes'
-   $global:systempropertiessupported.GraphicsControllerTypes = $global:vbox.ISystemProperties_getSupportedGraphicsControllerTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: CloneOptions'
-   $global:systempropertiessupported.CloneOptions = $global:vbox.ISystemProperties_getSupportedCloneOptions($global:systemproperties)
-   Write-Verbose 'Fetching system properties: AutostopTypes'
-   $global:systempropertiessupported.AutostopTypes = $global:vbox.ISystemProperties_getSupportedAutostopTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: VmProcPriorities'
-   $global:systempropertiessupported.VmProcPriorities = $global:vbox.ISystemProperties_getSupportedVMProcPriorities($global:systemproperties)
-   Write-Verbose 'Fetching system properties: NetworkAttachmentTypes'
-   $global:systempropertiessupported.NetworkAttachmentTypes = $global:vbox.ISystemProperties_getSupportedNetworkAttachmentTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: NetworkAdapterTypes'
-   $global:systempropertiessupported.NetworkAdapterTypes = $global:vbox.ISystemProperties_getSupportedNetworkAdapterTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: PortModes'
-   $global:systempropertiessupported.PortModes = $global:vbox.ISystemProperties_getSupportedPortModes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: UartTypes'
-   $global:systempropertiessupported.UartTypes = $global:vbox.ISystemProperties_getSupportedUartTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: UsbControllerTypes'
-   $global:systempropertiessupported.UsbControllerTypes = $global:vbox.ISystemProperties_getSupportedUSBControllerTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: AudioDriverTypes'
-   $global:systempropertiessupported.AudioDriverTypes = $global:vbox.ISystemProperties_getSupportedAudioDriverTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: AudioControllerTypes'
-   $global:systempropertiessupported.AudioControllerTypes = $global:vbox.ISystemProperties_getSupportedAudioControllerTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: StorageBuses'
-   $global:systempropertiessupported.StorageBuses = $global:vbox.ISystemProperties_getSupportedStorageBuses($global:systemproperties)
-   Write-Verbose 'Fetching system properties: StorageControllerTypes'
-   $global:systempropertiessupported.StorageControllerTypes = $global:vbox.ISystemProperties_getSupportedStorageControllerTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: ChipsetTypes'
-   $global:systempropertiessupported.ChipsetTypes = $global:vbox.ISystemProperties_getSupportedChipsetTypes($global:systemproperties)
-   Write-Verbose 'Fetching system properties: MinGuestRam'
-   $global:systempropertiessupported.MinGuestRam = $global:vbox.ISystemProperties_getMinGuestRAM($global:systemproperties)
-   Write-Verbose 'Fetching system properties: MaxGuestRam'
-   $global:systempropertiessupported.MaxGuestRam = $global:vbox.ISystemProperties_getMaxGuestRAM($global:systemproperties)
-   Write-Verbose 'Fetching system properties: MinGuestVRam'
-   $global:systempropertiessupported.MinGuestVRam = $global:vbox.ISystemProperties_getMinGuestVRAM($global:systemproperties)
-   Write-Verbose 'Fetching system properties: MaxGuestVRam'
-   $global:systempropertiessupported.MaxGuestVRam = $global:vbox.ISystemProperties_getMaxGuestVRAM($global:systemproperties)
-   Write-Verbose 'Fetching system properties: MinGuestCPUCount'
-   $global:systempropertiessupported.MinGuestCPUCount = $global:vbox.ISystemProperties_getMinGuestCPUCount($global:systemproperties)
-   Write-Verbose 'Fetching system properties: MaxGuestCPUCount'
-   $global:systempropertiessupported.MaxGuestCPUCount = $global:vbox.ISystemProperties_getMaxGuestCPUCount($global:systemproperties)
+   $global:systempropertiessupported.Fetch()
   } # Try
   catch {
    Write-Verbose 'Exception fetching supported system properties'
+   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  try {
+   Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
+   $global:mediumformats.Fetch()
+   # get a human readable copy
+   Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
+   $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching supported medium formats'
    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
   } # Catch
  }
@@ -660,100 +836,62 @@ Process {
   # login to web service
   Write-Verbose 'Creating the VirtualBox Web Service session ($global:ivbox)'
   $global:ivbox = $global:vbox.IWebsessionManager_logon($Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password)
-  if (!$global:iguestostype -or $Force) {
-   try {
-    # get guest OS type IDs
-    Write-Verbose 'Fetching guest OS type data ($global:iguestostype)'
-    $global:iguestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
-   } # Try
-   catch {
-    Write-Verbose 'Exception fetching guest OS type data'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
-   } # Catch
-  }
-  if (!$global:systemproperties -or $Force) {
-   try {
-    # create a local copy of capabilities for quick reference
-    Write-Verbose 'Fetching system properties object ($global:systemproperties)'
-    $global:systemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
-   } # Try
-   catch {
-    Write-Verbose 'Exception fetching system properties'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
-   } # Catch
-   try {
-    Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
-    Write-Verbose 'Fetching system properties: ParavirtProviders'
-    $global:systempropertiessupported.ParavirtProviders = $global:vbox.ISystemProperties_getSupportedParavirtProviders($global:systemproperties)
-    Write-Verbose 'Fetching system properties: ClipboardModes'
-    $global:systempropertiessupported.ClipboardModes = $global:vbox.ISystemProperties_getSupportedClipboardModes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: DndModes'
-    $global:systempropertiessupported.DndModes = $global:vbox.ISystemProperties_getSupportedDnDModes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: FirmwareTypes'
-    $global:systempropertiessupported.FirmwareTypes = $global:vbox.ISystemProperties_getSupportedFirmwareTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: PointingHidTypes'
-    $global:systempropertiessupported.PointingHidTypes = $global:vbox.ISystemProperties_getSupportedPointingHIDTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: KeyboardHidTypes'
-    $global:systempropertiessupported.KeyboardHidTypes = $global:vbox.ISystemProperties_getSupportedKeyboardHIDTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: VfsTypes'
-    $global:systempropertiessupported.VfsTypes = $global:vbox.ISystemProperties_getSupportedVFSTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: ImportOptions'
-    $global:systempropertiessupported.ImportOptions = $global:vbox.ISystemProperties_getSupportedImportOptions($global:systemproperties)
-    Write-Verbose 'Fetching system properties: ExportOptions'
-    $global:systempropertiessupported.ExportOptions = $global:vbox.ISystemProperties_getSupportedExportOptions($global:systemproperties)
-    Write-Verbose 'Fetching system properties: RecordingAudioCodecs'
-    $global:systempropertiessupported.RecordingAudioCodecs = $global:vbox.ISystemProperties_getSupportedRecordingAudioCodecs($global:systemproperties)
-    Write-Verbose 'Fetching system properties: RecordingVideoCodecs'
-    $global:systempropertiessupported.RecordingVideoCodecs = $global:vbox.ISystemProperties_getSupportedRecordingVideoCodecs($global:systemproperties)
-    Write-Verbose 'Fetching system properties: RecordingVsMethods'
-    $global:systempropertiessupported.RecordingVsMethods = $global:vbox.ISystemProperties_getSupportedRecordingVSMethods($global:systemproperties)
-    Write-Verbose 'Fetching system properties: RecordingVrcModes'
-    $global:systempropertiessupported.RecordingVrcModes = $global:vbox.ISystemProperties_getSupportedRecordingVRCModes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: GraphicsControllerTypes'
-    $global:systempropertiessupported.GraphicsControllerTypes = $global:vbox.ISystemProperties_getSupportedGraphicsControllerTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: CloneOptions'
-    $global:systempropertiessupported.CloneOptions = $global:vbox.ISystemProperties_getSupportedCloneOptions($global:systemproperties)
-    Write-Verbose 'Fetching system properties: AutostopTypes'
-    $global:systempropertiessupported.AutostopTypes = $global:vbox.ISystemProperties_getSupportedAutostopTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: VmProcPriorities'
-    $global:systempropertiessupported.VmProcPriorities = $global:vbox.ISystemProperties_getSupportedVMProcPriorities($global:systemproperties)
-    Write-Verbose 'Fetching system properties: NetworkAttachmentTypes'
-    $global:systempropertiessupported.NetworkAttachmentTypes = $global:vbox.ISystemProperties_getSupportedNetworkAttachmentTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: NetworkAdapterTypes'
-    $global:systempropertiessupported.NetworkAdapterTypes = $global:vbox.ISystemProperties_getSupportedNetworkAdapterTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: PortModes'
-    $global:systempropertiessupported.PortModes = $global:vbox.ISystemProperties_getSupportedPortModes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: UartTypes'
-    $global:systempropertiessupported.UartTypes = $global:vbox.ISystemProperties_getSupportedUartTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: UsbControllerTypes'
-    $global:systempropertiessupported.UsbControllerTypes = $global:vbox.ISystemProperties_getSupportedUSBControllerTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: AudioDriverTypes'
-    $global:systempropertiessupported.AudioDriverTypes = $global:vbox.ISystemProperties_getSupportedAudioDriverTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: AudioControllerTypes'
-    $global:systempropertiessupported.AudioControllerTypes = $global:vbox.ISystemProperties_getSupportedAudioControllerTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: StorageBuses'
-    $global:systempropertiessupported.StorageBuses = $global:vbox.ISystemProperties_getSupportedStorageBuses($global:systemproperties)
-    Write-Verbose 'Fetching system properties: StorageControllerTypes'
-    $global:systempropertiessupported.StorageControllerTypes = $global:vbox.ISystemProperties_getSupportedStorageControllerTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: ChipsetTypes'
-    $global:systempropertiessupported.ChipsetTypes = $global:vbox.ISystemProperties_getSupportedChipsetTypes($global:systemproperties)
-    Write-Verbose 'Fetching system properties: MinGuestRam'
-    $global:systempropertiessupported.MinGuestRam = $global:vbox.ISystemProperties_getMinGuestRAM($global:systemproperties)
-    Write-Verbose 'Fetching system properties: MaxGuestRam'
-    $global:systempropertiessupported.MaxGuestRam = $global:vbox.ISystemProperties_getMaxGuestRAM($global:systemproperties)
-    Write-Verbose 'Fetching system properties: MinGuestVRam'
-    $global:systempropertiessupported.MinGuestVRam = $global:vbox.ISystemProperties_getMinGuestVRAM($global:systemproperties)
-    Write-Verbose 'Fetching system properties: MaxGuestVRam'
-    $global:systempropertiessupported.MaxGuestVRam = $global:vbox.ISystemProperties_getMaxGuestVRAM($global:systemproperties)
-    Write-Verbose 'Fetching system properties: MinGuestCPUCount'
-    $global:systempropertiessupported.MinGuestCPUCount = $global:vbox.ISystemProperties_getMinGuestCPUCount($global:systemproperties)
-    Write-Verbose 'Fetching system properties: MaxGuestCPUCount'
-    $global:systempropertiessupported.MaxGuestCPUCount = $global:vbox.ISystemProperties_getMaxGuestCPUCount($global:systemproperties)
-   } # Try
-   catch {
-    Write-Verbose 'Exception fetching supported system properties'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
-   } # Catch
+  if ($global:ivbox) {
+   if (!$global:guestostype -or $Force) {
+    try {
+     # get guest OS type IDs
+     Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+     $global:guestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
+    } # Try
+    catch {
+     Write-Verbose 'Exception fetching guest OS type data'
+     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    } # Catch
+   }
+   if (!$global:isystemproperties -or $Force) {
+    try {
+     # create a local copy of capabilities for quick reference
+     Write-Verbose 'Fetching system properties object ($global:isystemproperties)'
+     $global:isystemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
+    } # Try
+    catch {
+     Write-Verbose 'Exception fetching system properties'
+     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    } # Catch
+    <#
+    try {
+     # get a local copy of device types by storage bus
+     Write-Verbose 'Fetching device types by storage bus ($global:devicetypesforstoragebus)'
+     $global:devicetypesforstoragebus = $global:vbox.ISystemProperties_getDeviceTypesForStorageBus($global:isystemproperties, 1)
+     for ($i=2;$i-lt8;$i++) {
+      $global:devicetypesforstoragebus += $global:vbox.ISystemProperties_getDeviceTypesForStorageBus($global:isystemproperties, $i)
+     }
+    }
+    catch {
+     Write-Verbose 'Exception fetching device types for storage buses'
+     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    }
+    #> # disabling since this isn't really useful data
+    try {
+     Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+     $global:systempropertiessupported.Fetch()
+    } # Try
+    catch {
+     Write-Verbose 'Exception fetching supported system properties'
+     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    } # Catch
+    try {
+     Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
+     $global:mediumformats.Fetch()
+     # get a human readable copy
+     Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
+     $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
+    } # Try
+    catch {
+     Write-Verbose 'Exception fetching supported medium formats'
+     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    } # Catch
+   }
   }
  }
  catch {
@@ -1642,7 +1780,7 @@ Process {
   $imachines = $Machine
   if ($Encrypted) {
    Write-Verbose "Getting virtual disks from Machine(s)"
-   $disks = Get-VirtualBoxDisks -Machine $Machine -SkipCheck
+   $disks = Get-VirtualBoxDisk -Machine $Machine -SkipCheck
   }
  }
  # get vm inventory (by $Name)
@@ -1651,7 +1789,7 @@ Process {
   $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
   if ($Encrypted) {
    Write-Verbose "Getting virtual disks from VM Name(s)"
-   $disks = Get-VirtualBoxDisks -MachineName $Name -SkipCheck
+   $disks = Get-VirtualBoxDisk -MachineName $Name -SkipCheck
   }
  }
  # get vm inventory (by $Guid)
@@ -1660,7 +1798,7 @@ Process {
   $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
   if ($Encrypted) {
    Write-Verbose "Getting virtual disks from VM GUID(s)"
-   $disks = Get-VirtualBoxDisks -MachineGuid $Guid -SkipCheck
+   $disks = Get-VirtualBoxDisk -MachineGuid $Guid -SkipCheck
   }
  }
  try {
@@ -1674,14 +1812,14 @@ Process {
      # collect iprogress data
      Write-Verbose "Fetching IProgress data"
      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-     if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+     if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
      do {
       # get the current machine state
       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
       # update iprogress data
       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity “$($imachine.IProgress.OperationDescription)” -status “$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%” -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
      } until ($machinestate -eq 'Running') # continue once the vm is running
     } # end if not Encrypted
     elseif ($Encrypted) {
@@ -1691,15 +1829,15 @@ Process {
      # collect iprogress data
      Write-Verbose "Fetching IProgress data"
      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-     if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+     if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
      Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
      do {
       # get the current machine state
       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
       # update iprogress data
       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity “$($imachine.IProgress.OperationDescription)” -status “$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%” -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
      } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
      Write-Verbose "VM $($imachine.Name) paused"
      # create new session object for iconsole
@@ -1914,14 +2052,14 @@ Process {
       # collect iprogress data
       Write-Verbose "Fetching IProgress data"
       $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-      if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
       do {
        # get the current machine state
        $machinestate = $global:vbox.IMachine_getState($imachine.Id)
        # update iprogress data
        $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-       if ($ProgressBar) {Write-Progress -Activity “Starting VM $($imachine.Name) in $Type Mode” -status “$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%” -percentComplete ($imachine.IProgress.Percent) -CurrentOperation “Current Operation: $($imachine.IProgress.OperationDescription)” -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-       if ($ProgressBar) {Write-Progress -Activity “$($imachine.IProgress.OperationDescription)” -status “$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%” -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
       } until ($machinestate -eq 'Running') # continue once the vm is running
      }
      else {return "Only machines that are running may be stopped."}
@@ -2208,8 +2346,8 @@ DynamicParam {
  $OsTypeIdCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $OsTypeIdCollection.Add($OsTypeIdAttributes)
  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute(@('Other','Other_64','Windows31','Windows95','Windows98','WindowsMe','WindowsNT3x','WindowsNT4','Windows2000','WindowsXP','WindowsXP_64','Windows2003','Windows2003_64','WindowsVista','WindowsVista_64','Windows2008','Windows2008_64','Windows7','Windows7_64','Windows8','Windows8_64','Windows81','Windows81_64','Windows2012_64','Windows10','Windows10_64','Windows2016_64','Windows2019_64','WindowsNT','WindowsNT_64','Linux22','Linux24','Linux24_64','Linux26','Linux26_64','ArchLinux','ArchLinux_64','Debian','Debian_64','Fedora','Fedora_64','Gentoo','Gentoo_64','Mandriva','Mandriva_64','Oracle','Oracle_64','RedHat','RedHat_64','OpenSUSE','OpenSUSE_64','Turbolinux','Turbolinux_64','Ubuntu','Ubuntu_64','Xandros','Xandros_64','Linux','Linux_64','Solaris','Solaris_64','OpenSolaris','OpenSolaris_64','Solaris11_64','FreeBSD','FreeBSD_64','OpenBSD','OpenBSD_64','NetBSD','NetBSD_64','OS2Warp3','OS2Warp4','OS2Warp45','OS2eCS','OS21x','OS2','MacOS','MacOS_64','MacOS106','MacOS106_64','MacOS107_64','MacOS108_64','MacOS109_64','MacOS1010_64','MacOS1011_64','MacOS1012_64','MacOS1013_64','DOS','Netware','L4','QNX','JRockitVE','VBoxBS_64'))
- if ($global:iguestostype.id) {
-  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:iguestostype.id)
+ if ($global:guestostype.id) {
+  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:guestostype.id)
  }
  $OsTypeIdCollection.Add($ValidateSetOsTypeId)
  $OsTypeId = new-object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
@@ -2528,8 +2666,8 @@ Begin {
  $MemoryBalloonSize = $PSBoundParameters['MemoryBalloonSize']
 } # Begin
 Process {
- if (!$global:iguestostype) {throw "Could not find guest defaults. Run Start-VirtualBoxSession with the -Force switch and try again."}
- $defaultsettings = $global:iguestostype | Where-Object {$_.id -eq $OsTypeId}
+ if (!$global:guestostype) {throw "Could not find guest defaults. Run Start-VirtualBoxSession with the -Force switch and try again."}
+ $defaultsettings = $global:guestostype | Where-Object {$_.id -eq $OsTypeId}
  try {
   # create a reference object for the new machine
   Write-Verbose "Creating reference object for $Name"
@@ -2614,7 +2752,7 @@ End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
 } # End
 } # end function
-Function Get-VirtualBoxDisks {
+Function Get-VirtualBoxDisk {
 <#
 .SYNOPSIS
 Get VirtualBox disk information
@@ -2629,7 +2767,7 @@ The GUID of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
-PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxDisks
+PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxDisk
 
 Name        : 2016 Core.vhd
 Description :
@@ -2641,7 +2779,7 @@ VMNames     : {2016 Core}
 
 Gets virtual machine by machine object from pipeline input
 .EXAMPLE
-PS C:\> Get-VirtualBoxDisks -MachineName 2016
+PS C:\> Get-VirtualBoxDisk -MachineName 2016
 
 Name        : 2016 Core.vhd
 Description :
@@ -2653,7 +2791,7 @@ VMNames     : {2016 Core}
 
 Gets virtual machine by Name
 .EXAMPLE
-PS C:\> Get-VirtualBoxDisks -MachineGuid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+PS C:\> Get-VirtualBoxDisk -MachineGuid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
 
 Name        : 2016 Core.vhd
 Description :
@@ -2665,7 +2803,7 @@ VMNames     : {2016 Core}
 
 Gets virtual machine by GUID
 .EXAMPLE
-PS C:\> Get-VirtualBoxDisks
+PS C:\> Get-VirtualBoxDisk
 
 Name        : GNS3 IOU VM_1.3-disk1.vmdk
 Description :
@@ -2701,13 +2839,13 @@ VMNames     : {Win10}
 
 Gets all virtual machine disks
 .NOTES
-NAME        :  Get-VirtualBoxDisks
+NAME        :  Get-VirtualBoxDisk
 VERSION     :  1.1
 LAST UPDATED:  1/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
-None (Yet)
+New-VirtualBoxDisk
 .INPUTS
 VirtualBoxVM[]:  Array for virtual machine objects
 String[]      :  Strings for virtual machine names
@@ -2715,21 +2853,28 @@ Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
 System.Array[]
 #>
-[cmdletbinding(DefaultParameterSetName="All")]
+[cmdletbinding(DefaultParameterSetName="Machine")]
 Param(
+[Parameter(HelpMessage="Enter one or more disk name(s)",
+ParameterSetName="Disk",Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(HelpMessage="Enter one or more disk format(s)",
+ParameterSetName="Disk",Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string[]]$Format,
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Mandatory=$true,Position=0)]
+ParameterSetName="Machine",Mandatory=$false,Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVM]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="MachineName",Mandatory=$true,Position=0)]
-[Alias('Name')]
+ParameterSetName="Machine",Mandatory=$false,Position=0)]
   [string[]]$MachineName,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="MachineGuid",Mandatory=$true,Position=0)]
+ParameterSetName="Machine",Mandatory=$false,Position=0)]
   [guid[]]$MachineGuid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
@@ -2745,88 +2890,254 @@ Begin {
  if (-Not $global:ivbox) {Start-VirtualBoxSession}
 } # Begin
 Process {
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Format: `"$Format`""
  Write-Verbose "Pipeline - Machine: `"$Machine`""
  Write-Verbose "Pipeline - MachineName: `"$MachineName`""
  Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- if (!($Machine -or $MachineName -or $MachineGuid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
+ #if (!($Name -or $Guid -or $Machine -or $MachineName -or $MachineGuid)) {throw "Error: You must supply at least one Disk name or GUID or a VM object, name, or GUID."}
  $disks = @()
  $obj = @()
  try {
- # get virtual machine disk inventory
- Write-Verbose "Getting virtual disk inventory"
- foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
-  Write-Verbose "Getting disk: $($imediumid)"
-  $disk = New-Object VirtualBoxVHD
-  $disk.Name = $global:vbox.IMedium_getName($imediumid)
-  $disk.Description = $global:vbox.IMedium_getDescription($imediumid)
-  $disk.Format = $global:vbox.IMedium_getFormat($imediumid)
-  $disk.Size = $global:vbox.IMedium_getSize($imediumid)
-  $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
-  $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
-  foreach ($machineid in $disk.VMIds) {$disk.VMNames = (Get-VirtualBoxVM -Guid $machineid -SkipCheck).Name}
-  $disk.State = $global:vbox.IMedium_getState($imediumid)
-  $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
-  $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
-  $disk.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
-  $disk.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
-  $disk.Type = $global:vbox.IMedium_getType($imediumid)
-  $disk.Parent = $global:vbox.IMedium_getParent($imediumid)
-  $disk.Children = $global:vbox.IMedium_getChildren($imediumid)
-  $disk.Id = $imediumid
-  $disk.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
-  $disk.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
-  $disk.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
-  [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}
- } # end foreach loop inventory
- # filter by machine object
- if ($Machine) {
-  foreach ($disk in $disks) {
-   $matched = $false
-   foreach ($vmname in $disk.VMNames) {
-    Write-Verbose "Matching $vmname to $($Machine.Name)"
-    if ($vmname -match $Machine.Name) {Write-Verbose "Matched $vmname to $($Machine.Name)";$matched = $true}
-   }
-   if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
-  }
+  # get virtual machine disk inventory
+  Write-Verbose "Getting virtual disk inventory"
+  foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
+   Write-Verbose "Getting disk: $($imediumid)"
+   $disk = New-Object VirtualBoxVHD
+   $disk.Name = $global:vbox.IMedium_getName($imediumid)
+   $disk.Description = $global:vbox.IMedium_getDescription($imediumid)
+   $disk.Format = $global:vbox.IMedium_getFormat($imediumid)
+   $disk.Size = $global:vbox.IMedium_getSize($imediumid)
+   $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+   $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
+   foreach ($machineid in $disk.VMIds) {$disk.VMNames = (Get-VirtualBoxVM -Guid $machineid -SkipCheck).Name}
+   $disk.State = $global:vbox.IMedium_getState($imediumid)
+   $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
+   $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
+   $disk.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+   $disk.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+   $disk.Type = $global:vbox.IMedium_getType($imediumid)
+   $disk.Parent = $global:vbox.IMedium_getParent($imediumid)
+   $disk.Children = $global:vbox.IMedium_getChildren($imediumid)
+   $disk.Id = $imediumid
+   $disk.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+   $disk.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+   $disk.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+   [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}
+  } # end foreach loop inventory
+ } # Try
+ catch {
+  Write-Verbose 'Exception retrieving virtual disk information'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ if ($PSCmdlet.ParameterSetName -eq "Disk") {
+  # filter by disk name
+  if ($Name -and $Name -ne '*') {
+   foreach ($inputname in $Name) {
+    foreach ($disk in $disks) {
+     $matched = $false
+     Write-Verbose "Matching $($disk.Name) to $inputname"
+     if ($disk.Name -match $inputname) {Write-Verbose "Matched $($disk.Name) to $inputname";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+    } # foreach $disk in $disks
+   } # foreach $inputname in $Name
+  } # end if $Name
+  # filter by disk format
+  elseif ($Format -and $Format -ne '*') {
+   foreach ($inputformat in $Format) {
+    foreach ($disk in $disks) {
+     $matched = $false
+     Write-Verbose "Matching $($disk.Format) to $inputformat"
+     if ($disk.Format -match $inputformat) {Write-Verbose "Matched $($disk.Format) to $inputformat";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+    } # foreach $disk in $disks
+   } # foreach $inputformat in $Format
+  } # end elseif $Format
+  # no filter
+  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
+  Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  }
- # filter by machine name
- elseif ($MachineName) {
-  foreach ($disk in $disks) {
-   $matched = $false
-   foreach ($vmname in $disk.VMNames) {
-    Write-Verbose "Matching $vmname to $MachineName"
-    if ($vmname -match $MachineName) {Write-Verbose "Matched $vmname to $MachineName";$matched = $true}
-   }
-   if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
-  }
+ elseif ($PSCmdlet.ParameterSetName -eq "Machine") {
+  # filter by machine object
+  if ($Machine) {
+   foreach ($disk in $disks) {
+    $matched = $false
+    foreach ($vmname in $disk.VMNames) {
+     Write-Verbose "Matching $vmname to $($Machine.Name)"
+     if ($vmname -match $Machine.Name) {Write-Verbose "Matched $vmname to $($Machine.Name)";$matched = $true}
+    } # foreach $vmname in $disk.VMNames
+    if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+   } # foreach $disk in $disks
+  } # end if $Machine
+  # filter by machine name
+  elseif ($MachineName) {
+   foreach ($disk in $disks) {
+    $matched = $false
+    foreach ($vmname in $disk.VMNames) {
+     Write-Verbose "Matching $vmname to $MachineName"
+     if ($vmname -match $MachineName) {Write-Verbose "Matched $vmname to $MachineName";$matched = $true}
+    } # foreach $vmname in $disk.VMNames
+    if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+   } # foreach $disk in $disks
+  } # end elseif $MachineName
+  # filter by machine GUID
+  elseif ($MachineGuid) {
+   foreach ($disk in $disks) {
+    $matched = $false
+    foreach ($vmguid in $disk.VMIds) {
+     Write-Verbose "Matching $vmguid to $MachineGuid"
+     if ($vmguid -eq $MachineGuid) {Write-Verbose "Matched $vmguid to $MachineGuid";$matched = $true}
+    } # foreach $vmguid in $disk.VMIds
+    if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+   } # foreach $disk in $disks
+  } # end elseif $MachineGuid
+  # no filter
+  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
+  Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  }
- # filter by machine GUID
- elseif ($MachineGuid) {
-  foreach ($disk in $disks) {
-   $matched = $false
-   foreach ($vmguid in $disk.VMIds) {
-    Write-Verbose "Matching $vmguid to $MachineGuid"
-    if ($vmguid -eq $MachineGuid) {Write-Verbose "Matched $vmguid to $MachineGuid";$matched = $true}
-   }
-   if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
-  }
- }
- # no filter
- else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
- Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  if ($obj) {
   # write virtual machines object to the pipeline as an array
   Write-Output ([System.Array]$obj)
  } # end if $obj
  else {
-  Write-Host "[Warning] No virtual disks found." -ForegroundColor DarkYellow
+  Write-Verbose "[Warning] No virtual disks found."
  } # end else
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function New-VirtualBoxDisk {
+<#
+.SYNOPSIS
+Create VirtualBox disk
+.DESCRIPTION
+Creates VirtualBox disks. The command will fail if a virtual disk with the same name exists in the VirtualBox inventory.
+.PARAMETER Name
+The virtual disk name.
+.PARAMETER Format
+The virtual disk format.
+.PARAMETER Location
+The location to store the virtual disk. If the path does not exist it will be created.
+.PARAMETER AccessMode
+Either Readonly or ReadWrite.
+.PARAMETER LogicalSize
+The size of the virtual disk in bytes.
+.PARAMETER VariantType
+The variant type of the virtual disk.
+.PARAMETER VariantFlag
+The variant flag of the virtual disk.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> New-VirtualBoxDisk -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar -Verbose
+
+Create a standard, fixed 4MB virtual disk named "TestDisk.vmdk" in the C:\Disks\ location and display a progress bar
+.NOTES
+NAME        :  New-VirtualBoxDisk
+VERSION     :  1.0
+LAST UPDATED:  1/16/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisk
+.INPUTS
+String        :  String for virtual disk name
+String        :  String for virtual disk format
+String        :  String for virtual disk location
+String        :  String for virtual disk access mode
+UInt64        :  UInt64 for virtual disk size
+String        :  String for virtual disk variant type
+String        :  String for virtual disk variant flag
+.OUTPUTS
+None
+#>
+[cmdletbinding(DefaultParameterSetName="HardDisk")]
+Param(
+[Parameter(HelpMessage="Enter the virtual disk name",
+ParameterSetName="HardDisk",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(HelpMessage="Enter the virtual disk format",
+ParameterSetName="HardDisk",Mandatory=$true,Position=1)]
+[ValidateNotNullorEmpty()]
+[ValidateSet('VMDK','VDI','VHD','Parallels','DMG','QED','QCOW','VHDX','CUE','VBoxIsoMaker','RAW','iSCSI')]
+  [string]$Format,
+[Parameter(HelpMessage="Enter the virtual disk location",
+ParameterSetName="HardDisk",Mandatory=$true,Position=2)]
+  [string]$Location,
+[Parameter(HelpMessage="Enter the virtual disk location",
+ParameterSetName="HardDisk",Mandatory=$true,Position=3)]
+[ValidateSet('ReadOnly','ReadWrite')]
+  [string]$AccessMode,
+[Parameter(HelpMessage="Enter the logical size of the virtual disk in bytes",
+ParameterSetName="HardDisk",Mandatory=$true,Position=4)]
+  [uint64]$LogicalSize,
+[Parameter(HelpMessage="Enter the virtual disk variant type",
+ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
+[ValidateSet('Standard','VmdkSplit2G','VmdkRawDisk','VmdkStreamOptimized','VmdkESX','VdiZeroExpand')]
+  [string]$VariantType,
+[Parameter(HelpMessage="Enter the virtual disk variant flag",
+ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
+[ValidateSet('Fixed','Diff','Formatted','NoCreateDir')]
+  [string]$VariantFlag,
+[Parameter(HelpMessage="Use this switch to display a progress bar")]
+  [switch]$ProgressBar,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ # check global vbox variable and create it if it doesn't exist
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if (-Not $global:ivbox) {Start-VirtualBoxSession}
+  # get extensions supported by the selected format
+  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+  # get the last of the extensions and use it
+  $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ if (!(Test-Path $Location)) {
+  # create the directory if it doesn't exist
+  Write-Verbose "Creating $($Location) directory"
+  New-Item -ItemType Directory -Path $Location -Force -Confirm:$false | Write-Verbose
  }
- catch {
-  Write-Verbose 'Exception retrieving virtual disk information'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
- } # Catch
+ if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
+  $existingdisks = Get-VirtualBoxDisk -Name $Name -SkipCheck
+  if ($existingdisks) {
+   Write-Verbose $existingdisks.Name
+   foreach ($existingdisk in $existingdisks) {
+    if ($existingdisk.Name -match $Ext) {
+     Write-Host "Hard disk $Name.$Ext already exists. Select another name or format and try again." -ForegroundColor Red -BackgroundColor Black
+     return
+    }
+   }
+  }
+  try {
+   $imedium = New-Object VirtualBoxVHD
+   $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+   $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+   # collect iprogress data
+   Write-Verbose "Fetching IProgress data"
+   $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
+   if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+   do {
+    # update iprogress data
+    $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
+    if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+    if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imedium.IProgress.Percent -eq 100) # continue once the progress reached 100%
+  } # Try
+  catch {
+   Write-Verbose 'Exception creating virtual disk'
+   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+ } # end if ParameterSetName -eq HardDisk
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -3261,7 +3572,8 @@ New-Alias -Name revboxvm -Value Resume-VirtualBoxVM
 New-Alias -Name stavboxvm -Value Start-VirtualBoxVM
 New-Alias -Name stovboxvm -Value Stop-VirtualBoxVM
 New-Alias -Name nvboxvm -Value Stop-VirtualBoxVM
-New-Alias -Name gvboxd -Value Get-VirtualBoxDisks
+New-Alias -Name gvboxd -Value Get-VirtualBoxDisk
+New-Alias -Name nvboxd -Value New-VirtualBoxDisk
 New-Alias -Name subvboxvmp -Value Submit-VirtualBoxVMProcess
 New-Alias -Name subvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
 # export module members
