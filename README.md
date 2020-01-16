@@ -67,8 +67,6 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 
 ### **KNOWN ISSUES**
 * Submit-VirtualBoxVMProcess isn't recieving anything from stdout or stderr.
-* New-VirtualBoxVM does not currently validate all parameters.
-	>This is being worked on. Just be aware that your input will need to be accurate for now if using custom parameters.
 
 ### **WORK AROUNDS**
 * Start-VirtualBoxVM -Type Gui -Encrypted will still display a password prompt, even though the VM starts properly.
