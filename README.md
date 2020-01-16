@@ -1,9 +1,9 @@
-# [![Logo](logo_sm.png)] **VirtualBoxPS**
+# **VirtualBoxPS**
 A PowerShell module to manage a Virtual Box environment. This module was developed for an older version of Virtual Box so I am sure it needs some updating.
 
 ---
 
-# [![!](exclaim_sm.png)] IMPORTANT
+# IMPORTANT
 This module is currently in a **very** early development phase. You should not try to use it in a production environment. If you do use it, you do so at your own risk! Please realize that it uses the VirtualBox web service in plain text mode by default. If you provide any information to this web service, it will **NOT** be encrypted. Adding SSL support is possible, but has not been added natively to this module's installer.
 
 ---
@@ -77,8 +77,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -Bypass switch.
     
 ### **VERSION**
-	0.2.3.16
-	January 14, 2020
+	0.2.4.16
+	January 15, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
