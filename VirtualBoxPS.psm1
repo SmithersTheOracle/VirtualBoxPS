@@ -1,11 +1,16 @@
 # Requires -version 5.0
 <#
 TODO:
-Standardize data types (Immediate priority)
-Remove a VM
+Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
+Import a VM
 Modify a VM
 Remove a Disk
-Modify a Disk
+Import a Disk
+Modify a Disk?
+Import a CD/DVD/Floppy
+Export a VM
+Detach a Disk
+Detach a CD/DVD/Floppy
 Add support for credential arrays
 -WhatIf support (Extremely low priority)
 #>
@@ -377,6 +382,36 @@ class AccessMode {
         else {return $null}
     }
 } # Unsigned Long
+class CleanupMode {
+    [uint64]ToULong ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'UnregisterOnly'               {$ToULong = 0} # Unregister only the machine, but neither delete snapshots nor detach media.
+                'DetachAllReturnNone'          {$ToULong = 1} # Delete all snapshots and detach all media but return none; this will keep all media registered.
+                'DetachAllReturnHardDisksOnly' {$ToULong = 2} # Delete all snapshots, detach all media and return hard disks for closing, but not removable media.
+                'Full'                         {$ToULong = 3} # Delete all snapshots, detach all media and return all media for closing.
+                Default                        {$ToULong = 0} # Default to 0.
+            }
+            return [uint64]$ToULong
+        }
+        else {return $null}
+    }
+    [string]ToStr ([uint64]$FromLong) {
+        if ($FromLong){
+            $ToStr = $null
+            Switch ($FromLong) {
+                0       {$ToStr = 'UnregisterOnly'} # Unregister only the machine, but neither delete snapshots nor detach media.
+                1       {$ToStr = 'DetachAllReturnNone'} # Delete all snapshots and detach all media but return none; this will keep all media registered.
+                2       {$ToStr = 'DetachAllReturnHardDisksOnly'} # Delete all snapshots, detach all media and return hard disks for closing, but not removable media.
+                3       {$ToStr = 'Full'} # Delete all snapshots, detach all media and return all media for closing.
+                Default {$ToStr = 'UnregisterOnly'} # Default to UnregisterOnly.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Unsigned Long
 class GuestSessionWaitForFlag {
     [uint64]ToULong ([string]$FromStr) {
         if ($FromStr){
@@ -672,6 +707,7 @@ $global:accessmodessupported = New-Object AccessModesSupported
 $global:ivirtualboxerrorinfo = New-Object IVirtualBoxErrorInfo
 $global:devicetype = New-Object DeviceType
 $global:accessmode = New-Object AccessMode
+$global:cleanupmode = New-Object CleanupMode
 $global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
 $global:mediumvariant = New-Object MediumVariant
 $global:locktype = New-Object LockType
@@ -1353,14 +1389,12 @@ Process {
    }
   } # end if All
   Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
-  Write-Verbose "Found $($obj.Guid)"
+  Write-Verbose "Found $($obj.Name)"
   if ($obj) {
    # write virtual machines object to the pipeline as an array
    Write-Output ([System.Array]$obj)
   } # end if $obj
-  else {
-   Write-Host "[Warning] No matching virtual machines found" -ForegroundColor DarkYellow
-  } # end else
+  else {Write-Verbose "[Warning] No matching virtual machines found"}
  } # Try
  catch {
   Write-Verbose 'Exception retreiving machine information'
@@ -1506,7 +1540,7 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IPercent = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
@@ -1653,7 +1687,7 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IPercent = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
@@ -1888,7 +1922,7 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IPercent = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
@@ -2101,7 +2135,7 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IPercent = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
@@ -2244,6 +2278,7 @@ AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
 Modify-VirtualBoxVM
+Remove-VirtualBoxVM
 .INPUTS
 String        :  String for virtual machine name
 String        :  String for virtual machine OS Type ID
@@ -2668,6 +2703,7 @@ Begin {
 Process {
  if (!$global:guestostype) {throw "Could not find guest defaults. Run Start-VirtualBoxSession with the -Force switch and try again."}
  $defaultsettings = $global:guestostype | Where-Object {$_.id -eq $OsTypeId}
+ if ((Get-VirtualBoxVM -Name $Name -SkipCheck).Name -eq $Name) {Write-Host "Machine $Name already exists. Enter another name and try again." -ForegroundColor Red -BackgroundColor Black;return}
  try {
   # create a reference object for the new machine
   Write-Verbose "Creating reference object for $Name"
@@ -2740,13 +2776,201 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IPercent = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
    } # end foreach $imachine in $imachines
   } # end if $imachines
  } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Remove-VirtualBoxVM {
+<#
+.SYNOPSIS
+Remove a virtual machine
+.DESCRIPTION
+Removes a new virtual machine from inventory. This command requires confirmation before taking any destructive actions. Use the -Confirm:$false parameter to silence all confirmation prompts. The name provided by the Name parameter must exist in the VirtualBox inventory, or this command will fail. By default, this command will unregister the machine from the VirtualBox inventory. Optionally you can use one of the three provided switches (DetachAllReturnNone, DetachAllReturnHardDisksOnly, and Full) to remove media attached to the machine or even delete them. See the individual parameter help below for more information.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER DetachAllReturnNone
+A switch to delete all snapshots and detach all media. This will keep all media registered.
+.PARAMETER DetachAllReturnHardDisksOnly
+A switch to delete all snapshots, detach all media and return hard disks for deletion, but not removable media.
+.PARAMETER Full
+A switch to delete all snapshots, detach all media and return all media for deletion. Removable media will be removed from the VirtualBox inventory.
+.PARAMETER ProgressBar
+A switch to display a progress bar when deleting files.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVM -Name "My VM I Hate"
+Removes the virtual machine named "My VM I Hate" from the VirtualBox inventory
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVM -Name "My VM I Hate" -DetachAllReturnNone
+Deletes the virtual machine named "My VM I Hate" from the host machine and deletes its snapshots and detaches its media
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVM -Name "My VM I Hate" -DetachAllReturnHardDisksOnly
+Deletes the virtual machine named "My VM I Hate" from the host machine and deletes its snapshots and all attached disks
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVM -Name "My VM I Hate" -Full
+Deletes the virtual machine named "My VM I Hate" from the host machine and deletes its snapshots and all attached persistent media
+.NOTES
+NAME        :  Remove-VirtualBoxVM
+VERSION     :  1.0
+LAST UPDATED:  1/16/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+New-VirtualBoxVM
+Modify-VirtualBoxVM
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+None
+#>
+[CmdletBinding(DefaultParameterSetName='UnregisterOnly',SupportsShouldProcess,ConfirmImpact='High')]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)"
+,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(ParameterSetName='DetachAllReturnNone',Mandatory=$true,
+HelpMessage="Use this switch to delete all snapshots and detach all media but return none; this will keep all media registered")]
+  [switch]$DetachAllReturnNone,
+[Parameter(ParameterSetName='DetachAllReturnHardDisksOnly',Mandatory=$true,
+HelpMessage="Use this switch to delete all snapshots, detach all media and return hard disks for closing, but not removable media")]
+  [switch]$DetachAllReturnHardDisksOnly,
+[Parameter(ParameterSetName='Full',Mandatory=$true,
+HelpMessage="Use this switch to delete all snapshots, detach all media and return all media for closing")]
+  [switch]$Full,
+[Parameter(HelpMessage="Use this switch to display a progress bar")]
+  [switch]$ProgressBar,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {throw "Error: You must supply at least one VM object, name, or GUID."}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ if ($imachines) {
+  try {
+   foreach ($imachine in $imachines) {
+    if ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnNone' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and detach all media from virtual machine ")) {
+     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnNone'))
+     # delete VM files
+     Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+     $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
+    } # end if ParameterSetName -eq DetachAllReturnNone
+    elseif ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnHardDisksOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and delete all virtual disks but keep removable media in inventory ")) {
+     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnHardDisksOnly'))
+     # delete VM files and virtual disk(s)
+     Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+     $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
+    } # end elseif ParameterSetName -eq DetachAllReturnHardDisksOnly
+    elseif ($PSCmdlet.ParameterSetName -eq 'Full' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, delete all virtual disks, and remove removable media from inventory ")) {
+     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('Full'))
+     # delete VM files and virtual disk(s)
+     Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+     $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
+     # Remove-VirtualBoxDisc command goes here
+    } # end elseif ParameterSetName -eq Full
+    elseif ($PSCmdlet.ParameterSetName -eq 'UnregisterOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Remove virtual machine from inventory ")) {
+     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('UnregisterOnly'))
+    } # end elseif ParameterSetName -eq UnregisterOnly
+    if ($imachine.IProgress.Id) {
+     Write-Verbose 'Displaying progress bar'
+     if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+     do {
+      # update iprogress data
+      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+      if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reached 100%
+    }
+   } # foreach $imachine in $imachines
+  } # Try
+  catch {
+   Write-Verbose 'Exception removing machine'
+   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # obligatory session unlock
+   Write-Verbose 'Cleaning up machine sessions'
+   if ($imachines) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.ISession) {
+      if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+       $global:vbox.ISession_unlockMachine($imachine.ISession)
+      } # end if session state not unlocked
+     } # end if $imachine.ISession
+     if ($imachine.IConsole) {
+      # release the iconsole session
+      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+     } # end if $imachine.IConsole
+     $imachine.ISession = $null
+     $imachine.IConsole = $null
+     if ($imachine.IPercent) {$imachine.IPercent = $null}
+     $imachine.MSession = $null
+     $imachine.MConsole = $null
+     $imachine.MMachine = $null
+    } # end foreach $imachine in $imachines
+   } # end if $imachines
+  } # Finally
+ } # end if $imachines
+ else {}
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -3416,7 +3640,7 @@ Process {
     } # end if $imachine.IConsole
     $imachine.ISession = $null
     $imachine.IConsole = $null
-    $imachine.IPercent = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
     $imachine.MConsole = $null
     $imachine.MMachine = $null
@@ -3568,10 +3792,11 @@ New-Alias -Name resvboxws -Value Restart-VirtualBoxWebSrv
 New-Alias -Name refvboxws -Value Update-VirtualBoxWebSrv
 New-Alias -Name gvboxvm -Value Get-VirtualBoxVM
 New-Alias -Name suvboxvm -Value Suspend-VirtualBoxVM
-New-Alias -Name revboxvm -Value Resume-VirtualBoxVM
+New-Alias -Name resvboxvm -Value Resume-VirtualBoxVM
 New-Alias -Name stavboxvm -Value Start-VirtualBoxVM
 New-Alias -Name stovboxvm -Value Stop-VirtualBoxVM
-New-Alias -Name nvboxvm -Value Stop-VirtualBoxVM
+New-Alias -Name nvboxvm -Value New-VirtualBoxVM
+New-Alias -Name remvboxvm -Value Remove-VirtualBoxVM
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisk
 New-Alias -Name nvboxd -Value New-VirtualBoxDisk
 New-Alias -Name subvboxvmp -Value Submit-VirtualBoxVMProcess
