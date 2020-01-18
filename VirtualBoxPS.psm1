@@ -2,13 +2,11 @@
 <#
 TODO:
 Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
-Modify a VM
-Import an OVF
+Export an OVF/OVA
 Remove a Disk
 Import a Disk
 Modify a Disk?
 Import a CD/DVD/Floppy
-Export a VM
 Detach a Disk
 Detach a CD/DVD/Floppy
 Add support for credential arrays
@@ -180,6 +178,44 @@ class MediumFormats {
     }
 }
 Update-TypeData -TypeName MediumFormats -DefaultDisplayPropertySet @("Name","Extensions") -Force
+class IVirtualSystemDescription {
+	[string[]]$TypeNames = @('OS','Name','Product','Vendor','Version','ProductUrl','VendorUrl','Description','License','Miscellaneous','CPU','Memory','HardDiskControllerIDE','HardDiskControllerSATA','HardDiskControllerSCSI','HardDiskControllerSAS','HardDiskImage','Floppy','CDROM','NetworkAdapter','USBController','SoundCard','CloudInstanceShape','CloudDomain','CloudBootDiskSize','CloudBucket','CloudOCIVCN','CloudPublicIP','CloudProfileName','CloudOCISubnet','CloudKeepObject','CloudLaunchInstance','CloudInstanceId','CloudImageId','CloudInstanceState','CloudImageState','CloudInstanceDisplayName','CloudImageDisplayName','CloudOCILaunchMode','CloudPrivateIP','CloudBootVolumeId','CloudOCIVCNCompartment','CloudOCISubnetCompartment','CloudPublicSSHKey','BootingFirmware',
+	'SettingsFile', # Optional, may be unset by the API caller. If this is changed by the API caller it defines the absolute path of the VM settings file and therefore also the VM folder with highest priority.
+	'BaseFolder', # Optional, may be unset by the API caller. If set (and SettingsFile is not changed), defines the VM base folder (taking the primary group into account if also set).
+	'PrimaryGroup' # Optional, empty by default and may be unset by the API caller. Defines the primary group of the VM after import. May influence the selection of the VM folder. Additional groups may be configured later using IMachine::groups[], after importing.
+    )
+    [string]$Types
+    [string]$Refs
+    [string]$OVFValues
+    [string]$VBoxValues
+    [string]$ExtraConfigValues
+    [bool]$Options
+    [array]Fetch ([string]$VirtualSystemDescription) {
+        $ret = New-Object IVirtualSystemDescription
+        [string[]]$outTypes = $()
+        [string[]]$outRefs = @()
+        [string[]]$outOVFValues = @()
+        [string[]]$outVBoxValues = @()
+        [string[]]$outExtraConfigValues = @()
+        $outTypes = $global:vbox.IVirtualSystemDescription_getDescription($VirtualSystemDescription, [ref]$outRefs, [ref]$outOVFValues, [ref]$outVBoxValues, [ref]$outExtraConfigValues)
+        for ($i=0;$i-lt($outTypes | Measure-Object).Count;$i++) {
+		    [array]$ret += [IVirtualSystemDescription]@{Types=$outTypes[$i];Refs=$outRefs[$i];OVFValues=$outOVFValues[$i];VBoxValues=$outVBoxValues[$i];ExtraConfigValues=$outExtraConfigValues[$i];Options=$true}
+        }
+        $ret.TypeNames | Get-Unique | ForEach-Object -Process {
+            if ($ret.Types -notcontains $_) {
+                $global:vbox.IVirtualSystemDescription_addDescription($VirtualSystemDescription, [string[]]$_, '', '')
+                [array]$ret += [IVirtualSystemDescription]@{Types=$_;Refs='';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
+            }
+        }
+        if ((($ret.Types | Where-Object {$_ -eq 'HardDiskControllerIDE'}) | Measure-Object).Count -eq 1) {
+            $global:vbox.IVirtualSystemDescription_addDescription($VirtualSystemDescription, 'HardDiskControllerIDE', '', '')
+            [array]$ret += [IVirtualSystemDescription]@{Types='HardDiskControllerIDE';Refs='6';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
+        }
+        $ret = $ret | Where-Object {$_.Types -ne $null}
+        return $ret
+    }
+}
+Update-TypeData -TypeName IVirtualSystemDescription -DefaultDisplayPropertySet @("Types","OVFValues","VBoxValues") -Force
 class SystemPropertiesSupported {
     [string[]]$ParavirtProviders
     [string[]]$ClipboardModes
@@ -514,6 +550,44 @@ class LockType {
         else {return $null}
     }
 } # Int
+class ImportOptions {
+    [int[]]ToInt ([string[]]$FromStrs) {
+        if ($FromStrs){
+            $ToInts = @()
+            foreach ($FromStr in $FromStrs) {
+                $ToInt = $null
+                Switch ($FromStr) {
+                    'KeepAllMACs' {$ToInt = 0} # Don’t generate new MAC addresses of the attached network adapters.
+                    'KeepNATMACs' {$ToInt = 1} # Don’t generate new MAC addresses of the attached network adapters when they are using NAT.
+                    'ImportToVDI' {$ToInt = 2} # Import all disks to VDI format
+                    Default       {$ToInt = $null} # Default to Null.
+                }
+                $ToInts += $ToInt
+            }
+            $ToInts = $ToInts | Where-Object {$_ -ne $null}
+            return [int[]]$ToInts
+        }
+        else {return $null}
+    }
+    [string[]]ToStr ([int[]]$FromInts) {
+        if ($FromInts){
+            $ToStrs = @()
+            foreach ($FromInt in $FromInts) {
+                $ToStr = $null
+                Switch ($FromInt) {
+                    0       {$ToStr = 'KeepAllMACs'} # Don’t generate new MAC addresses of the attached network adapters.
+                    1       {$ToStr = 'KeepNATMACs'} # Don’t generate new MAC addresses of the attached network adapters when they are using NAT.
+                    2       {$ToStr = 'ImportToVDI'} # Import all disks to VDI format
+                    Default {$ToStr = $null} # Default to KeepAllMACs.
+                }
+                $ToStrs += $ToStr
+            }
+            $ToStrs = $ToStrs | Where-Object {$_ -ne $null}
+            return [string[]]$ToStrs
+        }
+        else {return $null}
+    }
+} # Int[]
 class ProcessCreateFlag {
     [int]ToInt ([string]$FromStr) {
         if ($FromStr){
@@ -711,6 +785,7 @@ $global:cleanupmode = New-Object CleanupMode
 $global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
 $global:mediumvariant = New-Object MediumVariant
 $global:locktype = New-Object LockType
+$global:importoptions = New-Object ImportOptions
 $global:processcreateflag = New-Object ProcessCreateFlag
 $global:processwaitforflag = New-Object ProcessWaitForFlag
 $global:storagebus = New-Object StorageBus
@@ -3754,6 +3829,631 @@ End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
 } # End
 } # end function
+Function Import-VirtualBoxOVF {
+<#
+.SYNOPSIS
+Create a virtual machine
+.DESCRIPTION
+Creates a new virtual machine. The name provided by the Name parameter must not exist in the VirtualBox inventory, or this command will fail. You can optionally supply custom values using a large number of parameters available to this command. There are too many to fully document in this help text, so tab completion has been added where it is possible. The values provided by tab completion are updated when Start-VirtualBoxSession is successfully run. To force the values to be updated again, use the -Force switch with Start-VirtualBoxSession.
+.PARAMETER Name
+The name of the virtual machine. This is a required parameter.
+.PARAMETER OsTypeId
+The type ID for the virtual machine guest OS. This is a required parameter.
+.PARAMETER AllowTracingToAccessVM
+Enable or disable tracing access to the virtual machine.
+.PARAMETER AudioControllerType
+The audio controller type for the virtual machine.
+.PARAMETER AudioDriverType
+The audio driver type for the virtual machine.
+.PARAMETER AutostartDelay
+The auto start delay in seconds for the virtual machine.
+.PARAMETER AutostartEnabled
+Enable or disable auto start for the virtual machine.
+.PARAMETER AutostopType
+The auto stop type for the virtual machine.
+.PARAMETER ChipsetType
+The chipset type for the virtual machine.
+.PARAMETER ClipboardFileTransfersEnabled
+Enable or disable clipboard file transfers for the virtual machine. Default value is $false.
+.PARAMETER ClipboardMode
+The clipboard mode for the virtual machine.
+.PARAMETER CpuCount
+The number of CPUs available to the virtual machine.
+.PARAMETER CpuExecutionCap
+The CPU execution cap for the virtual machine. Valid range is 1-100. Default value is 100.
+.PARAMETER CpuHotPlugEnabled
+Enable or disable CPU hotplug for the virtual machine.
+.PARAMETER CpuIdPortabilityLevel
+The CPUID portability level for the virtual machine. Default value is 0.
+.PARAMETER CpuProfile
+The CPU profile for the virtual machine.
+.PARAMETER Description
+The description for the virtual machine.
+.PARAMETER DndMode
+The drag n' drop mode for the virtual machine.
+.PARAMETER EmulatedUsbCardReaderEnabled
+Enable or disable emulated USB card reader for the virtual machine.
+.PARAMETER FirmwareType
+The firmware type for the virtual machine.
+.PARAMETER Flags
+Optional flags for the virtual machine.
+.PARAMETER GraphicsControllerType
+The graphics controller type for the virtual machine.
+.PARAMETER Group
+Optional virtual machine group(s).
+.PARAMETER HardwareUuid
+The hardware UUID for the virtual machine.
+.PARAMETER HpetEnabled
+Enable or disable High Precision Event Timer for the virtual machine.
+.PARAMETER IoCacheEnabled
+The Enable or disable IO cache for the virtual machine.
+.PARAMETER IoCacheSize
+The IO cache size in MB for the virtual machine.
+.PARAMETER KeyboardHidType
+The keyboard HID type for the virtual machine.
+.PARAMETER Location
+The location for the virtual machine files.
+.PARAMETER MemoryBalloonSize
+The memory balloon size in MB for the virtual machine.
+.PARAMETER MemorySize
+The memory size in MB for the virtual machine.
+.PARAMETER NetworkAdapterType
+The network adapter type for the virtual machine.
+.PARAMETER NetworkAttachmentType
+The network attachment type for the virtual machine.
+.PARAMETER PageFusionEnabled
+Enable or disable page fusion for the virtual machine.
+.PARAMETER ParavirtProvider
+The paravirtual provider for the virtual machine.
+.PARAMETER PointingHidType
+The pointing HID type for the virtual machine.
+.PARAMETER PortMode
+The port mode for the virtual machine.
+.PARAMETER RecordingAudioCodec
+The recording audio codec for the virtual machine.
+.PARAMETER RecordingVideoCodec
+The recording video codec for the virtual machine.
+.PARAMETER RecordingVrcMode
+The recording VRC mode for the virtual machine.
+.PARAMETER RecordingVsMethod
+The recording VS method for the virtual machine.
+.PARAMETER RtcUseUtc
+Enable or disable RTC to UTC conversion for the virtual machine.
+.PARAMETER StorageBus
+The storage bus for the virtual machine.
+.PARAMETER StorageControllerType
+The storage controller type for the virtual machine.
+.PARAMETER TeleporterAddress
+The teleporter address for the virtual machine. The default value is a blank string which will force it to listen on all
+addresses.
+.PARAMETER TeleporterEnabled
+Enable or disable teleporter for the virtual machine. The default value is $false which will disable it.
+.PARAMETER TeleporterPassword
+The teleporter password for the virtual machine.
+.PARAMETER TeleporterPort
+The teleporter TCP port for the virtual machine. The valid range for this parameter is 0-65535. The default value is 0 which means the port is automatically selected upon power on. 
+.PARAMETER TracingConfig
+The tracing configuration for the virtual machine.
+.PARAMETER TracingEnabled
+Enable or disable tracing for the virtual machine.
+.PARAMETER UartType
+The emulated UART implementation type for the virtual machine.
+.PARAMETER UsbControllerType
+The USB controller type for the virtual machine.
+.PARAMETER VfsType
+The Virtual File System type for the virtual machine.
+.PARAMETER VmProcPriority
+The VM process priority for the virtual machine.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Import-VirtualBoxOVF -Name "My New Win10 VM" -OsTypeId Windows10_64
+Create a new virtual machine named "My New Win10 VM" with the all the recommended 64bit Windows10 defaults
+.NOTES
+NAME        :  Import-VirtualBoxOVF
+VERSION     :  1.0
+LAST UPDATED:  1/15/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Remove-VirtualBoxVM
+Import-VirtualBoxVM
+.INPUTS
+String        :  String for virtual machine name
+String        :  String for virtual machine OS Type ID
+Other optional input parameters available. Use "Get-Help Import-VirtualBoxOVF -Full" for a complete list.
+.OUTPUTS
+None
+#>
+[CmdletBinding(DefaultParameterSetName='Template')]
+Param(
+[Parameter(HelpMessage="Enter the full path to the OVF file",
+Mandatory=$true,Position=0)]
+[ValidateScript({Test-Path $_})]
+[ValidateNotNullorEmpty()]
+  [string]$FileName,
+[Parameter(HelpMessage="Enter optional import option(s) separated by commas",
+Mandatory=$false)]
+[ValidateSet('KeepAllMACs','KeepNATMACs','ImportToVDI')]
+[ValidateNotNullorEmpty()]
+  [string[]]$ImportOptions,
+[Parameter(HelpMessage="Enter custom virtual machine name",
+ParameterSetName='Custom',Mandatory=$false)]
+  [string]$Name,
+[Parameter(HelpMessage="Enter custom primary virtual machine group",
+ParameterSetName='Custom',Mandatory=$false)]
+  [string]$PrimaryGroup,
+[Parameter(HelpMessage="Enter custom full path to the settings file",
+ParameterSetName='Custom',Mandatory=$false)]
+  [string]$SettingsFile,
+[Parameter(HelpMessage="Enter custom base folder path for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$BaseFolder,
+[Parameter(HelpMessage="Enter custom description for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Description,
+[Parameter(HelpMessage="This might not work properly - needs more testing",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$UsbController,
+[Parameter(HelpMessage="This does not work properly yet",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$NetworkAdapter,
+[Parameter(HelpMessage="Enter custom CD/DVD ROM for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CdRom,
+[Parameter(HelpMessage="Enter custom SCSI hard disk controller for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$HardDiskControllerScsi,
+[ValidateSet('LsiLogic','Bus-Logic')]
+[Parameter(HelpMessage="Enter custom primary IDE hard disk controller for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+[ValidateSet('PIIX3','PIIX4')]
+  [string]$PrimaryHardDiskControllerIde,
+[Parameter(HelpMessage="Enter custom secondary IDE hard disk controller for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+[ValidateSet('PIIX3','PIIX4')]
+  [string]$SecondaryHardDiskControllerIde,
+[Parameter(HelpMessage="A switch to force the addition of a SATA hard disk controller for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [switch]$HardDiskControllerSata,
+[Parameter(HelpMessage="A switch to force the addition of a SAS hard disk controller for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [switch]$HardDiskControllerSas,
+[Parameter(HelpMessage="This does not work properly yet",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$HardDiskImage,
+[Parameter(HelpMessage="Enter custom product identifier for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Product,
+[Parameter(HelpMessage="Enter custom vendor identifier for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Vendor,
+[Parameter(HelpMessage="Enter custom version for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Version,
+[Parameter(HelpMessage="Enter custom product URL for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$ProductUrl,
+[Parameter(HelpMessage="Enter custom vendor URL for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$VendorUrl,
+[Parameter(HelpMessage="Enter custom license for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$License,
+[Parameter(HelpMessage="Reserved for future use",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Miscellaneous,
+[Parameter(HelpMessage="This does not work properly yet",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$Floppy,
+[Parameter(HelpMessage="A switch to force the addition of a sound card to the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [switch]$SoundCard,
+[Parameter(HelpMessage="Enter custom cloud instance shape for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudInstanceShape,
+[Parameter(HelpMessage="Enter custom cloud domain for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudDomain,
+[Parameter(HelpMessage="Enter custom cloud boot disk size for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudBootDiskSize,
+[Parameter(HelpMessage="Enter custom cloud bucket for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudBucket,
+[Parameter(HelpMessage="Enter custom cloud OCI VCN for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudOciVcn,
+[Parameter(HelpMessage="Enter custom cloud public IP address for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [ipaddress]$CloudPublicIp,
+[Parameter(HelpMessage="Enter custom cloud private IP address for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [ipaddress]$CloudPrivateIp,
+[Parameter(HelpMessage="Enter custom cloud OCI subnet for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [ipaddress]$CloudOciSubnet,
+[Parameter(HelpMessage="Enter custom cloud profile name for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudProfileName,
+[Parameter(HelpMessage="Enter custom cloud keep object setting for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudKeepObject,
+[Parameter(HelpMessage="Enter custom cloud launch instance for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudLaunchInstance,
+[Parameter(HelpMessage="Enter custom cloud image state for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudImageState,
+[Parameter(HelpMessage="Enter custom instance display name for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudInstanceDisplayName,
+[Parameter(HelpMessage="Enter custom image display name for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudImageDisplayName,
+[Parameter(HelpMessage="Enter custom cloud OCI launch mode for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudOciLaunchMode,
+[Parameter(HelpMessage="Enter custom cloud boot volume ID for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudBootVolumeId,
+[Parameter(HelpMessage="Enter custom cloud OCI VCN compartment setting for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudOciVcnCompartment,
+[Parameter(HelpMessage="Enter custom cloud OCI subnet compartment setting for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudOciSubnetCompartment,
+[Parameter(HelpMessage="Enter custom cloud public SSH key for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$CloudPublicSshKey,
+[Parameter(HelpMessage="Enter custom booting firmware for the virtual machine",
+ParameterSetName="Custom",Mandatory=$false)]
+  [string]$BootingFirmware,
+[Parameter(HelpMessage="Use this switch to display a progress bar")]
+  [switch]$ProgressBar,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+DynamicParam {
+ $CustomAttributes = new-object System.Management.Automation.ParameterAttribute
+ $CustomAttributes.Mandatory = $false
+ $CustomAttributes.ParameterSetName = 'Custom'
+ $CustomAttributes.HelpMessage = 'Enter custom type ID for the virtual machine guest OS'
+ $OsTypeIdCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $OsTypeIdCollection.Add($CustomAttributes)
+ $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute(@('Other','Other_64','Windows31','Windows95','Windows98','WindowsMe','WindowsNT3x','WindowsNT4','Windows2000','WindowsXP','WindowsXP_64','Windows2003','Windows2003_64','WindowsVista','WindowsVista_64','Windows2008','Windows2008_64','Windows7','Windows7_64','Windows8','Windows8_64','Windows81','Windows81_64','Windows2012_64','Windows10','Windows10_64','Windows2016_64','Windows2019_64','WindowsNT','WindowsNT_64','Linux22','Linux24','Linux24_64','Linux26','Linux26_64','ArchLinux','ArchLinux_64','Debian','Debian_64','Fedora','Fedora_64','Gentoo','Gentoo_64','Mandriva','Mandriva_64','Oracle','Oracle_64','RedHat','RedHat_64','OpenSUSE','OpenSUSE_64','Turbolinux','Turbolinux_64','Ubuntu','Ubuntu_64','Xandros','Xandros_64','Linux','Linux_64','Solaris','Solaris_64','OpenSolaris','OpenSolaris_64','Solaris11_64','FreeBSD','FreeBSD_64','OpenBSD','OpenBSD_64','NetBSD','NetBSD_64','OS2Warp3','OS2Warp4','OS2Warp45','OS2eCS','OS21x','OS2','MacOS','MacOS_64','MacOS106','MacOS106_64','MacOS107_64','MacOS108_64','MacOS109_64','MacOS1010_64','MacOS1011_64','MacOS1012_64','MacOS1013_64','DOS','Netware','L4','QNX','JRockitVE','VBoxBS_64'))
+ if ($global:guestostype.id) {
+  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:guestostype.id)
+ }
+ $OsTypeIdCollection.Add($ValidateSetOsTypeId)
+ $OsTypeId = new-object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
+ $CustomAttributes.HelpMessage = 'Enter custom number of CPUs available to the virtual machine'
+ $CpuCountCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $CpuCountCollection.Add($CustomAttributes)
+ $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute(1, 32)
+ if ($global:systempropertiessupported.MinGuestCPUCount -and $global:systempropertiessupported.MaxGuestCPUCount) {
+  $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestCPUCount, $global:systempropertiessupported.MaxGuestCPUCount)
+ }
+ $CpuCountCollection.Add($ValidateSetCpuCount)
+ $CpuCount = new-object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
+ $CustomAttributes.HelpMessage = 'Enter custom memory size in MB for the virtual machine'
+ $MemorySizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemorySizeCollection.Add($CustomAttributes)
+ $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
+ if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
+  $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
+ }
+ $MemorySizeCollection.Add($ValidateSetMemorySize)
+ $MemorySize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
+ $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+ $paramDictionary.Add("OsTypeId", $OsTypeId)
+ $paramDictionary.Add("CpuCount", $CpuCount)
+ $paramDictionary.Add("MemorySize", $MemorySize)
+ return $paramDictionary
+}
+Begin {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ $OsTypeId = $PSBoundParameters['OsTypeId']
+ $CpuCount = $PSBoundParameters['CpuCount']
+ $MemorySize = $PSBoundParameters['MemorySize']
+} # Begin
+Process {
+ if ($Name) {if ((Get-VirtualBoxVM -Name $Name -SkipCheck).Name -eq $Name) {Write-Host "[Error] Machine $Name already exists. Enter another name and try again." -ForegroundColor Red -BackgroundColor Black;return}}
+ try {
+  # create a vm shell
+  Write-Verbose "Creating a shell machine object"
+  $imachine = New-Object VirtualBoxVM
+  # create an appliance shell
+  Write-Verbose "Creating a shell appliance object"
+  $iappliance = $global:vbox.IVirtualBox_createAppliance($global:ivbox)
+  # read the ovf/ova file
+  Write-Verbose "Reading the OVf/OVA settings file"
+  $imachine.IProgress.Id = $global:vbox.IAppliance_read($iappliance, $FileName)
+  # collect iprogress data
+  Write-Verbose "Fetching IProgress data"
+  $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+  if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+  do {
+   # update iprogress data
+   $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+   if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+   if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+  } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reaches 100%
+  # interpret the iappliance
+  Write-Verbose "Interpreting the OVF/OVA settings"
+  $global:vbox.IAppliance_interpret($iappliance)
+  # get warnings
+  Write-Verbose "Getting any warnings in reading the OVf/OVA settings file and displaying to Verbose output"
+  [string[]]$warnings = $global:vbox.IAppliance_getWarnings($iappliance)
+  foreach ($warning in $warnings) {
+   Write-Verbose $warning
+  }
+  # get the $ivirtualsystemdescriptions object reference(s) found by interperet()
+  Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
+  [string[]]$ivirtualsystemdescriptions = $global:vbox.IAppliance_getVirtualSystemDescriptions($iappliance)
+  $appliancedescriptions = New-Object IVirtualSystemDescription
+  # get an array of iappliance config values to modify before import
+  foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
+   # populate the appliance descriptions
+   Write-Verbose "Getting appliance descriptions"
+   [array]$appliancedescriptions += $appliancedescriptions.Fetch($ivirtualsystemdescription)
+   # remove null rows
+   $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
+   if ($PsCmdlet.ParameterSetName -eq 'Custom') {
+    Write-Verbose "Setting requested custom appliance setting(s)"
+    if ($Name) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
+    }
+    if ($OsTypeId) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
+    }
+    if ($PrimaryGroup) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
+    }
+    if ($SettingsFile) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
+    }
+    if ($BaseFolder) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
+    }
+    if ($Description) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
+    }
+    if ($CpuCount) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $CpuCount
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
+    }
+    if ($MemorySize) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $MemorySize
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
+    }
+    if ($UsbController) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
+    }
+    if ($NetworkAdapter) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
+    }
+    if ($CdRom) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).ExtraConfigValues = $CdRom
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
+    }
+    if ($HardDiskControllerScsi) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Refs = '0'
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
+    }
+    if ($PrimaryHardDiskControllerIde) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '5'}).VBoxValues = $PrimaryHardDiskControllerIde
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '5'}).Options = $true
+    }
+    if ($SecondaryHardDiskControllerIde) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).VBoxValues = $PrimaryHardDiskControllerIde
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).Options = $true
+    }
+    if ($HardDiskControllerSata) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Refs = '0'
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
+    }
+    if ($HardDiskControllerSas) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = 'LsiLogicSas'
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Refs = '0'
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
+    }
+    if ($HardDiskImage) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
+    }
+    if ($Product) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
+    }
+    if ($Vendor) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
+    }
+    if ($Version) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
+    }
+    if ($ProductUrl) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
+    }
+    if ($VendorUrl) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
+    }
+    if ($License) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
+    }
+    if ($Miscellaneous) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
+    }
+    if ($Floppy) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).ExtraConfigValues = $Floppy
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
+    }
+    if ($SoundCard) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
+    }
+    if ($CloudInstanceShape) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
+    }
+    if ($CloudDomain) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
+    }
+    if ($CloudBootDiskSize) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
+    }
+    if ($CloudBucket) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
+    }
+    if ($CloudOciVcn) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
+    }
+    if ($CloudPublicIp) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
+    }
+    if ($CloudProfileName) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
+    }
+    if ($CloudOciSubnet) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
+    }
+    if ($CloudKeepObject) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
+    }
+    if ($CloudLaunchInstance) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
+    }
+    if ($CloudImageState) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
+    }
+    if ($CloudInstanceDisplayName) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
+    }
+    if ($CloudImageDisplayName) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
+    }
+    if ($CloudOciLaunchMode) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
+    }
+    if ($CloudPrivateIp) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
+    }
+    if ($CloudBootVolumeId) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
+    }
+    if ($CloudOciVcnCompartment) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
+    }
+    if ($CloudOciSubnetCompartment) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
+    }
+    if ($CloudPublicSshKey) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
+    }
+    if ($BootingFirmware) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $BootingFirmware
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
+    }
+   }
+   Write-Verbose "Applying final settings to appliance"
+   $global:vbox.IVirtualSystemDescription_setFinalValues($ivirtualsystemdescription, $appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
+  } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
+  # import the machine to inventory
+  Write-Verbose "Importing machine to VirtualBox inventory"
+  $imachine.IProgress.Id = $global:vbox.IAppliance_importMachines($iappliance, $global:importoptions.ToInt($ImportOptions))
+  # collect iprogress data
+  Write-Verbose "Fetching IProgress data"
+  $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+  if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+  do {
+   # update iprogress data
+   $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+   if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+   if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+  } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reaches 100%
+ } # Try
+ catch {
+  Write-Verbose 'Exception importing OVF'
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    $imachine.ISession = $null
+    $imachine.IConsole = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+  if ($ivirtualsystemdescriptions) {
+   foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
+    $global:vbox.IManagedObjectRef_release($ivirtualsystemdescription)
+   }
+  }
+  if ($iappliance) {
+   $global:vbox.IManagedObjectRef_release($iappliance)
+  }
+  $ivirtualsystemdescriptions = $null
+  $iappliance = $null
+ } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
 Function Get-VirtualBoxDisk {
 <#
 .SYNOPSIS
@@ -4574,6 +5274,7 @@ New-Alias -Name nvboxvm -Value New-VirtualBoxVM
 New-Alias -Name remvboxvm -Value Remove-VirtualBoxVM
 New-Alias -Name ivboxvm -Value Import-VirtualBoxVM
 New-Alias -Name evboxvm -Value Edit-VirtualBoxVM
+New-Alias -Name ivboxovf -Value Import-VirtualBoxOVF
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisk
 New-Alias -Name nvboxd -Value New-VirtualBoxDisk
 New-Alias -Name subvboxvmp -Value Submit-VirtualBoxVMProcess
