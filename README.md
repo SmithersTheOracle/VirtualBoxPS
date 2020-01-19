@@ -69,6 +69,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 * Submit-VirtualBoxVMProcess isn't recieving anything from stdout or stderr.
 * Some of the custom parameters for Import-VirtualBoxOVF and Export-VirtualBoxOVF do not work properly
 	>Continuing to bug test against SDKRef
+* Remove-VirtualBoxDisk won't unmount disks from VMs yet
+	>Currently working on a way to find which storage controller port/slot number the disk is attached to.
 
 ### **WORK AROUNDS**
 * Start-VirtualBoxVM -Type Gui -Encrypted will still display a password prompt, even though the VM starts properly.
@@ -77,8 +79,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -Bypass switch.
     
 ### **VERSION**
-	0.3.0.22
-	January 18, 2020
+	0.3.0.23
+	January 19, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
@@ -101,5 +103,6 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Export-VirtualBoxOVF
 	Get-VirtualBoxDisk
 	New-VirtualBoxDisk
+	Remove-VirtualBoxDisk
 	Submit-VirtualBoxVMProcess
 	Submit-VirtualBoxVMPowerShellScript
