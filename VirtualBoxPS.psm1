@@ -3832,135 +3832,126 @@ End {
 Function Import-VirtualBoxOVF {
 <#
 .SYNOPSIS
-Create a virtual machine
+Import an OVF file
 .DESCRIPTION
-Creates a new virtual machine. The name provided by the Name parameter must not exist in the VirtualBox inventory, or this command will fail. You can optionally supply custom values using a large number of parameters available to this command. There are too many to fully document in this help text, so tab completion has been added where it is possible. The values provided by tab completion are updated when Start-VirtualBoxSession is successfully run. To force the values to be updated again, use the -Force switch with Start-VirtualBoxSession.
-.PARAMETER Name
-The name of the virtual machine. This is a required parameter.
-.PARAMETER OsTypeId
-The type ID for the virtual machine guest OS. This is a required parameter.
-.PARAMETER AllowTracingToAccessVM
-Enable or disable tracing access to the virtual machine.
-.PARAMETER AudioControllerType
-The audio controller type for the virtual machine.
-.PARAMETER AudioDriverType
-The audio driver type for the virtual machine.
-.PARAMETER AutostartDelay
-The auto start delay in seconds for the virtual machine.
-.PARAMETER AutostartEnabled
-Enable or disable auto start for the virtual machine.
-.PARAMETER AutostopType
-The auto stop type for the virtual machine.
-.PARAMETER ChipsetType
-The chipset type for the virtual machine.
-.PARAMETER ClipboardFileTransfersEnabled
-Enable or disable clipboard file transfers for the virtual machine. Default value is $false.
-.PARAMETER ClipboardMode
-The clipboard mode for the virtual machine.
+Imports an OVF file and creates a new virtual machine based on its settings. The name provided by the Name parameter must not exist in the VirtualBox inventory, or this command will fail. You can optionally supply custom values using a large number of parameters available to this command. There are too many to fully document in this help text, so tab completion has been added where it is possible. The values provided by tab completion are updated when Start-VirtualBoxSession is successfully run. To force the values to be updated again, use the -Force switch with Start-VirtualBoxSession.
+.PARAMETER FileName
+The full path of the OVF file. This is a required parameter.
+.PARAMETER ImportOptions
+You may optionally provide import options. They must be supplied separated by commas. (Ex. -ImportOptions 'KeepAllMACs','ImportToVDI')
+.PARAMETER BaseFolder
+A custom base folder for the virtual machine.
+.PARAMETER CdRom
+A custom CD/DVD ROM for the virtual machine. This parameter is currently broken.
+.PARAMETER CloudBootDiskSize
+A custom cloud boot disk size for the virtual machine.
+.PARAMETER CloudBootVolumeId
+A custom cloud boot volume ID for the virtual machine.
+.PARAMETER CloudBucket
+A custom cloud bucket for the virtual machine.
+.PARAMETER CloudDomain
+A custom cloud domain for the virtual machine.
+.PARAMETER CloudImageDisplayName
+A custom cloud image display name for the virtual machine.
+.PARAMETER CloudImageState
+A custom cloud image state for the virtual machine.
+.PARAMETER CloudInstanceDisplayName
+A custom cloud instance display name for the virtual machine.
+.PARAMETER CloudInstanceShape
+A custom cloud instance shape for the virtual machine.
+.PARAMETER CloudKeepObject
+A custom cloud keep object for the virtual machine.
+.PARAMETER CloudLaunchInstance
+A custom cloud launch instance for the virtual machine.
+.PARAMETER CloudOciLaunchMode
+A custom cloud OCI launch mode for the virtual machine.
+.PARAMETER CloudOciSubnet
+A custom cloud OCI subnet for the virtual machine. This must be a valid IP address.
+.PARAMETER CloudOciSubnetCompartment
+A custom cloud OCI subnet compartment for the virtual machine.
+.PARAMETER CloudOciVcn
+A custom cloud OCI VCN for the virtual machine.
+.PARAMETER CloudOciVcnCompartment
+A custom cloud OCI VCN compartment for the virtual machine.
+.PARAMETER CloudPrivateIp
+A custom cloud private IP address for the virtual machine. This must be a valid IP address.
+.PARAMETER CloudProfileName
+A custom cloud profile name for the virtual machine.
+.PARAMETER CloudPublicIp
+A custom cloud public IP address for the virtual machine. This must be a valid IP address.
+.PARAMETER CloudPublicSshKey
+A custom cloud public SSH key for the virtual machine.
 .PARAMETER CpuCount
-The number of CPUs available to the virtual machine.
-.PARAMETER CpuExecutionCap
-The CPU execution cap for the virtual machine. Valid range is 1-100. Default value is 100.
-.PARAMETER CpuHotPlugEnabled
-Enable or disable CPU hotplug for the virtual machine.
-.PARAMETER CpuIdPortabilityLevel
-The CPUID portability level for the virtual machine. Default value is 0.
-.PARAMETER CpuProfile
-The CPU profile for the virtual machine.
+A custom CPU count for the virtual machine. Must be a valid count reported by VirtualBox.
 .PARAMETER Description
-The description for the virtual machine.
-.PARAMETER DndMode
-The drag n' drop mode for the virtual machine.
-.PARAMETER EmulatedUsbCardReaderEnabled
-Enable or disable emulated USB card reader for the virtual machine.
+A custom description for the virtual machine.
 .PARAMETER FirmwareType
-The firmware type for the virtual machine.
-.PARAMETER Flags
-Optional flags for the virtual machine.
-.PARAMETER GraphicsControllerType
-The graphics controller type for the virtual machine.
-.PARAMETER Group
-Optional virtual machine group(s).
-.PARAMETER HardwareUuid
-The hardware UUID for the virtual machine.
-.PARAMETER HpetEnabled
-Enable or disable High Precision Event Timer for the virtual machine.
-.PARAMETER IoCacheEnabled
-The Enable or disable IO cache for the virtual machine.
-.PARAMETER IoCacheSize
-The IO cache size in MB for the virtual machine.
-.PARAMETER KeyboardHidType
-The keyboard HID type for the virtual machine.
-.PARAMETER Location
-The location for the virtual machine files.
-.PARAMETER MemoryBalloonSize
-The memory balloon size in MB for the virtual machine.
+A custom firmware type for the virtual machine. Must be a valid firmware type reported by VirtualBox.
+.PARAMETER Floppy
+A custom floppy disk controller for the virtual machine. This parameter is currently broken.
+.PARAMETER HardDiskControllerIdePrimary
+Force the addition of a primary IDE controller of a specified type for the virtual machine. Type specified must be either 'PIIX3' or 'PIIX3'.
+.PARAMETER HardDiskControllerIdeSecondary
+Force the addition of a secondary IDE controller of a specified type for the virtual machine. Type specified must be either 'PIIX3' or 'PIIX3'.
+.PARAMETER HardDiskControllerSas
+A switch to force the addition of a SAS controller for the virtual machine.
+.PARAMETER HardDiskControllerSata
+A switch to force the addition of a SATA controller for the virtual machine.
+.PARAMETER HardDiskControllerScsi
+Force the addition of an SCSI controller of a specified type for the virtual machine. Type specified must be either 'LsiLogic' or 'Bus-Logic'.
+.PARAMETER HardDiskImage
+A custom hard disk image for the virtual machine. This parameter is currently broken.
+.PARAMETER License
+A custom license for the virtual machine.
 .PARAMETER MemorySize
-The memory size in MB for the virtual machine.
-.PARAMETER NetworkAdapterType
-The network adapter type for the virtual machine.
-.PARAMETER NetworkAttachmentType
-The network attachment type for the virtual machine.
-.PARAMETER PageFusionEnabled
-Enable or disable page fusion for the virtual machine.
-.PARAMETER ParavirtProvider
-The paravirtual provider for the virtual machine.
-.PARAMETER PointingHidType
-The pointing HID type for the virtual machine.
-.PARAMETER PortMode
-The port mode for the virtual machine.
-.PARAMETER RecordingAudioCodec
-The recording audio codec for the virtual machine.
-.PARAMETER RecordingVideoCodec
-The recording video codec for the virtual machine.
-.PARAMETER RecordingVrcMode
-The recording VRC mode for the virtual machine.
-.PARAMETER RecordingVsMethod
-The recording VS method for the virtual machine.
-.PARAMETER RtcUseUtc
-Enable or disable RTC to UTC conversion for the virtual machine.
-.PARAMETER StorageBus
-The storage bus for the virtual machine.
-.PARAMETER StorageControllerType
-The storage controller type for the virtual machine.
-.PARAMETER TeleporterAddress
-The teleporter address for the virtual machine. The default value is a blank string which will force it to listen on all
-addresses.
-.PARAMETER TeleporterEnabled
-Enable or disable teleporter for the virtual machine. The default value is $false which will disable it.
-.PARAMETER TeleporterPassword
-The teleporter password for the virtual machine.
-.PARAMETER TeleporterPort
-The teleporter TCP port for the virtual machine. The valid range for this parameter is 0-65535. The default value is 0 which means the port is automatically selected upon power on. 
-.PARAMETER TracingConfig
-The tracing configuration for the virtual machine.
-.PARAMETER TracingEnabled
-Enable or disable tracing for the virtual machine.
-.PARAMETER UartType
-The emulated UART implementation type for the virtual machine.
-.PARAMETER UsbControllerType
-The USB controller type for the virtual machine.
-.PARAMETER VfsType
-The Virtual File System type for the virtual machine.
-.PARAMETER VmProcPriority
-The VM process priority for the virtual machine.
+A custom memory size in MB for the virtual machine. Must be a valid size reported by VirtualBox.
+.PARAMETER Miscellaneous
+Reserved for future use.
+.PARAMETER Name
+A custom name for the virtual machine.
+.PARAMETER NetworkAdapter
+A custom network adapter for the virtual machine. This parameter is currently broken.
+.PARAMETER OsTypeId
+A custom OS type ID for the virtual machine. Must be a valid OS type ID reported by VirtualBox.
+.PARAMETER PrimaryGroup
+A custom primary group for the virtual machine.
+.PARAMETER Product
+A custom product identifier for the virtual machine.
+.PARAMETER ProductUrl
+A custom product URL for the virtual machine.
+.PARAMETER SettingsFile
+A custom settings file for the virtual machine.
+.PARAMETER SoundCard
+A switch to force the addition of a sound card for the virtual machine.
+.PARAMETER UsbController
+A custom USB Controller for the virtual machine.
+.PARAMETER Vendor
+A custom vendor identifier for the virtual machine.
+.PARAMETER VendorUrl
+A custom vendor URL for the virtual machine.
+.PARAMETER Version
+A custom version for the virtual machine.
+.PARAMETER ProgressBar
+A switch to display a progress bar.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
-PS C:\> Import-VirtualBoxOVF -Name "My New Win10 VM" -OsTypeId Windows10_64
-Create a new virtual machine named "My New Win10 VM" with the all the recommended 64bit Windows10 defaults
+PS C:\> Import-VirtualBoxOVF -FileName "C:\OVA Files\Win10.ova" -ProgressBar
+Imports the Win10.ova file with all VirtualBox recommended defaults and displays a progress bar
+.EXAMPLE
+PS C:\> Import-VirtualBoxOVF -FileName "C:\OVA Files\Win10.ova" -Name "My Win10 OVA VM" -OsTypeId Windows10_64
+Imports the Win10.ova file as a new virtual machine named "My Win10 OVA VM" with the OS ID overridden to 64bit Windows10 type
 .NOTES
 NAME        :  Import-VirtualBoxOVF
 VERSION     :  1.0
-LAST UPDATED:  1/15/2020
+LAST UPDATED:  1/18/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
-Remove-VirtualBoxVM
-Import-VirtualBoxVM
+None
 .INPUTS
-String        :  String for virtual machine name
-String        :  String for virtual machine OS Type ID
+String        :  String for full OVA/OVF file path
+String[]      :  Strings for import options
 Other optional input parameters available. Use "Get-Help Import-VirtualBoxOVF -Full" for a complete list.
 .OUTPUTS
 None
@@ -4003,16 +3994,16 @@ ParameterSetName="Custom",Mandatory=$false)]
   [string]$CdRom,
 [Parameter(HelpMessage="Enter custom SCSI hard disk controller for the virtual machine",
 ParameterSetName="Custom",Mandatory=$false)]
-  [string]$HardDiskControllerScsi,
 [ValidateSet('LsiLogic','Bus-Logic')]
+  [string]$HardDiskControllerScsi,
 [Parameter(HelpMessage="Enter custom primary IDE hard disk controller for the virtual machine",
 ParameterSetName="Custom",Mandatory=$false)]
 [ValidateSet('PIIX3','PIIX4')]
-  [string]$PrimaryHardDiskControllerIde,
+  [string]$HardDiskControllerIdePrimary,
 [Parameter(HelpMessage="Enter custom secondary IDE hard disk controller for the virtual machine",
 ParameterSetName="Custom",Mandatory=$false)]
 [ValidateSet('PIIX3','PIIX4')]
-  [string]$SecondaryHardDiskControllerIde,
+  [string]$HardDiskControllerIdeSecondary,
 [Parameter(HelpMessage="A switch to force the addition of a SATA hard disk controller for the virtual machine",
 ParameterSetName="Custom",Mandatory=$false)]
   [switch]$HardDiskControllerSata,
@@ -4106,9 +4097,6 @@ ParameterSetName="Custom",Mandatory=$false)]
 [Parameter(HelpMessage="Enter custom cloud public SSH key for the virtual machine",
 ParameterSetName="Custom",Mandatory=$false)]
   [string]$CloudPublicSshKey,
-[Parameter(HelpMessage="Enter custom booting firmware for the virtual machine",
-ParameterSetName="Custom",Mandatory=$false)]
-  [string]$BootingFirmware,
 [Parameter(HelpMessage="Use this switch to display a progress bar")]
   [switch]$ProgressBar,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
@@ -4145,10 +4133,20 @@ DynamicParam {
  }
  $MemorySizeCollection.Add($ValidateSetMemorySize)
  $MemorySize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
+ $CustomAttributes.HelpMessage = 'Enter custom firmware type for the virtual machine'
+ $FirmwareTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $FirmwareTypesCollection.Add($CustomAttributes)
+ $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('BIOS','EFI','EFI32','EFI64','EFIDUAL'))
+ if ($global:systempropertiessupported.FirmwareTypes) {
+  $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.FirmwareTypes)
+ }
+ $FirmwareTypesCollection.Add($ValidateSetFirmwareTypes)
+ $FirmwareTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
  $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
  $paramDictionary.Add("OsTypeId", $OsTypeId)
  $paramDictionary.Add("CpuCount", $CpuCount)
  $paramDictionary.Add("MemorySize", $MemorySize)
+ $paramDictionary.Add("FirmwareType", $FirmwareTypes)
  return $paramDictionary
 }
 Begin {
@@ -4162,6 +4160,7 @@ Begin {
  $OsTypeId = $PSBoundParameters['OsTypeId']
  $CpuCount = $PSBoundParameters['CpuCount']
  $MemorySize = $PSBoundParameters['MemorySize']
+ $FirmwareType = $PSBoundParameters['FirmwareType']
 } # Begin
 Process {
  if ($Name) {if ((Get-VirtualBoxVM -Name $Name -SkipCheck).Name -eq $Name) {Write-Host "[Error] Machine $Name already exists. Enter another name and try again." -ForegroundColor Red -BackgroundColor Black;return}}
@@ -4256,12 +4255,12 @@ Process {
      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Refs = '0'
      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
     }
-    if ($PrimaryHardDiskControllerIde) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '5'}).VBoxValues = $PrimaryHardDiskControllerIde
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '5'}).Options = $true
+    if ($HardDiskControllerIdePrimary) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).VBoxValues = $HardDiskControllerIdePrimary
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).Options = $true
     }
-    if ($SecondaryHardDiskControllerIde) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).VBoxValues = $PrimaryHardDiskControllerIde
+    if ($HardDiskControllerIdeSecondary) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).VBoxValues = $HardDiskControllerIdeSecondary
      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).Options = $true
     }
     if ($HardDiskControllerSata) {
@@ -4388,8 +4387,8 @@ Process {
      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
     }
-    if ($BootingFirmware) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $BootingFirmware
+    if ($FirmwareType) {
+     ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $FirmwareType
      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
     }
    }
