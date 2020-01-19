@@ -67,10 +67,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 
 ### **KNOWN ISSUES**
 * Submit-VirtualBoxVMProcess isn't recieving anything from stdout or stderr.
-* Some of the custom parameters for Import-VirtualBoxOVF do not work properly
+* Some of the custom parameters for Import-VirtualBoxOVF and Export-VirtualBoxOVF do not work properly
 	>Continuing to bug test against SDKRef
-* Import-VirtualBoxOVF help text is incorrect
-	>Update in progress
 
 ### **WORK AROUNDS**
 * Start-VirtualBoxVM -Type Gui -Encrypted will still display a password prompt, even though the VM starts properly.
@@ -79,7 +77,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -Bypass switch.
     
 ### **VERSION**
-	0.2.9.21
+	0.3.0.22
 	January 18, 2020
     
 ### **SEE ALSO**
@@ -100,6 +98,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Import-VirtualBoxVM
 	Edit-VirtualBoxVM
 	Import-VirtualBoxOVF
+	Export-VirtualBoxOVF
 	Get-VirtualBoxDisk
 	New-VirtualBoxDisk
 	Submit-VirtualBoxVMProcess
