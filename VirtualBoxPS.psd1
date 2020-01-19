@@ -12,7 +12,7 @@
 RootModule = 'VirtualBoxPS.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.2.9.21'
+ModuleVersion = '0.3.0.22'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
