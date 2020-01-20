@@ -3,21 +3,13 @@
 VirtualBox API Version: 6.1
 TODO:
 Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
-Remove-VirtualBoxDisk
-Remove a Disk - void IMachine::detachDevice() - void IMedium::close() - IProgress IMedium::deleteStorage()
-Import-VirtualBoxDisk
-Import a Disk - IMedium IVirtualBox::openMedium()
-Remove-VirtualBoxDisk
+Remove-VirtualBoxDisc
 Remove a CD/DVD/Floppy - void IMedium::close()
-Import-VirtualBoxDisk
+Import-VirtualBoxDisc
 Import a CD/DVD/Floppy - IMedium IVirtualBox::openMedium()
-Mount-VirtualBoxDisk
-Mount a Disk - void IMachine::attachDevice()
-Unmount-VirtualBoxDisk
-Unmount a Disk - void IMachine::detachDevice()
-Mount-VirtualBoxDisk
+Mount-VirtualBoxDisc
 Mount a CD/DVD/Floppy - void IMachine::mountMedium()
-Unmount-VirtualBoxDisk
+Unmount-VirtualBoxDisc
 Unmount a CD/DVD/Floppy - void IMachine::unmountMedium()
 Add support for credential arrays
 Write more comprehensive error handling
@@ -244,6 +236,42 @@ class IVirtualSystemDescription {
     }
 }
 Update-TypeData -TypeName IVirtualSystemDescription -DefaultDisplayPropertySet @("Types","OVFValues","VBoxValues") -Force
+class IStorageController {
+    [ValidateNotNullOrEmpty()]
+    [string]$Name
+    [ValidateNotNullOrEmpty()]
+    [string]$Id
+    [uint32]$MaxDevicesPerPortCount
+    [uint32]$MinPortCount
+    [uint32]$MaxPortCount
+    [uint32]$Instance
+    [uint32]$PortCount
+    [string]$Bus
+    [string]$ControllerType
+    [bool]$UseHostIOCache
+    [bool]$Bootable;
+    [array]Fetch ($IMachine) {
+        [string[]]$istoragecontrollers = $global:vbox.IMachine_getStorageControllers($IMachine)
+        $ret = @()
+        foreach ($istoragecontroller in $istoragecontrollers) {
+            $outId = $istoragecontroller
+            $outName = $global:vbox.IStorageController_getName($istoragecontroller)
+            $outMaxDevicesPerPortCount = $global:vbox.IStorageController_getMaxDevicesPerPortCount($istoragecontroller)
+            $outMinPortCount = $global:vbox.IStorageController_getMinPortCount($istoragecontroller)
+            $outMaxPortCount = $global:vbox.IStorageController_getMaxPortCount($istoragecontroller)
+            $outInstance = $global:vbox.IStorageController_getInstance($istoragecontroller)
+            $outPortCount = $global:vbox.IStorageController_getPortCount($istoragecontroller)
+            $outBus = $global:vbox.IStorageController_getBus($istoragecontroller)
+            $outControllerType = $global:vbox.IStorageController_getControllerType($istoragecontroller)
+            $outUseHostIOCache = $global:vbox.IStorageController_getUseHostIOCache($istoragecontroller)
+            $outBootable = $global:vbox.IStorageController_getBootable($istoragecontroller)
+            [array]$ret += [IStorageController]@{Id=$outId;Name=$outName;MaxDevicesPerPortCount=$outMaxDevicesPerPortCount;MinPortCount=$outMinPortCount;MaxPortCount=$outMaxPortCount;Instance=$outInstance;PortCount=$outPortCount;Bus=$outBus;ControllerType=$outControllerType;UseHostIOCache=$outUseHostIOCache;Bootable=$outBootable}
+        }
+        $ret = $ret | Where-Object {$ret -ne $null}
+        return [array]$ret
+    }
+}
+Update-TypeData -TypeName IStorageController -DefaultDisplayPropertySet @("Name","Bus","ControllerType","Bootable") -Force
 class SystemPropertiesSupported {
     [string[]]$ParavirtProviders
     [string[]]$ClipboardModes
@@ -2864,12 +2892,12 @@ Process {
   if ($PsCmdlet.ParameterSetName -eq 'Custom') {
    try {
     if ($Icon) {
+     if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
      # convert to png
-     $saveFile = "$env:TEMP\VirtualBoxPS\icon.png"
      Add-Type -AssemblyName system.drawing
      $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
      $image = [drawing.image]::FromFile($Icon)
-     $image.Save($saveFile, $imageFormat::Png)
+     $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
      $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
      $global:vbox.IMachine_setIcon($imachine.Id, $octet)
      Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
@@ -3832,11 +3860,11 @@ Process {
       if ($Icon -eq '') {$global:vbox.IMachine_setIcon($mmachine.Id, $null)}
       else {
        # convert to png
-       $saveFile = "$env:TEMP\VirtualBoxPS\icon.png"
+       if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
        Add-Type -AssemblyName system.drawing
        $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
        $image = [drawing.image]::FromFile($Icon)
-       $image.Save($saveFile, $imageFormat::Png)
+       $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
        $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
        $global:vbox.IMachine_setIcon($mmachine.Id, $octet)
        Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
@@ -5475,7 +5503,7 @@ The variant flag of the virtual disk.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
-PS C:\> New-VirtualBoxDisk -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar -Verbose
+PS C:\> New-VirtualBoxDisk -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar
 
 Create a standard, fixed 4MB virtual disk named "TestDisk.vmdk" in the C:\Disks\ location and display a progress bar
 .NOTES
@@ -5587,48 +5615,126 @@ End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
 } # End
 } # end function
-Function Remove-VirtualBoxDisk {
+Function Import-VirtualBoxDisk {
 <#
 .SYNOPSIS
-Create VirtualBox disk
+Import VirtualBox disk
 .DESCRIPTION
-Creates VirtualBox disks. The command will fail if a virtual disk with the same name exists in the VirtualBox inventory.
-.PARAMETER Name
-The virtual disk name.
-.PARAMETER Format
-The virtual disk format.
-.PARAMETER Location
-The location to store the virtual disk. If the path does not exist it will be created.
+Imports VirtualBox disks. The command will fail if a virtual disk with the same name exists in the VirtualBox inventory.
+.PARAMETER FileName
+The full path to the virtual disk file.
 .PARAMETER AccessMode
 Either Readonly or ReadWrite.
 .PARAMETER LogicalSize
-The size of the virtual disk in bytes.
-.PARAMETER VariantType
-The variant type of the virtual disk.
-.PARAMETER VariantFlag
-The variant flag of the virtual disk.
+A switch to request a new disk UUID be created.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
-PS C:\> Remove-VirtualBoxDisk -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar -Verbose
+PS C:\> Import-VirtualBoxDisk -FileName C:\Disks\TestDisk.vmdk -AccessMode ReadWrite
 
-Create a standard, fixed 4MB virtual disk named "TestDisk.vmdk" in the C:\Disks\ location and display a progress bar
+Imports the "C:\Disks\TestDisk.vmdk" disk in Read/Write mode
 .NOTES
-NAME        :  Remove-VirtualBoxDisk
+NAME        :  Import-VirtualBoxDisk
 VERSION     :  1.0
-LAST UPDATED:  1/16/2020
+LAST UPDATED:  1/20/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-String        :  String for virtual disk name
-String        :  String for virtual disk format
-String        :  String for virtual disk location
+String        :  String for virtual disk file path
 String        :  String for virtual disk access mode
-UInt64        :  UInt64 for virtual disk size
-String        :  String for virtual disk variant type
-String        :  String for virtual disk variant flag
+.OUTPUTS
+None
+#>
+[cmdletbinding(DefaultParameterSetName="HardDisk")]
+Param(
+[Parameter(HelpMessage="Enter the full virtual disk path",
+ParameterSetName="HardDisk",Mandatory=$true,Position=2)]
+[ValidateScript({Test-Path $_})]
+  [string]$FileName,
+[Parameter(HelpMessage="Enter the virtual disk access type",
+ParameterSetName="HardDisk",Mandatory=$true,Position=3)]
+[ValidateSet('ReadOnly','ReadWrite')]
+  [string]$AccessMode,
+[Parameter(HelpMessage="Use this switch to request a new disk UUID be created",
+ParameterSetName="HardDisk",Mandatory=$false)]
+  [switch]$ForceNewUuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ # check global vbox variable and create it if it doesn't exist
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if (-Not $global:ivbox) {Start-VirtualBoxSession}
+  # get extensions supported by the selected format
+  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+  # get the last of the extensions and use it
+  $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
+  $existingdisks = Get-VirtualBoxDisk -Name $Name -SkipCheck
+  if ($existingdisks) {
+   foreach ($existingdisk in $existingdisks) {
+    Write-Verbose $existingdisk.Name
+    if ($existingdisk.Name -eq ($FileName.Substring($FileName.LastIndexOf('\')+1))) {
+     Write-Host "[Error] Hard disk $($existingdisk.Name) already exists. Select another disk image and try again." -ForegroundColor Red -BackgroundColor Black
+     return
+    }
+   }
+  }
+  try {
+   $imedium = New-Object VirtualBoxVHD
+   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('HardDisk'), $AccessMode, $(if ($ForceNewUuid) {$true}))
+  } # Try
+  catch {
+   Write-Verbose 'Exception creating virtual disk'
+   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+ } # end if ParameterSetName -eq HardDisk
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Remove-VirtualBoxDisk {
+<#
+.SYNOPSIS
+Remove VirtualBox disk
+.DESCRIPTION
+Removes VirtualBox disks. The command will fail if a virtual disk does not exist in the VirtualBox inventory or if the disk is mounted to a machine.
+.PARAMETER Disk
+At least one virtual disk object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER DeleteFromHost
+A switch to delete the virtual disk from the host. This cannot be undone.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Remove-VirtualBoxDisk -Name TestDisk.vmdk -DeleteFromHost -ProgressBar -Confirm:$false
+
+Removes the virtual disk named "TestDisk.vmdk" from the VirtualBox inventory, deletes it from disk, does not confirm the action, and display a progress bar
+.NOTES
+NAME        :  Remove-VirtualBoxDisk
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisk
+.INPUTS
+VirtualBoxVHD[]:  Virtual disk objects
+String[]       :  Strings for virtual disk names
+GUID[]         :  GUIDS for virtual disk GUIDS
 .OUTPUTS
 None
 #>
@@ -5675,6 +5781,9 @@ Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Controller Name: `"$Controller`""
+ Write-Verbose "Controller Port: `"$ControllerPort`""
+ Write-Verbose "Controller Slot: `"$ControllerSlot`""
  if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
   # initialize $imachines array
@@ -5694,40 +5803,15 @@ Process {
    Write-Verbose "Getting disk inventory from GUID(s)"
    $imediums = Get-VirtualBoxDisk -Guid $Guid -SkipCheck
   }
-  $imediums = Get-VirtualBoxDisk -Name $Name -SkipCheck
   if ($imediums) {
    Write-Verbose "[Info] Found disks"
    try {
     foreach ($imedium in $imediums) {
      Write-Verbose "Found disk: $($imedium.Name)"
      if ($imedium.VMNames) {
-      Write-Verbose "Disk attached to VM: $($imedium.VMNames[0])"
-      # need to remove the disk from the VM(s) first
       foreach ($vmname in $imedium.VMNames) {
-       $imachine = Get-VirtualBoxVM -Name $vmname -SkipCheck
-       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) which the disk is attached to is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Unmount storage medium $($imedium.Name) ")) {
-        # need to write stuff here to get the storage controller info before detaching the disk
-        [string[]]$istoragecontrollers = $global:vbox.IMachine_getStorageControllers($imachine.Id)
-        foreach ($istoragecontroller in $istoragecontrollers) {
-         Write-Verbose "[Debug] Found controller: $($global:vbox.IStorageController_getName($istoragecontroller))"
-         Write-Verbose "[Debug] MaxDevicesPerPortCount: $($global:vbox.IStorageController_getMaxDevicesPerPortCount($istoragecontroller))"
-         Write-Verbose "[Debug] MinPortCount: $($global:vbox.IStorageController_getMinPortCount($istoragecontroller))"
-         Write-Verbose "[Debug] MaxPortCount: $($global:vbox.IStorageController_getMaxPortCount($istoragecontroller))"
-         Write-Verbose "[Debug] Instance: $($global:vbox.IStorageController_getInstance($istoragecontroller))"
-         Write-Verbose "[Debug] PortCount: $($global:vbox.IStorageController_getPortCount($istoragecontroller))"
-         Write-Verbose "[Debug] Bus: $($global:vbox.IStorageController_getBus($istoragecontroller))"
-         Write-Verbose "[Debug] ControllerType: $($global:vbox.IStorageController_getControllerType($istoragecontroller))"
-         Write-Verbose "[Debug] UseHostIOCache: $($global:vbox.IStorageController_getUseHostIOCache($istoragecontroller))"
-         Write-Verbose "[Debug] Bootable: $($global:vbox.IStorageController_getBootable($istoragecontroller))"
-        } # foreach $istoragecontroller in $istoragecontrollers
-        Write-Verbose ($imedium | Select-Object *)
-        #$global:vbox.IMachine_detachDevice($imachine.Id, )
-        # debug
-        Write-Host "[Error] The disk $($imedium.Name) is still mounted to machine $($imachine.Name). Unmounting a disk is not supported at this time. Unmount the disk manually and try again." -ForegroundColor Red -BackgroundColor Black
-        return
-       } # end if $PSCmdlet.ShouldProcess(
-       else {Write-Verbose "Operation cancelled by user";return}
+      Write-Verbose "Disk attached to VM: $vmname"
+       Write-Host "[Error] The disk $($imedium.Name) is still mounted to machine $vmname. Dismount the disk from the machine and try again." -ForegroundColor Red -BackgroundColor Black;return
       } # foreach $vmname in $imedium.VMNames
      } # end if $imedium.VMNames
      if ($DeleteFromHost) {
@@ -5761,6 +5845,451 @@ Process {
    } # Catch
    finally {
     # cleanup
+   } # Finally
+  } # end if $imediums
+ } # end if ParameterSetName -eq HardDisk
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Mount-VirtualBoxDisk {
+<#
+.SYNOPSIS
+Mount VirtualBox disk
+.DESCRIPTION
+Mounts VirtualBox disks. The command will fail if a virtual disk is already mounted to the specified virtual machine.
+.PARAMETER Disk
+At least one virtual disk object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to mount the disk to. This is a required parameter.
+.PARAMETER Controller
+The name of the storage controller to mount the disk to. This is a required parameter.
+.PARAMETER ControllerPort
+The port of the storage controller to mount the disk to. This is a required parameter.
+.PARAMETER ControllerSlot
+The slot of the storage controller to mount the disk to. This is a required parameter.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Mount-VirtualBoxDisk -Name TestDisk -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
+
+Mounts the virtual disk named "TestDisk.vmdk" to the Win10 virtual machine SATA controller on port 0 slot 0
+.NOTES
+NAME        :  Mount-VirtualBoxDisk
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisk
+.INPUTS
+VirtualBoxVHD[]:  Virtual disk objects
+String[]       :  Strings for virtual disk names
+GUID[]         :  GUIDS for virtual disk GUIDS
+String         :  String for virtual machine name
+String         :  String for controller name
+Int            :  Integer for controller port
+Int            :  Integer for controller slot
+.OUTPUTS
+None
+#>
+[cmdletbinding(DefaultParameterSetName="HardDisk",SupportsShouldProcess,ConfirmImpact='High')]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk object(s)",
+ParameterSetName="HardDisk",Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD]$Disk,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk name(s)",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk GUID(s)",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(Mandatory=$true,HelpMessage="Enter the name of the virtual machine to mount the disk to",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to mount the disk to",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [string]$Controller,
+[Parameter(Mandatory=$true,HelpMessage="Enter the port number to mount the disk to",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerPort,
+[Parameter(Mandatory=$true,HelpMessage="Enter the slot number to mount the disk to",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerSlot,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ # check global vbox variable and create it if it doesn't exist
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if (-Not $global:ivbox) {Start-VirtualBoxSession}
+  # get extensions supported by the selected format
+  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+  # get the last of the extensions and use it
+  $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disk: `"$Disk`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Machine Name: `"$MachineName`""
+ Write-Verbose "Controller Name: `"$Controller`""
+ Write-Verbose "Controller Port: `"$ControllerPort`""
+ Write-Verbose "Controller Slot: `"$ControllerSlot`""
+ if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
+  # initialize $imachines array
+  $imediums = @()
+  # get vm inventory (by $Machine)
+  if ($Disk) {
+   Write-Verbose "Getting disk inventory from Disk(s) object"
+   $imediums = $Disk
+  }
+  # get vm inventory (by $Name)
+  elseif ($Name) {
+   Write-Verbose "Getting disk inventory from Name(s)"
+   $imediums = Get-VirtualBoxDisk -Name $Name -SkipCheck
+  }
+  # get vm inventory (by $Guid)
+  elseif ($Guid) {
+   Write-Verbose "Getting disk inventory from GUID(s)"
+   $imediums = Get-VirtualBoxDisk -Guid $Guid -SkipCheck
+  }
+  if ($imediums) {
+   Write-Verbose "[Info] Found disks"
+   try {
+    foreach ($imedium in $imediums) {
+     Write-Verbose "Found disk: $($imedium.Name)"
+     if ($imedium.VMNames) {
+      # make sure it's not already attached to the requested vm
+      foreach ($vmname in $imedium.VMNames) {
+       Write-Verbose "Disk attached to VM: $vmname"
+       if (Get-VirtualBoxDisk -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disk $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
+      } # foreach $vmname in $imedium.VMNames
+     } # end if $imedium.VMNames
+     $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+     foreach ($imachine in $imachines) {
+      if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
+      $istoragecontrollers = New-Object IStorageController
+      $istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+      foreach ($istoragecontroller in $istoragecontrollers) {
+       if ($istoragecontroller.Name -eq $Controller) {
+        if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        $controllerfound = $true
+       } # end if $istoragecontroller.Name -eq $Controller
+       if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify a new controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+      } # foreach $istoragecontroller in $istoragecontrollers
+      Write-Verbose "Getting write lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Write'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
+      $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+      # attach the disk
+      Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+      $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $global:vbox.IMachine_saveSettings($mmachine.Id)
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
+     } # foreach $imachine in $imachines
+    } # foreach $imedium in $imediums
+   } # Try
+   catch {
+    Write-Verbose 'Exception mounting virtual disk'
+    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   } # Catch
+   finally {
+    # release mutable machine objects if they exist
+    if ($mmachine) {
+     if ($mmachine.ISession) {
+      # release mutable session object
+      Write-Verbose "Releasing mutable session object"
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession)
+     }
+     if ($mmachine.Id) {
+      # release mutable object
+      Write-Verbose "Releasing mutable object"
+      $global:vbox.IManagedObjectRef_release($mmachine.Id)
+     }
+    }
+    # obligatory session unlock
+    Write-Verbose 'Cleaning up machine sessions'
+    if ($imachines) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.ISession) {
+       if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+        $global:vbox.ISession_unlockMachine($imachine.ISession)
+       } # end if session state not unlocked
+      } # end if $imachine.ISession
+      if ($imachine.IConsole) {
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+      } # end if $imachine.IConsole
+      $imachine.ISession = $null
+      $imachine.IConsole = $null
+      if ($imachine.IPercent) {$imachine.IPercent = $null}
+      $imachine.MSession = $null
+      $imachine.MConsole = $null
+      $imachine.MMachine = $null
+     } # end foreach $imachine in $imachines
+    } # end if $imachines
+   } # Finally
+  } # end if $imediums
+ } # end if ParameterSetName -eq HardDisk
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Dismount-VirtualBoxDisk {
+<#
+.SYNOPSIS
+Dismount VirtualBox disk
+.DESCRIPTION
+Dismounts VirtualBox disks. The command will fail if the virtual disk is not attached to the specified virtual machine.
+.PARAMETER Disk
+At least one virtual disk object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to dismount the disk from. This is a required parameter.
+.PARAMETER Controller
+The name of the storage controller to dismount the disk from. This is a required parameter.
+.PARAMETER ControllerPort
+The port of the storage controller to dismount the disk from. This is a required parameter.
+.PARAMETER ControllerSlot
+The slot of the storage controller to dismount the disk from. This is a required parameter.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Dismount-VirtualBoxDisk -Name TestDisk -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
+
+Dismounts the virtual disk named "TestDisk.vmdk" from the Win10 virtual machine SATA controller on port 0 slot 0
+.NOTES
+NAME        :  Dismount-VirtualBoxDisk
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisk
+.INPUTS
+VirtualBoxVHD[]:  Virtual disk objects
+String[]       :  Strings for virtual disk names
+GUID[]         :  GUIDS for virtual disk GUIDS
+String         :  String for virtual machine name
+String         :  String for controller name
+Int            :  Integer for controller port
+Int            :  Integer for controller slot
+.OUTPUTS
+None
+#>
+[cmdletbinding(DefaultParameterSetName="HardDisk",SupportsShouldProcess,ConfirmImpact='High')]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk object(s)",
+ParameterSetName="HardDisk",Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD]$Disk,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk name(s)",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk GUID(s)",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(Mandatory=$true,HelpMessage="Enter the name of the virtual machine to dismount the disk from",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to dismount the disk from",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [string]$Controller,
+[Parameter(Mandatory=$true,HelpMessage="Enter the port number to dismount the disk from",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerPort,
+[Parameter(Mandatory=$true,HelpMessage="Enter the slot number to dismount the disk from",
+ParameterSetName="HardDisk")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerSlot,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Starting $($myinvocation.mycommand)"
+ # check global vbox variable and create it if it doesn't exist
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if (-Not $global:ivbox) {Start-VirtualBoxSession}
+  # get extensions supported by the selected format
+  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+  # get the last of the extensions and use it
+  $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disk: `"$Disk`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Machine Name: `"$MachineName`""
+ Write-Verbose "Controller Name: `"$Controller`""
+ Write-Verbose "Controller Port: `"$ControllerPort`""
+ Write-Verbose "Controller Slot: `"$ControllerSlot`""
+ if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
+  # initialize $imachines array
+  $imediums = @()
+  # get vm inventory (by $Machine)
+  if ($Disk) {
+   Write-Verbose "Getting disk inventory from Disk(s) object"
+   $imediums = $Disk
+  }
+  # get vm inventory (by $Name)
+  elseif ($Name) {
+   Write-Verbose "Getting disk inventory from Name(s)"
+   $imediums = Get-VirtualBoxDisk -Name $Name -SkipCheck
+  }
+  # get vm inventory (by $Guid)
+  elseif ($Guid) {
+   Write-Verbose "Getting disk inventory from GUID(s)"
+   $imediums = Get-VirtualBoxDisk -Guid $Guid -SkipCheck
+  }
+  if ($imediums) {
+   Write-Verbose "[Info] Found disks"
+   try {
+    foreach ($imedium in $imediums) {
+     Write-Verbose "Found disk: $($imedium.Name)"
+     if ($imedium.VMNames) {
+      foreach ($vmname in $imedium.VMNames) {
+       Write-Verbose "Disk attached to VM: $vmname"
+       $imachine = Get-VirtualBoxVM -Name $vmname -SkipCheck
+       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
+        if (!($Controller -and $ControllerPort -ge 0 -and $ControllerSlot -ge 0)) {Write-Host "[Error] The disk $($imedium.Name) is currently attached to the $($imachine.Name) machine. Supply the name, port, and slot number of the controller the disk is connected to using the provided parameters and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        # need to write stuff here to get the storage controller info before detaching the disk
+        $istoragecontrollers = New-Object IStorageController
+        $istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+        foreach ($istoragecontroller in $istoragecontrollers) {
+         if ($istoragecontroller.Name -eq $Controller) {
+          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have that many ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have that many slots on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+          $controllerfound = $true
+         } # end if $istoragecontroller.Name -eq $Controller
+         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify a new controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        } # foreach $istoragecontroller in $istoragecontrollers
+        Write-Verbose "Getting write lock on machine $($imachine.Name)"
+        $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Write'))
+        # create a new machine object
+        $mmachine = New-Object VirtualBoxVM
+        # get the mutable machine object
+        Write-Verbose "Getting the mutable machine object"
+        $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
+        $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+        Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+        $global:vbox.IMachine_detachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot)
+        # save new settings
+        Write-Verbose "Saving new settings"
+        $global:vbox.IMachine_saveSettings($mmachine.Id)
+        if ((Get-VirtualBoxDisk -Machine ($imachine) -SkipCheck).Name -contains $imedium.Name) {
+         Write-Verbose "Failed to dismount disk $($imedium.Name) from machine: $($imachine.Name)"
+         $global:vbox.IMachine_attachDevice($imachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
+         # revert to old settings
+         Write-Verbose "Reverting to original settings"
+         $global:vbox.IMachine_saveSettings($mmachine.Id)
+         Write-Host "[Error] The disk $($imedium.Name) was not mounted to machine $($imachine.Name) controller $Controller at port $ControllerPort slot $ControllerSlot. Unmount the disk manually or correct the supplied parameters and try again." -ForegroundColor Red -BackgroundColor Black
+         # unlock machine session
+         Write-Verbose "Unlocking machine session"
+         $global:vbox.ISession_unlockMachine($imachine.ISession)
+         return
+        }
+        # unlock machine session
+        Write-Verbose "Unlocking machine session"
+        $global:vbox.ISession_unlockMachine($imachine.ISession)
+       } # end if $PSCmdlet.ShouldProcess(
+      } # foreach $vmname in $imedium.VMNames
+     } # end if $imedium.VMNames
+    } # foreach $imedium in $imediums
+   } # Try
+   catch {
+    Write-Verbose 'Exception dismounting virtual disk'
+    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   } # Catch
+   finally {
+    # release mutable machine objects if they exist
+    if ($mmachine) {
+     if ($mmachine.ISession) {
+      # release mutable session object
+      Write-Verbose "Releasing mutable session object"
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession)
+     }
+     if ($mmachine.Id) {
+      # release mutable object
+      Write-Verbose "Releasing mutable object"
+      $global:vbox.IManagedObjectRef_release($mmachine.Id)
+     }
+    }
+    # obligatory session unlock
+    Write-Verbose 'Cleaning up machine sessions'
+    if ($imachines) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.ISession) {
+       if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+        $global:vbox.ISession_unlockMachine($imachine.ISession)
+       } # end if session state not unlocked
+      } # end if $imachine.ISession
+      if ($imachine.IConsole) {
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+      } # end if $imachine.IConsole
+      $imachine.ISession = $null
+      $imachine.IConsole = $null
+      if ($imachine.IPercent) {$imachine.IPercent = $null}
+      $imachine.MSession = $null
+      $imachine.MConsole = $null
+      $imachine.MMachine = $null
+     } # end foreach $imachine in $imachines
+    } # end if $imachines
    } # Finally
   } # end if $imediums
  } # end if ParameterSetName -eq HardDisk
@@ -6203,7 +6732,10 @@ New-Alias -Name ipvboxovf -Value Import-VirtualBoxOVF
 New-Alias -Name epvboxovf -Value Export-VirtualBoxOVF
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisk
 New-Alias -Name nvboxd -Value New-VirtualBoxDisk
+New-Alias -Name ipvboxd -Value Import-VirtualBoxDisk
 New-Alias -Name rvboxd -Value Remove-VirtualBoxDisk
+New-Alias -Name mtvboxd -Value Mount-VirtualBoxDisk
+New-Alias -Name dmvboxd -Value Dismount-VirtualBoxDisk
 New-Alias -Name sbvboxvmp -Value Submit-VirtualBoxVMProcess
 New-Alias -Name sbvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
 # export module members
