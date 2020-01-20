@@ -79,8 +79,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -Bypass switch.
     
 ### **VERSION**
-	0.3.0.23
-	January 19, 2020
+	0.3.4.26
+	January 20, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
@@ -103,6 +103,9 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Export-VirtualBoxOVF
 	Get-VirtualBoxDisk
 	New-VirtualBoxDisk
+	Import-VirtualBoxDisk
 	Remove-VirtualBoxDisk
+	Mount-VirtualBoxDisk
+	Dismount-VirtualBoxDisk
 	Submit-VirtualBoxVMProcess
 	Submit-VirtualBoxVMPowerShellScript
