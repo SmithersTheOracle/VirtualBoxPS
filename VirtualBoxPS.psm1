@@ -16,7 +16,7 @@ Write more comprehensive error handling
 Modify a Disk?
 -WhatIf support (Extremely low priority)
 
-Unsupported interface found - IInternalMachineControl
+Unsupported interface found - IInternalMachineControl - too bad
 void IInternalMachineControl::beginPoweringUp()
 IMediumAttachment IInternalMachineControl::ejectMedium()
 
@@ -2239,8 +2239,7 @@ Process {
      if ($imachine.State -eq 'Running') {
       # send a stop-computer -force command to the guest machine
       Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command to guest machine'
-      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential -Bypass)
-      #$iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, 'C:\\Windows\\System32\\cmd.exe', [array]@('cmd.exe','/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false'), [array]@(), 3, 10000)
+      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential -NoWait)
      }
      else {return "Only machines that are running may be stopped."}
     }
@@ -6316,6 +6315,12 @@ The full path to the executable.
 An array of arguments to pass the executable.
 .PARAMETER Credential
 Administrator/Root credentials for the machine.
+.PARAMETER StdOut
+A switch to send StdOut to the pipeline.
+.PARAMETER StdErr
+A switch to display StdErr to the screen.
+.PARAMETER NoWait
+A switch to skip waiting for process completion. StdOut and StdErr switches will be ignored if this switch is used. Warning: this will launch the process and immediately exit. If the process does not terminate successfully, you will need to do so manually from within the guest OS.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
@@ -6369,8 +6374,12 @@ Position=2)]
 [Parameter(Mandatory=$true,
 HelpMessage="Enter the credentials to login to the guest OS")]
   [pscredential]$Credential,
-[Parameter(HelpMessage="Use this switch ONLY if you send a shutdown command")]
-  [switch]$Bypass,
+[Parameter(HelpMessage="Use this switch to write StdOut to the pipeline")]
+  [switch]$StdOut,
+[Parameter(HelpMessage="Use this switch to write StdErr to the screen")]
+  [switch]$StdErr,
+[Parameter(HelpMessage="Use this switch ONLY when needed")]
+  [switch]$NoWait,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
@@ -6429,7 +6438,7 @@ Process {
     # create the process in the guest machine and send it a list of arguments
     Write-Verbose "Sending `"$command`" command (timeout: 10s)"
     $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('Hidden'), 10000)
-    if (!$Bypass) {
+    if (!$NoWait) {
      # create event source
      Write-Verbose "Creating event source"
      $ieventsource = $global:vbox.IConsole_getEventSource($imachine.IConsole)
@@ -6444,6 +6453,13 @@ Process {
       Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
       $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
       Write-Verbose "Process wait result: $($processwaitresult)"
+      # gather extra data
+      $guestprocessexecutablepath = $global:vbox.IProcess_getExecutablePath($iguestprocess)
+      $guestprocesspid = $global:vbox.IProcess_getPID($iguestprocess)
+      $guestprocessarguments = $global:vbox.IProcess_getArguments($iguestprocess)
+      Write-Verbose "Launched process: `"$($guestprocessexecutablepath)`""
+      Write-Verbose "Process PID: `"$($guestprocesspid)`""
+      Write-Verbose "Guest syntax: `"$($guestprocessarguments)`""
       $ieventsublistener = $null
       do {
        # get new events
@@ -6487,24 +6503,24 @@ Process {
         }
         $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
        } # end if $isubevent -ne ''
-       # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over anyway
+       # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over after 200ms anyway
        $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('Terminate')), 200)
        #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
        # read guest process stdout
-       [char[]]$stdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), 64, 0)
-       Write-Verbose "[DEBUG] StdOut: $($stdout)"
-       # this should be removed after debugging $stdout
-       if ($stdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($stdout.GetType())"}
-       if ($stdout) {
+       [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), 65536, 0)
+       Write-Verbose "[DEBUG] StdOut: `"$($readstdout)`""
+       # this should be removed after debugging $readstdout
+       if ($readstdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($readstdout.GetType())"}
+       if ($readstdout -and $StdOut) {
         # write stdout to pipeline
         Write-Verbose "Writing StdOut to pipeline"
-        Write-Output ($stdout -join '')
-       } # end if $stdout
+        Write-Output $($readstdout -join '')
+       } # end if $readstdout
        # read guest process stderr
-       $stderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), 64, 0)
-       Write-Debug "[DEBUG] StdErr: $($stdout)"
+       [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), 65536, 0)
+       Write-Debug "[DEBUG] StdErr: `"$($readstdout)`""
        # write stderr to the host as error text if it contains anything
-       if ($stderr) {Write-Host ($stderr -join '') -ForegroundColor Red -BackgroundColor Black}
+       if ($readstderr -and $StdErr) {Write-Host ($readstderr -join '') -ForegroundColor Red -BackgroundColor Black}
        $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
        # note the process status to look for abnormal return
        if ($iprocessstatus -notmatch 'Start') {
@@ -6554,7 +6570,7 @@ Process {
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
     # next 2 ifs only for in-guest sessions
-    if ($imachine.IGuestSession -and !$Bypass) {
+    if ($imachine.IGuestSession -and !$NoWait) {
      # close the iconsole session
      Write-verbose "Closing the IGuestSession session for VM $($imachine.Name)"
      $global:vbox.IGuestSession_close($imachine.IGuestSession)
@@ -6602,6 +6618,12 @@ The full path to the executable.
 An array of arguments to pass the executable.
 .PARAMETER Credential
 Administrator/Root credentials for the machine.
+.PARAMETER StdOut
+A switch to send StdOut to the pipeline.
+.PARAMETER StdErr
+A switch to display StdErr to the screen.
+.PARAMETER NoWait
+A switch to skip waiting for PowerShell completion. StdOut and StdErr switches will be ignored if this switch is used. Warning: this will launch the PowerShell and immediately exit. If PowerShell does not terminate successfully, you will need to do so manually from within the guest OS.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
@@ -6651,6 +6673,12 @@ Mandatory=$true,ParameterSetName="Guid")]
 [Parameter(Mandatory=$true,
 HelpMessage="Enter the credentials to login to the guest OS")]
   [pscredential]$Credential,
+[Parameter(HelpMessage="Use this switch to write StdOut to the pipeline")]
+  [switch]$StdOut,
+[Parameter(HelpMessage="Use this switch to write StdErr to the screen")]
+  [switch]$StdErr,
+[Parameter(HelpMessage="Use this switch ONLY when needed")]
+  [switch]$NoWait,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
@@ -6673,23 +6701,35 @@ Process {
  $imachines = @()
  # get vm inventory (by $Machine)
  if ($Machine) {
-  foreach ($item in $Name) {
+  foreach ($item in $Machine) {
    Write-Verbose "Submitting PowerShell command to VM $($Machine.Name) by VM object"
-   Submit-VirtualBoxVMProcess -Machine $Machine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck}
   }
  }
  # get vm inventory (by $Name)
  elseif ($Name) {
   foreach ($item in $Name) {
    Write-Verbose "Submitting PowerShell command to VM $($Name) by Name"
-   Submit-VirtualBoxVMProcess -Name $Name -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck}
   }
  }
  # get vm inventory (by $Guid)
  elseif ($Guid) {
-  foreach ($item in $Name) {
+  foreach ($item in $Guid) {
    Write-Verbose "Submitting PowerShell command to VM $((Get-VirtualBoxVM -Guid $Guid -SkipCheck).Name) by GUID"
-   Submit-VirtualBoxVMProcess -Guid $Guid -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck}
   }
  }
 } # Process
@@ -6709,7 +6749,7 @@ if (!(Get-Process -ErrorAction Stop | Where-Object {$_.ProcessName -match 'VBoxW
 Write-Verbose "Initializing VirtualBox environment"
 if (!$vbox -or $ivbox) {$vbox = Get-VirtualBox}
 # get the web service task
-Write-Verbose "Updating VirtualBoxWebSrv"
+Write-Verbose "Updating VirtualBox WebSrv status"
 $vboxwebsrvtask = Update-VirtualBoxWebSrv
 # define aliases
 New-Alias -Name gvbox -Value Get-VirtualBox
