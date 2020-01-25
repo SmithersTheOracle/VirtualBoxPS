@@ -12,13 +12,33 @@ Mount a CD/DVD/Floppy - void IMachine::mountMedium()
 Unmount-VirtualBoxDisc
 Unmount a CD/DVD/Floppy - void IMachine::unmountMedium()
 Add support for credential arrays
-Write more comprehensive error handling
+Write more comprehensive error handling (low priority)
 Modify a Disk?
 -WhatIf support (Extremely low priority)
 
 Unsupported interface found - IInternalMachineControl - too bad
 void IInternalMachineControl::beginPoweringUp()
 IMediumAttachment IInternalMachineControl::ejectMedium()
+
+IConsole::display() - No. Too many commands not usable with web service.
+$global:vbox.IMachine_getVRDEServer
+$global:vbox.IVRDEServer_getEnabled
+$global:vbox.IVRDEServer_setEnabled
+$global:vbox.IVRDEServer_getAuthType
+$global:vbox.IVRDEServer_setAuthType
+$global:vbox.IVRDEServer_getAuthTimeout
+$global:vbox.IVRDEServer_setAuthTimeout
+$global:vbox.IVRDEServer_getAllowMultiConnection
+$global:vbox.IVRDEServer_setAllowMultiConnection
+$global:vbox.IVRDEServer_getReuseSingleConnection
+$global:vbox.IVRDEServer_setReuseSingleConnection
+$global:vbox.IVRDEServer_getVRDEExtPack
+$global:vbox.IVRDEServer_setVRDEExtPack
+$global:vbox.IVRDEServer_getAuthLibrary
+$global:vbox.IVRDEServer_setAuthLibrary
+$global:vbox.IVRDEServer_getVRDEProperties
+$global:vbox.IVRDEServer_getVRDEProperty
+$global:vbox.IVRDEServer_setVRDEProperty - If you pass null or empty string as a key value, the given key will be deleted.
 
 Useful methods
 IStorageController IMachine::storageControllers
@@ -109,6 +129,48 @@ class IProgress {
     }
 }
 Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description") -Force
+class IVrdeServer {
+    [ValidateNotNullOrEmpty()]
+    [string]$Id
+	[bool]$Enabled
+	[string]$AuthType
+	[uint32]$AuthTimeout
+	[bool]$AllowMultiConnection
+	[bool]$ReuseSingleConnection
+	[string]$VrdeExtPack
+	[string]$AuthLibrary
+	[string[]]$VrdeProperties
+	[uint32]$VrdePort
+    [IVrdeServer]Fetch ([string]$IMachine) {
+        $Variable = [IVrdeServer]::new()
+        if ($Variable){
+			$Variable.Id = $global:vbox.IMachine_getVRDEServer($IMachine)
+			$Variable.Enabled = $global:vbox.IVRDEServer_getEnabled($Variable.Id)
+			if ($Variable.Enabled) {$Variable.AuthType = $global:vbox.IVRDEServer_getAuthType($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.AuthTimeout = $global:vbox.IVRDEServer_getAuthTimeout($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.AllowMultiConnection = $global:vbox.IVRDEServer_getAllowMultiConnection($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.ReuseSingleConnection = $global:vbox.IVRDEServer_getReuseSingleConnection($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.VrdeExtPack = $global:vbox.IVRDEServer_getVRDEExtPack($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.AuthLibrary = $global:vbox.IVRDEServer_getAuthLibrary($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.VrdeProperties = $global:vbox.IVRDEServer_getVRDEProperties($Variable.Id)}
+			if ($Variable.Enabled) {$Variable.VrdePort = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'TCP/Ports')}
+            return $Variable
+        }
+        else {return $null}
+    }
+    Update () {
+		$this.Enabled = $global:vbox.IVRDEServer_getEnabled($this.Id)
+		if ($this.Enabled) {$this.AuthType = $global:vbox.IVRDEServer_getAuthType($this.Id)}
+		if ($this.Enabled) {$this.AuthTimeout = $global:vbox.IVRDEServer_getAuthTimeout($this.Id)}
+		if ($this.Enabled) {$this.AllowMultiConnection = $global:vbox.IVRDEServer_getAllowMultiConnection($this.Id)}
+		if ($this.Enabled) {$this.ReuseSingleConnection = $global:vbox.IVRDEServer_getReuseSingleConnection($this.Id)}
+		if ($this.Enabled) {$this.VrdeExtPack = $global:vbox.IVRDEServer_getVRDEExtPack($this.Id)}
+		if ($this.Enabled) {$this.AuthLibrary = $global:vbox.IVRDEServer_getAuthLibrary($this.Id)}
+		if ($this.Enabled) {$this.VrdeProperties = $global:vbox.IVRDEServer_getVRDEProperties($this.Id)}
+		if ($this.Enabled) {$this.VrdePort = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'TCP/Ports')}
+    }
+}
+Update-TypeData -TypeName IVrdeServer -DefaultDisplayPropertySet @("Enabled","AuthType","AuthTimeout","AuthLibrary") -Force
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
@@ -131,6 +193,7 @@ class VirtualBoxVM {
     [string]$IConsoleGuest
     [string]$IGuestSession
     [string[]]$IStorageControllers
+    [IVrdeServer]$IVrdeServer = [IVrdeServer]::new()
 }
 Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force
 class VirtualBoxVHD {
@@ -919,7 +982,7 @@ $global:vbox
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
 } # Begin
 Process {
  # create vbox app
@@ -935,7 +998,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception fetching guest OS type data'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
    # get system properties interface reference
@@ -944,7 +1008,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception fetching system properties'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
    Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
@@ -952,7 +1017,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception fetching supported system properties'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
    Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
@@ -963,7 +1029,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception fetching supported medium formats'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
  }
  # write variable to the pipeline
@@ -981,14 +1048,14 @@ Starts a VirtualBox Web Service session and populates the $global:ivbox managed 
 Create a PowerShell managed object reference to the VirtualBox Web Service managed object.
 .PARAMETER Protocol
 The protocol of the VirtualBox Web Service. Default is http.
-.PARAMETER Domain
+.PARAMETER Address
 The domain name or IP address of the VirtualBox Web Service. Default is localhost.
 .PARAMETER Port
 The TCP port of the VirtualBox Web Service. Default is 18083.
 .PARAMETER Force
 A switch to force updating global properties.
 .EXAMPLE
-PS C:\> Start-VirtualBoxSession -Protocol "http" -Domain "localhost" -Port "18083" -Credential $Credential
+PS C:\> Start-VirtualBoxSession -Protocol "http" -Address "localhost" -Port "18083" -Credential $Credential
 Populates the $global:ivbox variable to referece the VirtualBox Web Service managed object
 .NOTES
 NAME        :  Start-VirtualBoxSession
@@ -1016,7 +1083,7 @@ Mandatory=$false,Position=0)]
 # localhost ONLY for now since we haven't enabled https
 [Parameter(HelpMessage="Enter the domain name or IP address running the web service (Default: localhost)",
 Mandatory=$false,Position=1)]
-  [string]$Domain = "localhost",
+  [string]$Address = "localhost",
 [Parameter(HelpMessage="Enter the TCP port the web service is listening on (Default: 18083)",
 Mandatory=$false,Position=2)]
   [string]$Port = "18083",
@@ -1027,7 +1094,7 @@ Mandatory=$true,Position=3)]
   [switch]$Force
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1035,7 +1102,9 @@ Begin {
  # start the websrvtask if it's not running
  if ($global:vboxwebsrvtask.Status -and $global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
  # set the target web service url
- $global:vbox.Url = "$($Protocol)://$($Domain):$($Port)"
+ $global:vbox.Url = "$($Protocol)://$($Address):$($Port)"
+ # save the host address
+ $global:hostaddress = $Address
  # if a session already exists, stop it
  if ($global:ivbox) {Stop-VirtualBoxSession}
 } # Begin
@@ -1053,7 +1122,8 @@ Process {
     } # Try
     catch {
      Write-Verbose 'Exception fetching guest OS type data'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
     } # Catch
    }
    if (!$global:isystemproperties -or $Force) {
@@ -1064,7 +1134,8 @@ Process {
     } # Try
     catch {
      Write-Verbose 'Exception fetching system properties'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
     } # Catch
     <#
     try {
@@ -1077,7 +1148,8 @@ Process {
     }
     catch {
      Write-Verbose 'Exception fetching device types for storage buses'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
     }
     #> # disabling since this isn't really useful data
     try {
@@ -1086,7 +1158,8 @@ Process {
     } # Try
     catch {
      Write-Verbose 'Exception fetching supported system properties'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
     } # Catch
     try {
      Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
@@ -1097,13 +1170,15 @@ Process {
     } # Try
     catch {
      Write-Verbose 'Exception fetching supported medium formats'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
     } # Catch
    }
   }
  }
  catch {
   Write-Verbose 'Exception creating the VirtualBox Web Service session'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  }
 } # Process
@@ -1136,7 +1211,7 @@ None
 [cmdletbinding(DefaultParameterSetName="UserPass")]
 Param() # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1154,7 +1229,8 @@ Process {
   } # end try
   catch {
    Write-Verbose 'Exception closing the VirtualBox Web Service session'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   }
  }
 } # Process
@@ -1189,7 +1265,7 @@ None
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
 } # Begin
 Process {
  try {
@@ -1209,7 +1285,8 @@ Process {
  }
  catch {
   Write-Verbose 'Exception starting the VirtualBox Web Service'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  }
 } # Process
 End {
@@ -1243,7 +1320,7 @@ None
 [cmdletbinding(DefaultParameterSetName="UserPass")]
 Param() # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
 } # Begin
 Process {
  # login to web service
@@ -1254,7 +1331,8 @@ Process {
  } # end try
  catch {
   Write-Verbose 'Exception ending the VirtualBox Web Service'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # end catch
 } # Process
 End {
@@ -1288,7 +1366,7 @@ None
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
 } # Begin
 Process {
  # restart the web service task
@@ -1326,7 +1404,7 @@ None
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
 } # Begin
 Process {
  # refresh the web service task information
@@ -1348,7 +1426,8 @@ Process {
  } # end try
  catch {
   Write-Verbose 'Exception updating the VirtualBox Web Service'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # end catch
  if (!$vboxwebsrvtask) {Write-Host '[Error] Failed to update $vboxwebsrvtask' -ForegroundColor Red -BackgroundColor Black;return}
  return $vboxwebsrvtask
@@ -1474,7 +1553,7 @@ HelpMessage="Enter a virtual machine state you wish to filter by")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1501,6 +1580,7 @@ Process {
     $tempobj.Id = $vmid
     $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
     $tempobj.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmid)
+    $tempobj.IVrdeServer = $tempobj.IVrdeServer.Fetch($tempobj.Id)
     # decode state
     Switch ($tempobj.State) {
      1 {$tempobj.State = "PoweredOff"}
@@ -1531,8 +1611,8 @@ Process {
    foreach ($vm in $vminventory) {
     Write-Verbose "Matching $($vm.Name) to $($Name)"
     if ($vm.Name -match $Name) {
-     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession}}
-     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession}}
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
     }
    }
   } # end if $Name and not *
@@ -1541,8 +1621,8 @@ Process {
    foreach ($vm in $vminventory) {
     Write-Verbose "Matching $($vm.Guid) to $($Guid)"
     if ($vm.Guid -match $Guid) {
-     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
-     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
     }
    }
   } # end if $Guid
@@ -1550,13 +1630,13 @@ Process {
    if ($State) {
     Write-Verbose "Filtering all virtual machines by state: $State"
     foreach ($vm in $vminventory) {
-     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}}
+     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
     }
    }
    else {
     Write-Verbose "Filtering all virtual machines"
     foreach ($vm in $vminventory) {
-     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid}
+     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}
     }
    }
   } # end if All
@@ -1570,7 +1650,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception retreiving machine information'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -1636,7 +1717,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1692,7 +1773,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception suspending machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -1710,7 +1792,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -1783,7 +1865,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1839,7 +1921,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception resuming machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -1857,7 +1940,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -1964,7 +2047,7 @@ HelpMessage="Enter the credentials to unlock the VM disk(s)")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -2062,7 +2145,9 @@ Process {
        Write-Verbose "Password sent"
       } # Try
       catch {
-       Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+       Write-Verbose "Exception when sending password for encrypted disk(s)"
+       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+       Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
       } # Catch
      } # end foreach $disk in $disks
     } # end elseif Encrypted
@@ -2074,7 +2159,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception starting machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -2092,7 +2178,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -2183,7 +2269,7 @@ HelpMessage="Enter the credentials to login to the guest OS")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -2275,7 +2361,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception starting machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -2304,7 +2391,7 @@ Process {
      Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -2842,7 +2929,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -2937,7 +3024,8 @@ Process {
    }
    catch {
     Write-Verbose 'Exception applying custom parameters to machine'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
    }
   }
   $global:vbox.IMachine_saveSettings($imachine.Id)
@@ -2945,7 +3033,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception creating machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -2963,7 +3052,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -3057,7 +3146,7 @@ HelpMessage="Use this switch to delete all snapshots, detach all media and retur
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -3132,7 +3221,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception removing machine'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
   finally {
    # obligatory session unlock
@@ -3150,7 +3240,7 @@ Process {
       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
      } # end if $imachine.IConsole
-     $imachine.ISession = $null
+     #$imachine.ISession = $null
      $imachine.IConsole = $null
      if ($imachine.IPercent) {$imachine.IPercent = $null}
      $imachine.MSession = $null
@@ -3209,7 +3299,7 @@ ParameterSetName='Custom',Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -3233,7 +3323,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception importing machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -3251,7 +3342,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -3782,7 +3873,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -3905,7 +3996,8 @@ Process {
     }
     catch {
      Write-Verbose 'Exception applying custom parameters to machine'
-     Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
     }
     # save new settings
     Write-Verbose "Saving new settings"
@@ -3916,7 +4008,8 @@ Process {
    } # Try
    catch {
     Write-Verbose 'Exception creating machine'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
    } # Catch
    finally {
     # release mutable machine objects if they exist
@@ -3947,7 +4040,7 @@ Process {
        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
       } # end if $imachine.IConsole
-      $imachine.ISession = $null
+      #$imachine.ISession = $null
       $imachine.IConsole = $null
       if ($imachine.IPercent) {$imachine.IPercent = $null}
       $imachine.MSession = $null
@@ -3959,6 +4052,513 @@ Process {
   } # foreach $imachine in $imachines
  } # end if $imachines
  else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Open-VirtualBoxVMConsole {
+<#
+.SYNOPSIS
+Open a virtual machine console window
+.DESCRIPTION
+Opens a virtual machine console window and powers it on if needed. This command will only work when run from the host machine.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Open-VirtualBoxVMConsole
+Opens a console window for all running virtual machines
+.EXAMPLE
+PS C:\> Open-VirtualBoxVMConsole -Name "2016"
+Opens a console window for the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Open-VirtualBoxVMConsole -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Opens a console window for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Open-VirtualBoxVMConsole
+VERSION     :  1.0
+LAST UPDATED:  1/24/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+None
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+None
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid
+) # Param
+Begin {
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe") {
+    Write-Verbose "Launching console window for `"$($imachine.Name)`""
+    Start-Process -FilePath "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe" -ArgumentList ("--startvm `"$($imachine.Name)`" --separate") -WindowStyle Hidden
+   } # end if VBoxSDL.exe exists
+   else {Write-Host "[Error] VBoxSDL.exe not found. Ensure VirtualBox is installed on this machine and try again.";return}
+  } # foreach $imachine in $imachines
+ } # end if $imachines
+ else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Enable-VirtualBoxVMVRDEServer {
+<#
+.SYNOPSIS
+Enable VRDE server for a virtual machine
+.DESCRIPTION
+Enables VRDE server for a virtual machine if it is disabled.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Enable-VirtualBoxVMVRDEServer
+Enable VRDE server for all running virtual machines
+.EXAMPLE
+PS C:\> Enable-VirtualBoxVMVRDEServer -Name "2016"
+Enable VRDE server for the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Enable-VirtualBoxVMVRDEServer -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Enable VRDE server for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Enable-VirtualBoxVMVRDEServer
+VERSION     :  1.0
+LAST UPDATED:  1/24/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Disable-VirtualBoxVMVRDEServer
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+VirtualBoxVM  :  Updated virtual machine object(s)
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.IVrdeServer.Enabled -eq $false) {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
+     $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+     $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
+     # enable VRDE server
+     Write-Verbose "Enabling VRDE server for $($imachine.Name)"
+     $global:vbox.IVRDEServer_setEnabled($mmachine.IVrdeServer.Id, $true)
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $global:vbox.IMachine_saveSettings($mmachine.Id)
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $global:vbox.ISession_unlockMachine($imachine.ISession)
+     # update the machine object
+     Write-Verbose "Updating the machine object"
+     $imachine.IVrdeServer.Update()
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the machine object to the pipeline"
+     Write-Output $imachine
+    } # end if $imachine.IVrdeServer.Enabled -eq $false
+    else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already enabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+ } # Try
+ catch {
+  Write-Verbose 'Exception enabling VRDE server'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    #$imachine.ISession = $null
+    $imachine.IConsole = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+ } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Disable-VirtualBoxVMVRDEServer {
+<#
+.SYNOPSIS
+Disable VRDE server for a virtual machine
+.DESCRIPTION
+Disables VRDE server for a running virtual machine if it is enabled.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Disable-VirtualBoxVMVRDEServer
+Disable VRDE server for all running virtual machines
+.EXAMPLE
+PS C:\> Disable-VirtualBoxVMVRDEServer -Name "2016"
+Disable VRDE server for the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Disable-VirtualBoxVMVRDEServer -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Disable VRDE server for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Disable-VirtualBoxVMVRDEServer
+VERSION     :  1.0
+LAST UPDATED:  1/24/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Enable-VirtualBoxVMVRDEServer
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+VirtualBoxVM  :  Updated virtual machine object(s)
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.IVrdeServer.Enabled -eq $true) {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
+     $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+     $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
+     # enable VRDE server
+     Write-Verbose "Disabling VRDE server for $($imachine.Name)"
+     $global:vbox.IVRDEServer_setEnabled($mmachine.IVrdeServer.Id, $false)
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $global:vbox.IMachine_saveSettings($mmachine.Id)
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $global:vbox.ISession_unlockMachine($imachine.ISession)
+     # update the machine object
+     Write-Verbose "Updating the machine object"
+     $imachine.IVrdeServer.Update()
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the machine object to the pipeline"
+     Write-Output $imachine
+    } # end if $imachine.IVrdeServer.Enabled -eq $true
+    else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already disabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+ } # Try
+ catch {
+  Write-Verbose 'Exception disabling VRDE server'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    #$imachine.ISession = $null
+    $imachine.IConsole = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+ } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($myinvocation.mycommand)"
+} # End
+} # end function
+Function Connect-VirtualBoxVMVRDEServer {
+<#
+.SYNOPSIS
+Connect to a virtual machine VRDE server
+.DESCRIPTION
+Connects to a running virtual machine VRDE server using Remote Desktop Connection. Only windows hosts are currently supported.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Port
+The TCP port of the virtual machine VRDE server.
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.IVrdeServer.Enabled -eq $true} | Connect-VirtualBoxVMVRDEServer
+Launch Remote Desktop Conenction application and connect it to the VRDE server for all running virtual machines that have it enabled
+.EXAMPLE
+PS C:\> Connect-VirtualBoxVMVRDEServer -Name "2016"
+Launch Remote Desktop Conenction application and connect it to the VRDE server for the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Connect-VirtualBoxVMVRDEServer -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+Launch Remote Desktop Conenction application and connect it to the VRDE server for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Connect-VirtualBoxVMVRDEServer
+VERSION     :  1.0
+LAST UPDATED:  1/24/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+None
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+None
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid
+) # Param
+Begin {
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   if (Test-Path 'C:\Windows\System32\mstsc.exe') {
+    Write-Verbose "Launching Remote Desktop Connection window for `"$($imachine.Name)`""
+    Write-Verbose "Command: mstsc.exe /v:$($global:hostaddress):$($imachine.IVrdeServer.VrdePort)"
+    Start-Process -FilePath "mstsc.exe" -ArgumentList ("/v:$($global:hostaddress):$($imachine.IVrdeServer.VrdePort)")
+   } # end if VBoxSDL.exe exists
+   else {Write-Host "[Error] Remote Desktop Connection client not found.";return}
+  } # foreach $imachine in $imachines
+ } # end if $imachines
+ else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
 } # Process
 End {
  Write-Verbose "Ending $($myinvocation.mycommand)"
@@ -4285,7 +4885,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -4546,7 +5146,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception importing OVF'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -4564,7 +5165,7 @@ Process {
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -4939,7 +5540,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5198,7 +5799,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception exporting OVF'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -5352,7 +5954,7 @@ ParameterSetName="Machine",Mandatory=$false,Position=0)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5400,7 +6002,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception retrieving virtual disk information'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  if ($PSCmdlet.ParameterSetName -eq "Disk") {
   # filter by disk name
@@ -5559,7 +6162,7 @@ ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5606,7 +6209,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception creating virtual disk'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
  } # end if ParameterSetName -eq HardDisk
 } # Process
@@ -5663,7 +6267,7 @@ ParameterSetName="HardDisk",Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5694,7 +6298,8 @@ Process {
   } # Try
   catch {
    Write-Verbose 'Exception creating virtual disk'
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
   } # Catch
  } # end if ParameterSetName -eq HardDisk
 } # Process
@@ -5762,7 +6367,7 @@ ParameterSetName="HardDisk")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5840,7 +6445,8 @@ Process {
    } # Try
    catch {
     Write-Verbose 'Exception removing virtual disk'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
    } # Catch
    finally {
     # cleanup
@@ -5934,7 +6540,7 @@ ParameterSetName="HardDisk")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6022,7 +6628,8 @@ Process {
    } # Try
    catch {
     Write-Verbose 'Exception mounting virtual disk'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
    } # Catch
    finally {
     # release mutable machine objects if they exist
@@ -6053,7 +6660,7 @@ Process {
        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
       } # end if $imachine.IConsole
-      $imachine.ISession = $null
+      #$imachine.ISession = $null
       $imachine.IConsole = $null
       if ($imachine.IPercent) {$imachine.IPercent = $null}
       $imachine.MSession = $null
@@ -6151,7 +6758,7 @@ ParameterSetName="HardDisk")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6250,7 +6857,8 @@ Process {
    } # Try
    catch {
     Write-Verbose 'Exception dismounting virtual disk'
-    Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
    } # Catch
    finally {
     # release mutable machine objects if they exist
@@ -6281,7 +6889,7 @@ Process {
        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
       } # end if $imachine.IConsole
-      $imachine.ISession = $null
+      #$imachine.ISession = $null
       $imachine.IConsole = $null
       if ($imachine.IPercent) {$imachine.IPercent = $null}
       $imachine.MSession = $null
@@ -6313,6 +6921,8 @@ The GUID of at least one running virtual machine.
 The full path to the executable.
 .PARAMETER Arguments
 An array of arguments to pass the executable.
+.PARAMETER Timeout
+The time before the process will timeout in milliseconds. Default value is 0 which will disable timeout period.
 .PARAMETER Credential
 Administrator/Root credentials for the machine.
 .PARAMETER StdOut
@@ -6325,14 +6935,14 @@ A switch to skip waiting for process completion. StdOut and StdErr switches will
 A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Submit-VirtualBoxVMProcess Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
-Runs cmd.exe in the virtual machine guest OS with the argument list "/c shutdown /s /f"
+Runs cmd.exe in the Win10 virtual machine guest OS with the argument list "/c shutdown /s /f"
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.GuestOS -match 'windows'} | Submit-VirtualBoxVMProcess -PathToExecutable 'C:\\Windows\\System32\\gpupdate.exe' -Credential $credentials
 Runs gpupdate.exe on all running virtual machines with a Windows guest OS
 .NOTES
 NAME        :  Submit-VirtualBoxVMProcess
-VERSION     :  1.0
-LAST UPDATED:  1/11/2020
+VERSION     :  1.1
+LAST UPDATED:  1/22/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
@@ -6343,6 +6953,7 @@ String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for process to create
 String[]      :  Strings for arguments to process
+Uint32        :  uint32 for timeout in ms
 PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
@@ -6361,7 +6972,7 @@ Mandatory=$true,ParameterSetName="Name",Position=0)]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-Mandatory=$true,ParameterSetName="Guid")]
+Mandatory=$true,ParameterSetName="Guid",Position=0)]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Enter the full path to the executable",
@@ -6371,6 +6982,9 @@ Position=1,Mandatory=$true)]
 [Parameter(HelpMessage="Enter an array of arguments to use when creating the process",
 Position=2)]
   [string[]]$Arguments,
+[Parameter(HelpMessage="Enter the timeout in milliseconds",
+Position=3,Mandatory=$false)]
+  [uint32]$Timeout = 0,
 [Parameter(Mandatory=$true,
 HelpMessage="Enter the credentials to login to the guest OS")]
   [pscredential]$Credential,
@@ -6384,7 +6998,7 @@ HelpMessage="Enter the credentials to login to the guest OS")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6431,13 +7045,13 @@ Process {
     # create a guest session
     Write-Verbose "Creating a guest console session"
     $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsLaunchProcess_$($imachine.IConsoleGuest)")
-    # wait 10 seconds for the session to be created successfully - this needs to be merged with the previous call
+    # wait 10 seconds for the session to be created successfully
     Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
     Write-Verbose "Guest console status: $iguestsessionstatus"
     # create the process in the guest machine and send it a list of arguments
     Write-Verbose "Sending `"$command`" command (timeout: 10s)"
-    $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('Hidden'), 10000)
+    $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('None'), $Timeout)
     if (!$NoWait) {
      # create event source
      Write-Verbose "Creating event source"
@@ -6503,13 +7117,13 @@ Process {
         }
         $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
        } # end if $isubevent -ne ''
-       # this is returning WaitFlagNotSupported - waiting for Stdout is not currently implemented - leaving this for when it does work since it steps over after 200ms anyway
-       $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('Terminate')), 200)
+       # this is returning WaitFlagNotSupported - waiting for stdout and stderr is not currently implemented - leaving this for when it does work and waitfor terminate still works
+       $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('StdErr'),$global:processwaitforflag.ToULong('Terminate')), 200)
        #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
        # read guest process stdout
-       [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), 65536, 0)
+       [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), (64 * 1024), 0)
+       # the next two lines should be removed after debugging $readstdout
        Write-Verbose "[DEBUG] StdOut: `"$($readstdout)`""
-       # this should be removed after debugging $readstdout
        if ($readstdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($readstdout.GetType())"}
        if ($readstdout -and $StdOut) {
         # write stdout to pipeline
@@ -6517,22 +7131,26 @@ Process {
         Write-Output $($readstdout -join '')
        } # end if $readstdout
        # read guest process stderr
-       [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), 65536, 0)
-       Write-Debug "[DEBUG] StdErr: `"$($readstdout)`""
+       [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), (64 * 1024), 0)
        # write stderr to the host as error text if it contains anything
-       if ($readstderr -and $StdErr) {Write-Host ($readstderr -join '') -ForegroundColor Red -BackgroundColor Black}
+       if ($readstderr -and $StdErr) {
+        # write stderr to pipeline
+        Write-Verbose "Writing StdErr to host"
+        Write-Host ($readstderr -join '') -ForegroundColor Red -BackgroundColor Black
+       }
        $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
        # note the process status to look for abnormal return
        if ($iprocessstatus -notmatch 'Start') {
         if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
-        else {Write-Debug "Process status: $($iprocessstatus)"}
+        else {Write-Verbose "Process status: $($iprocessstatus)"}
        } # end if $iprocessstatus -notmatch 'Start'
-       $keeplooping = !$iprocessstatus.toString().contains('Terminated')
-      } until (!$keeplooping)
+       if ($processwaitresult -match 'Timeout') {Write-Verbose "Process timed out"}
+      } until ($iprocessstatus.toString() -match 'Terminated' -or $processwaitresult -match 'Timeout')
      } # Try
      catch {
       Write-Verbose 'Exception while running process in guest machine'
-      Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
      } # Catch
      finally {
       # unregister listener object
@@ -6551,7 +7169,8 @@ Process {
  } # Try
  catch {
   Write-Verbose 'Exception running process in guest machine'
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -6583,7 +7202,7 @@ Process {
      Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
     } # end if $imachine.IConsole
-    $imachine.ISession = $null
+    #$imachine.ISession = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -6603,19 +7222,19 @@ End {
 Function Submit-VirtualBoxVMPowerShellScript {
 <#
 .SYNOPSIS
-Start a guest virtual machine process
+Start a guest virtual machine PowerShell script
 .DESCRIPTION
-Will start the requested process, with optional arguments, in the guest operating system.
+Will start the requested PowerShell script, with optional arguments, in the guest operating system.
 .PARAMETER Machine
 At least one running virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
 The Name of at least one running virtual machine.
 .PARAMETER GUID
 The GUID of at least one running virtual machine.
-.PARAMETER PathToExecutable
-The full path to the executable.
-.PARAMETER Arguments
-An array of arguments to pass the executable.
+.PARAMETER ScriptBlock
+The PowerShell script to be run in the guest.
+.PARAMETER Timeout
+The time before the script will timeout in milliseconds. Default value is 0 which will disable timeout period.
 .PARAMETER Credential
 Administrator/Root credentials for the machine.
 .PARAMETER StdOut
@@ -6627,15 +7246,15 @@ A switch to skip waiting for PowerShell completion. StdOut and StdErr switches w
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
-PS C:\> Submit-VirtualBoxVMPowerShellScript Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
-Runs cmd.exe in the virtual machine guest OS with the argument list "/c shutdown /s /f"
+PS C:\> Submit-VirtualBoxVMPowerShellScript Win10 '& cmd.exe /c shutdown /s /f' -Credential $credentials
+Runs '& cmd.exe /c shutdown /s /f' in the Win10 virtual machine guest OS with PowerShell
 .EXAMPLE
-PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.GuestOS -match 'windows'} | Submit-VirtualBoxVMPowerShellScript -PathToExecutable 'C:\\Windows\\System32\\gpupdate.exe' -Credential $credentials
-Runs gpupdate.exe on all running virtual machines with a Windows guest OS
+PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.GuestOS -match 'windows'} | Submit-VirtualBoxVMPowerShellScript -ScriptBlock '& cmd /c gpupdate.exe /force' -Credential $credentials
+Runs '& cmd /c gpupdate.exe /force' with PowerShell on all running virtual machines with a Windows guest OS
 .NOTES
 NAME        :  Submit-VirtualBoxVMPowerShellScript
-VERSION     :  1.0
-LAST UPDATED:  1/11/2020
+VERSION     :  1.1
+LAST UPDATED:  1/22/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
@@ -6644,8 +7263,8 @@ Submit-VirtualBoxVMPowerShellScript
 System.Array[]:  Array for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
-String        :  String for process to create
-String[]      :  Strings for arguments to process
+String        :  String for scriptblock to be run
+Uint32        :  uint32 for timeout in ms
 PsCredential[]:  Credential for virtual machine disks
 .OUTPUTS
 None
@@ -6664,12 +7283,15 @@ Mandatory=$true,ParameterSetName="Name",Position=0)]
   [string]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
-Mandatory=$true,ParameterSetName="Guid")]
+Mandatory=$true,ParameterSetName="Guid",Position=0)]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(Position=1,Mandatory=$true)]
 [ValidateNotNullorEmpty()]
   [string]$ScriptBlock,
+[Parameter(HelpMessage="Enter the timeout in milliseconds",
+Position=2,Mandatory=$false)]
+  [uint32]$Timeout = 0,
 [Parameter(Mandatory=$true,
 HelpMessage="Enter the credentials to login to the guest OS")]
   [pscredential]$Credential,
@@ -6683,7 +7305,7 @@ HelpMessage="Enter the credentials to login to the guest OS")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Starting $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($myinvocation.mycommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6703,33 +7325,33 @@ Process {
  if ($Machine) {
   foreach ($item in $Machine) {
    Write-Verbose "Submitting PowerShell command to VM $($Machine.Name) by VM object"
-   if ($NoWait) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -NoWait -SkipCheck}
-   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -StdErr -SkipCheck}
-   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -SkipCheck}
-   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdErr -SkipCheck}
-   else {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck}
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
   }
  }
  # get vm inventory (by $Name)
  elseif ($Name) {
   foreach ($item in $Name) {
    Write-Verbose "Submitting PowerShell command to VM $($Name) by Name"
-   if ($NoWait) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -NoWait -SkipCheck}
-   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -StdErr -SkipCheck}
-   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -SkipCheck}
-   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdErr -SkipCheck}
-   else {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck}
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
   }
  }
  # get vm inventory (by $Guid)
  elseif ($Guid) {
   foreach ($item in $Guid) {
    Write-Verbose "Submitting PowerShell command to VM $((Get-VirtualBoxVM -Guid $Guid -SkipCheck).Name) by GUID"
-   if ($NoWait) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -NoWait -SkipCheck}
-   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -StdErr -SkipCheck}
-   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdOut -SkipCheck}
-   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -StdErr -SkipCheck}
-   else {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -SkipCheck}
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential -Timeout $Timeout $Credential -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
   }
  }
 } # Process
@@ -6767,7 +7389,11 @@ New-Alias -Name spvboxvm -Value Stop-VirtualBoxVM
 New-Alias -Name nvboxvm -Value New-VirtualBoxVM
 New-Alias -Name rvboxvm -Value Remove-VirtualBoxVM
 New-Alias -Name ipvboxvm -Value Import-VirtualBoxVM
-New-Alias -Name evboxvm -Value Edit-VirtualBoxVM
+New-Alias -Name edvboxvm -Value Edit-VirtualBoxVM
+New-Alias -Name opvboxvmc -Value Open-VirtualBoxVMConsole
+New-Alias -Name evboxvmvrde -Value Enable-VirtualBoxVMVRDEServer
+New-Alias -Name dvboxvmvrde -Value Disable-VirtualBoxVMVRDEServer
+New-Alias -Name ccvboxvmvrde -Value Connect-VirtualBoxVMVRDEServer
 New-Alias -Name ipvboxovf -Value Import-VirtualBoxOVF
 New-Alias -Name epvboxovf -Value Export-VirtualBoxOVF
 New-Alias -Name gvboxd -Value Get-VirtualBoxDisk
