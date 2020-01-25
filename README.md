@@ -77,8 +77,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -NoWait switch.
     
 ### **VERSION**
-	0.3.4.26
-	January 20, 2020
+	0.3.8.30
+	January 24, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
@@ -97,6 +97,10 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Remove-VirtualBoxVM
 	Import-VirtualBoxVM
 	Edit-VirtualBoxVM
+	Open-VirtualBoxVMConsole
+	Enable-VirtualBoxVMVRDEServer
+	Disable-VirtualBoxVMVRDEServer
+	Connect-VirtualBoxVMVRDEServer
 	Import-VirtualBoxOVF
 	Export-VirtualBoxOVF
 	Get-VirtualBoxDisk
