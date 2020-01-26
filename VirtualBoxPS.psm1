@@ -3,6 +3,8 @@
 VirtualBox API Version: 6.1
 TODO:
 Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
+Investigate setting guest properties - https://forums.virtualbox.org/viewtopic.php?f=6&t=90233
+ - Name them Get/Set-VirtualBoxVMGuestProperty
 Remove-VirtualBoxDisc
 Remove a CD/DVD/Floppy - void IMedium::close()
 Import-VirtualBoxDisc
@@ -140,7 +142,25 @@ class IVrdeServer {
 	[string]$VrdeExtPack
 	[string]$AuthLibrary
 	[string[]]$VrdeProperties
-	[uint32]$VrdePort
+	[uint32]$TcpPort
+	[string]$IpAddress
+	[bool]$VideoChannelEnabled
+	[string]$VideoChannelQuality
+	[string]$VideoChannelDownscaleProtection
+	[bool]$DisableClientDisplay
+	[bool]$DisableClientInput
+	[bool]$DisableClientAudio
+	[bool]$DisableClientUsb
+	[bool]$DisableClientClipboard
+	[bool]$DisableClientUpstreamAudio
+	[bool]$DisableClientRdpdr
+	[bool]$H3dRedirectEnabled
+	[string]$SecurityMethod
+	[string]$SecurityServerCertificate
+	[string]$SecurityServerPrivateKey
+	[string]$SecurityCaCertificate
+	[string]$AudioRateCorrectionMode
+	[string]$AudioLogPath
     [IVrdeServer]Fetch ([string]$IMachine) {
         $Variable = [IVrdeServer]::new()
         if ($Variable){
@@ -153,7 +173,25 @@ class IVrdeServer {
 			if ($Variable.Enabled) {$Variable.VrdeExtPack = $global:vbox.IVRDEServer_getVRDEExtPack($Variable.Id)}
 			if ($Variable.Enabled) {$Variable.AuthLibrary = $global:vbox.IVRDEServer_getAuthLibrary($Variable.Id)}
 			if ($Variable.Enabled) {$Variable.VrdeProperties = $global:vbox.IVRDEServer_getVRDEProperties($Variable.Id)}
-			if ($Variable.Enabled) {$Variable.VrdePort = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'TCP/Ports')}
+			if ($Variable.Enabled) {$Variable.TcpPort = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'TCP/Ports')}
+			if ($Variable.Enabled) {$Variable.IpAddress = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'TCP/Address')}
+			if ($Variable.Enabled) {$Variable.VideoChannelEnabled = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'VideoChannel/Enabled')}
+			if ($Variable.Enabled) {$Variable.VideoChannelQuality = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'VideoChannel/Quality')}
+			if ($Variable.Enabled) {$Variable.VideoChannelDownscaleProtection = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'VideoChannel/DownscaleProtection')}
+			if ($Variable.Enabled) {$Variable.DisableClientDisplay = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableDisplay')}
+			if ($Variable.Enabled) {$Variable.DisableClientInput = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableInput')}
+			if ($Variable.Enabled) {$Variable.DisableClientAudio = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableAudio')}
+			if ($Variable.Enabled) {$Variable.DisableClientUsb = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableUSB')}
+			if ($Variable.Enabled) {$Variable.DisableClientClipboard = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableClipboard')}
+			if ($Variable.Enabled) {$Variable.DisableClientUpstreamAudio = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableUpstreamAudio')}
+			if ($Variable.Enabled) {$Variable.DisableClientRdpdr = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Client/DisableRDPDR')}
+			if ($Variable.Enabled) {$Variable.H3dRedirectEnabled = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'H3DRedirect/Enabled')}
+			if ($Variable.Enabled) {$Variable.SecurityMethod = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Security/Method')}
+			if ($Variable.Enabled) {$Variable.SecurityServerCertificate = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Security/ServerCertificate')}
+			if ($Variable.Enabled) {$Variable.SecurityServerPrivateKey = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Security/ServerPrivateKey')}
+			if ($Variable.Enabled) {$Variable.SecurityCaCertificate = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Security/CACertificate')}
+			if ($Variable.Enabled) {$Variable.AudioRateCorrectionMode = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Audio/RateCorrectionMode')}
+			if ($Variable.Enabled) {$Variable.AudioLogPath = $global:vbox.IVRDEServer_getVRDEProperty($Variable.Id, 'Audio/LogPath')}
             return $Variable
         }
         else {return $null}
@@ -167,10 +205,51 @@ class IVrdeServer {
 		if ($this.Enabled) {$this.VrdeExtPack = $global:vbox.IVRDEServer_getVRDEExtPack($this.Id)}
 		if ($this.Enabled) {$this.AuthLibrary = $global:vbox.IVRDEServer_getAuthLibrary($this.Id)}
 		if ($this.Enabled) {$this.VrdeProperties = $global:vbox.IVRDEServer_getVRDEProperties($this.Id)}
-		if ($this.Enabled) {$this.VrdePort = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'TCP/Ports')}
+		if ($this.Enabled) {$this.TcpPort = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'TCP/Ports')}
+		if ($this.Enabled) {$this.IpAddress = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'TCP/Address')}
+		if ($this.Enabled) {$this.VideoChannelEnabled = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'VideoChannel/Enabled')}
+		if ($this.Enabled) {$this.VideoChannelQuality = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'VideoChannel/Quality')}
+		if ($this.Enabled) {$this.VideoChannelDownscaleProtection = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'VideoChannel/DownscaleProtection')}
+		if ($this.Enabled) {$this.DisableClientDisplay = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableDisplay')}
+		if ($this.Enabled) {$this.DisableClientInput = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableInput')}
+		if ($this.Enabled) {$this.DisableClientAudio = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableAudio')}
+		if ($this.Enabled) {$this.DisableClientUsb = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableUSB')}
+		if ($this.Enabled) {$this.DisableClientClipboard = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableClipboard')}
+		if ($this.Enabled) {$this.DisableClientUpstreamAudio = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableUpstreamAudio')}
+		if ($this.Enabled) {$this.DisableClientRdpdr = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Client/DisableRDPDR')}
+		if ($this.Enabled) {$this.H3dRedirectEnabled = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'H3DRedirect/Enabled')}
+		if ($this.Enabled) {$this.SecurityMethod = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Security/Method')}
+		if ($this.Enabled) {$this.SecurityServerCertificate = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Security/ServerCertificate')}
+		if ($this.Enabled) {$this.SecurityServerPrivateKey = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Security/ServerPrivateKey')}
+		if ($this.Enabled) {$this.SecurityCaCertificate = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Security/CACertificate')}
+		if ($this.Enabled) {$this.AudioRateCorrectionMode = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Audio/RateCorrectionMode')}
+		if ($this.Enabled) {$this.AudioLogPath = $global:vbox.IVRDEServer_getVRDEProperty($this.Id, 'Audio/LogPath')}
     }
 }
 Update-TypeData -TypeName IVrdeServer -DefaultDisplayPropertySet @("Enabled","AuthType","AuthTimeout","AuthLibrary") -Force
+class GuestProperties {
+    [string]$Name
+	[string]$Value
+	[string]$Flag
+	[uint64]$Timestamp
+	[DateTimeOffset]$DateTimeOffset
+    [array]Enumerate ([string]$IMachine) {
+        [string[]]$Names = @()
+        [string[]]$Values = @()
+        [uint64[]]$Timestamps = @()
+        [string[]]$Flags = @()
+        $Names = $global:vbox.IMachine_enumerateGuestProperties($IMachine, $null, [ref]$Values, [ref]$Timestamps, [ref]$Flags)
+        $Variable = [GuestProperties]::new()
+        [array]$ret = @()
+        for ($i=0;$i-lt($Names | Measure-Object).Count;$i++) {
+			$ret += [GuestProperties]@{Name=$Names[$i];Value=$Values[$i];Flag=$Flags[$i];Timestamp=$Timestamps[$i];DateTimeOffset=[DateTimeOffset]::FromUnixTimeMilliseconds($Timestamps[$i] / 1000000)}
+        }
+        $ret = $ret | Where-Object {$_.Name -ne $null}
+        $ret = $ret | Sort-Object Name
+        return $ret
+    }
+}
+Update-TypeData -TypeName GuestProperties -DefaultDisplayPropertySet @("Name","Value","Flag") -Force
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
@@ -194,6 +273,7 @@ class VirtualBoxVM {
     [string]$IGuestSession
     [string[]]$IStorageControllers
     [IVrdeServer]$IVrdeServer = [IVrdeServer]::new()
+    [array]$GuestProperties
 }
 Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force
 class VirtualBoxVHD {
@@ -982,7 +1062,7 @@ $global:vbox
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  # create vbox app
@@ -1037,7 +1117,7 @@ Process {
  Write-Output $global:vbox
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Start-VirtualBoxSession {
@@ -1094,7 +1174,7 @@ Mandatory=$true,Position=3)]
   [switch]$Force
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1183,7 +1263,7 @@ Process {
  }
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Stop-VirtualBoxSession {
@@ -1211,7 +1291,7 @@ None
 [cmdletbinding(DefaultParameterSetName="UserPass")]
 Param() # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1235,7 +1315,7 @@ Process {
  }
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Start-VirtualBoxWebSrv {
@@ -1265,7 +1345,7 @@ None
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  try {
@@ -1290,7 +1370,7 @@ Process {
  }
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Stop-VirtualBoxWebSrv {
@@ -1320,7 +1400,7 @@ None
 [cmdletbinding(DefaultParameterSetName="UserPass")]
 Param() # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  # login to web service
@@ -1336,7 +1416,7 @@ Process {
  } # end catch
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Restart-VirtualBoxWebSrv {
@@ -1366,7 +1446,7 @@ None
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  # restart the web service task
@@ -1374,7 +1454,7 @@ Process {
  Start-VirtualBoxWebSrv
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Update-VirtualBoxWebSrv {
@@ -1404,7 +1484,7 @@ None
 [cmdletbinding()]
 Param() # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  # refresh the web service task information
@@ -1434,7 +1514,7 @@ Process {
 } # Process
 End {
  Write-Verbose $vboxwebsrvtask
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Get-VirtualBoxVM {
@@ -1553,7 +1633,7 @@ HelpMessage="Enter a virtual machine state you wish to filter by")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1571,6 +1651,7 @@ Process {
  try {
   # get virtual machine inventory
   foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+    $guestprops = New-Object GuestProperties
     $tempobj = New-Object VirtualBoxVM
     $tempobj.Name = $global:vbox.IMachine_getName($vmid)
     $tempobj.Description = $global:vbox.IMachine_getDescription($vmid)
@@ -1581,6 +1662,7 @@ Process {
     $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
     $tempobj.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmid)
     $tempobj.IVrdeServer = $tempobj.IVrdeServer.Fetch($tempobj.Id)
+    $tempobj.GuestProperties = $guestprops.Enumerate($tempobj.Id)
     # decode state
     Switch ($tempobj.State) {
      1 {$tempobj.State = "PoweredOff"}
@@ -1611,8 +1693,8 @@ Process {
    foreach ($vm in $vminventory) {
     Write-Verbose "Matching $($vm.Name) to $($Name)"
     if ($vm.Name -match $Name) {
-     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
-     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
     }
    }
   } # end if $Name and not *
@@ -1621,8 +1703,8 @@ Process {
    foreach ($vm in $vminventory) {
     Write-Verbose "Matching $($vm.Guid) to $($Guid)"
     if ($vm.Guid -match $Guid) {
-     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
-     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
     }
    }
   } # end if $Guid
@@ -1630,13 +1712,13 @@ Process {
    if ($State) {
     Write-Verbose "Filtering all virtual machines by state: $State"
     foreach ($vm in $vminventory) {
-     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}}
+     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
     }
    }
    else {
     Write-Verbose "Filtering all virtual machines"
     foreach ($vm in $vminventory) {
-     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer}
+     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}
     }
    }
   } # end if All
@@ -1655,7 +1737,7 @@ Process {
  } # Catch
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Suspend-VirtualBoxVM {
@@ -1717,7 +1799,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1803,7 +1885,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Resume-VirtualBoxVM {
@@ -1865,7 +1947,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -1951,7 +2033,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Start-VirtualBoxVM {
@@ -2047,7 +2129,7 @@ HelpMessage="Enter the credentials to unlock the VM disk(s)")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -2114,21 +2196,26 @@ Process {
     elseif ($Encrypted) {
      # start the vm in $Type mode
      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-     $imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(), $null)
+     if ($Type -match 'Gui') {Open-VirtualBoxVMConsole -Machine $imachine}
+     elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, 'headless', $null)}
      # collect iprogress data
      Write-Verbose "Fetching IProgress data"
-     $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-     if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+     if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
+     if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
      Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
      do {
       # get the current machine state
       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
       # update iprogress data
-      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
+      if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
      } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
      Write-Verbose "VM $($imachine.Name) paused"
+     if ($Type -match 'Gui') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
+     }
      # create new session object for iconsole
      Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
@@ -2189,7 +2276,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Stop-VirtualBoxVM {
@@ -2269,7 +2356,7 @@ HelpMessage="Enter the credentials to login to the guest OS")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -2325,7 +2412,7 @@ Process {
      if ($imachine.State -eq 'Running') {
       # send a stop-computer -force command to the guest machine
       Write-Verbose 'Sending PowerShell Stop-Computer -Force -Confirm:$false command to guest machine'
-      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential -NoWait)
+      Write-Output (Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable 'cmd.exe' -Arguments '/c','powershell.exe','-ExecutionPolicy','Bypass','-Command','Stop-Computer','-Force','-Confirm:$false' -Credential $Credential -NoWait -SkipCheck)
      }
      else {return "Only machines that are running may be stopped."}
     }
@@ -2405,7 +2492,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function New-VirtualBoxVM {
@@ -2929,7 +3016,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -3063,7 +3150,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Remove-VirtualBoxVM {
@@ -3146,7 +3233,7 @@ HelpMessage="Use this switch to delete all snapshots, detach all media and retur
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -3253,7 +3340,7 @@ Process {
  else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Import-VirtualBoxVM {
@@ -3299,7 +3386,7 @@ ParameterSetName='Custom',Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -3353,7 +3440,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Edit-VirtualBoxVM {
@@ -3873,7 +3960,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -4054,7 +4141,259 @@ Process {
  else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Set-VirtualBoxVMGuestProperty {
+<#
+.SYNOPSIS
+Set a virtual machine guest property
+.DESCRIPTION
+Sets a virtual machine guest property.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Property
+The property name.
+.PARAMETER Value
+The property value.
+.PARAMETER Flags
+A comma-separated list of property flags. (i.e. -Flags 'name=value','name=value','name=value')
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Set-VirtualBoxVMGuestProperty -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-interval' -Value 60000
+Set all running virtual machines to synchronize the guest time with the host every 60 seconds (Default 10 seconds)
+.EXAMPLE
+PS C:\> Set-VirtualBoxVMGuestProperty -Name "2016" -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-min-adjust' -Value 1000
+Set the "2016 Core" virtual machine to adjust guest time in drift increments of 1 second (Default 100 milliseconds)
+.EXAMPLE
+PS C:\> Set-VirtualBoxVMGuestProperty -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6 -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold' -Value 30000
+Set the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6 to adjust guest time if out of sync by more than 30 seconds (Default 20 minutes)
+.NOTES
+NAME        :  Set-VirtualBoxVMGuestProperty
+VERSION     :  1.0
+LAST UPDATED:  1/26/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Remove-VirtualBoxVMGuestProperty
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for property name
+String        :  String for property value
+String[]      :  Strings for property flags
+.OUTPUTS
+VirtualBoxVM  :  Updated virtual machine object(s)
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Enter the property name",
+Mandatory=$false)]
+  [string]$Property,
+[Parameter(HelpMessage="Enter the property value",
+Mandatory=$false)]
+  [string]$Value,
+[Parameter(HelpMessage="Enter a comma-separated list of property flags",
+Mandatory=$false)]
+  [string[]]$Flags,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # join flags
+ [string]$Flags = $Flags -join ','
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    # set the requested property
+    Write-Verbose "Setting property `"$Property`" value to `"$Value`" with flag(s) `"$Flags`" for the $($imachine.Name) machine"
+    $global:vbox.IMachine_setGuestProperty($imachine.Id, $Property, $Value, $Flags)
+    # output the updated machine object to the pipeline
+    Write-Verbose "Outputting the updated machine object to the pipeline"
+    Write-Output (Get-VirtualBoxVM -Name $imachine.Name -SkipCheck)
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+ } # Try
+ catch {
+  Write-Verbose 'Exception setting guest property'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Remove-VirtualBoxVMGuestProperty {
+<#
+.SYNOPSIS
+Remove a virtual machine guest property
+.DESCRIPTION
+Removes a virtual machine guest property.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Property
+The property name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Remove-VirtualBoxVMGuestProperty -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-interval'
+Remove the '/VirtualBox/GuestAdd/VBoxService/--timesync-interval' property from all running virtual machines
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVMGuestProperty -Name "2016" -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-min-adjust'
+Remove the '/VirtualBox/GuestAdd/VBoxService/--timesync-min-adjust' property from the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVMGuestProperty -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6 -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold'
+Remove the '/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold' property from the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Remove-VirtualBoxVMGuestProperty
+VERSION     :  1.0
+LAST UPDATED:  1/26/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Remove-VirtualBoxVMGuestProperty
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for property name
+.OUTPUTS
+VirtualBoxVM  :  Updated virtual machine object(s)
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Enter the property name",
+Mandatory=$false)]
+  [string]$Property,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    # remove the requested property
+    Write-Verbose "Removing property `"$Property`" from the $($imachine.Name) machine"
+    $global:vbox.IMachine_deleteGuestProperty($imachine.Id, $Property)
+    # output the updated machine object to the pipeline
+    Write-Verbose "Outputting the updated machine object to the pipeline"
+    Write-Output (Get-VirtualBoxVM -Name $imachine.Name -SkipCheck)
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+ } # Try
+ catch {
+  Write-Verbose 'Exception removing guest property'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Open-VirtualBoxVMConsole {
@@ -4112,7 +4451,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [guid[]]$Guid
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -4149,7 +4488,7 @@ Process {
  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Enable-VirtualBoxVMVRDEServer {
@@ -4164,6 +4503,8 @@ At least one virtual machine object. Can be received via pipeline input.
 The name of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Enable-VirtualBoxVMVRDEServer
 Enable VRDE server for all running virtual machines
@@ -4209,7 +4550,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -4244,7 +4585,7 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.IVrdeServer.Enabled -eq $false) {
-     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     Write-Verbose "Getting shared lock on machine $($imachine.Name)"
      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
      # create a new machine object
      $mmachine = New-Object VirtualBoxVM
@@ -4266,7 +4607,7 @@ Process {
      Write-Verbose "Updating the machine object"
      $imachine.IVrdeServer.Update()
      # output the updated machine object to the pipeline
-     Write-Verbose "Outputting the machine object to the pipeline"
+     Write-Verbose "Outputting the updated machine object to the pipeline"
      Write-Output $imachine
     } # end if $imachine.IVrdeServer.Enabled -eq $false
     else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already enabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
@@ -4306,7 +4647,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Disable-VirtualBoxVMVRDEServer {
@@ -4321,6 +4662,8 @@ At least one virtual machine object. Can be received via pipeline input.
 The name of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Disable-VirtualBoxVMVRDEServer
 Disable VRDE server for all running virtual machines
@@ -4366,7 +4709,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -4423,7 +4766,7 @@ Process {
      Write-Verbose "Updating the machine object"
      $imachine.IVrdeServer.Update()
      # output the updated machine object to the pipeline
-     Write-Verbose "Outputting the machine object to the pipeline"
+     Write-Verbose "Outputting the updated machine object to the pipeline"
      Write-Output $imachine
     } # end if $imachine.IVrdeServer.Enabled -eq $true
     else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already disabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
@@ -4463,7 +4806,358 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Edit-VirtualBoxVMVRDEServer {
+<#
+.SYNOPSIS
+Edit VRDE server for a virtual machine
+.DESCRIPTION
+Edits VRDE server settings for a virtual machine.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER AuthType
+The authorization type for the VRDE server. Must be 'Null', 'External', or 'Guest'.
+.PARAMETER AuthTimeout
+The authorization timeout in milliseconds for the VRDE server.
+.PARAMETER AllowMultiConnection
+Enable or disable reusing a single connection to the VRDE server.
+.PARAMETER ReuseSingleConnection
+Enable or disable reusing a single connection to the VRDE server.
+.PARAMETER VrdeExtPack
+The VRDE extension pack for the VRDE server.
+.PARAMETER AuthLibrary
+The authorization library for the VRDE server.
+.PARAMETER VrdePort
+The TCP port for the VRDE server.
+The authorization library for the VRDE server.
+.PARAMETER IpAddress
+The IP address for the VRDE server.
+.PARAMETER VideoChannelEnabled
+Enable or disable the video channel for the VRDE server.
+.PARAMETER VideoChannelQuality
+The video channel quality for the VRDE server.
+.PARAMETER VideoChannelDownscaleProtection
+The video channel downscale protection for the VRDE server.
+.PARAMETER DisableClientDisplay
+Disable or enable the client display for the VRDE server.
+.PARAMETER DisableClientInput
+Disable or enable the client input for the VRDE server.
+.PARAMETER DisableClientAudio
+Disable or enable the client audio for the VRDE server.
+.PARAMETER DisableClientUsb
+Disable or enable the client USB for the VRDE server.
+.PARAMETER DisableClientClipboard
+Disable or enable the client clipboard for the VRDE server.
+.PARAMETER DisableClientUpstreamAudio
+Disable or enable the client upstream audio for the VRDE server.
+.PARAMETER DisableClientRdpdr
+Disable or enable the client RDPDR for the VRDE server.
+.PARAMETER H3dRedirectEnabled
+Enable or disable the H3D redirect for the VRDE server.
+.PARAMETER SecurityMethod
+The security method for the VRDE server.
+.PARAMETER SecurityServerCertificate
+The security server certificate for the VRDE server.
+.PARAMETER SecurityServerPrivateKey
+The security server private key for the VRDE server.
+.PARAMETER SecurityCaCertificate
+The security CA certificate for the VRDE server.
+.PARAMETER AudioRateCorrectionMode
+The audio rate correction mode for the VRDE server.
+.PARAMETER AudioLogPath
+The audio log path for the VRDE server.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -State Running | Edit-VirtualBoxVMVRDEServer -AuthTimeout 5000
+Set the VRDE server authorization timeout to 5 seconds for all running virtual machines
+.EXAMPLE
+PS C:\> Edit-VirtualBoxVMVRDEServer -Name "2016" -VrdePort 3389
+Set the VRDE server TCP port to 3389 for the "2016 Core" virtual machine
+.EXAMPLE
+PS C:\> Edit-VirtualBoxVMVRDEServer -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6 -AllowMultiConnection $true
+Permit multiple connections to the VRDE server for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+.NOTES
+NAME        :  Edit-VirtualBoxVMVRDEServer
+VERSION     :  1.0
+LAST UPDATED:  1/25/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Enable-VirtualBoxVMVRDEServer
+.INPUTS
+VirtualBoxVM[]:  Array for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for VRDE server AuthType
+Uint32        :  Uint32 for VRDE server AuthTimeout
+bool          :  bool for VRDE server AllowMultiConnection
+bool          :  bool for VRDE server ReuseSingleConnection
+String        :  String for VRDE server VrdeExtPack
+String        :  String for VRDE server AuthLibrary
+Uint32        :  Uint32 for VRDE server VrdePort
+.OUTPUTS
+VirtualBoxVM  :  Updated virtual machine object(s)
+#>
+[CmdletBinding()]
+Param(
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Name",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Guid",Mandatory=$true)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Enter the authorization type for the VRDE server",
+Mandatory=$false)]
+[ValidateSet('Null','External','Guest')]
+  [string]$AuthType,
+[Parameter(HelpMessage="Enter the authorization timeout in milliseconds for the VRDE server",
+Mandatory=$false)]
+  [uint32]$AuthTimeout,
+[Parameter(HelpMessage="Enable or disable permitting multiple simultaneous connections to the VRDE server",
+Mandatory=$false)]
+  [bool]$AllowMultiConnection,
+[Parameter(HelpMessage="Enable or disable reusing a single connection to the VRDE server",
+Mandatory=$false)]
+  [bool]$ReuseSingleConnection,
+[Parameter(HelpMessage="Enter the VRDE extension pack for the VRDE server",
+Mandatory=$false)]
+  [string]$VrdeExtPack,
+[Parameter(HelpMessage="Enter the authorization library for the VRDE server",
+Mandatory=$false)]
+  [string]$AuthLibrary,
+[Parameter(HelpMessage="Enter the TCP port for the VRDE server",
+Mandatory=$false)]
+  [uint32]$TcpPort,
+[Parameter(HelpMessage="Enter the IP address for the VRDE server",
+Mandatory=$false)]
+  [string]$IpAddress,
+[Parameter(HelpMessage="Enable or disable the video channel for the VRDE server",
+Mandatory=$false)]
+  [bool]$VideoChannelEnabled,
+[Parameter(HelpMessage="Enter the video channel quality for the VRDE server",
+Mandatory=$false)]
+  [string]$VideoChannelQuality,
+[Parameter(HelpMessage="Enter the video channel downscale protection for the VRDE server",
+Mandatory=$false)]
+  [string]$VideoChannelDownscaleProtection,
+[Parameter(HelpMessage="Disable or enable the client display for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientDisplay,
+[Parameter(HelpMessage="Disable or enable the client input for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientInput,
+[Parameter(HelpMessage="Disable or enable the client audio for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientAudio,
+[Parameter(HelpMessage="Disable or enable the client USB for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientUsb,
+[Parameter(HelpMessage="Disable or enable the client clipboard for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientClipboard,
+[Parameter(HelpMessage="Disable or enable the client upstream audio for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientUpstreamAudio,
+[Parameter(HelpMessage="Disable or enable the client RDPDR for the VRDE server",
+Mandatory=$false)]
+  [bool]$DisableClientRdpdr,
+[Parameter(HelpMessage="Enable or disable the H3D redirect for the VRDE server",
+Mandatory=$false)]
+  [bool]$H3dRedirectEnabled,
+[Parameter(HelpMessage="Enter the security method for the VRDE server",
+Mandatory=$false)]
+  [string]$SecurityMethod,
+[Parameter(HelpMessage="Enter the security server certificate for the VRDE server",
+Mandatory=$false)]
+  [string]$SecurityServerCertificate,
+[Parameter(HelpMessage="Enter the security server private key for the VRDE server",
+Mandatory=$false)]
+  [string]$SecurityServerPrivateKey,
+[Parameter(HelpMessage="Enter the security CA certificate for the VRDE server",
+Mandatory=$false)]
+  [string]$SecurityCaCertificate,
+[Parameter(HelpMessage="Enter the audio rate correction mode for the VRDE server",
+Mandatory=$false)]
+  [string]$AudioRateCorrectionMode,
+[Parameter(HelpMessage="Enter the audio log path for the VRDE server",
+Mandatory=$false)]
+  [string]$AudioLogPath,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ #get global vbox variable or create it if it doesn't exist create it
+ if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
+ # refresh vboxwebsrv variable
+ if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+ # start the websrvtask if it's not running
+ if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ # get vm inventory (by $Machine)
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+ }
+ # get vm inventory (by $Name)
+ elseif ($Name) {
+  Write-Verbose "Getting VM inventory from Name(s)"
+  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
+ }
+ # get vm inventory (by $Guid)
+ elseif ($Guid) {
+  Write-Verbose "Getting VM inventory from GUID(s)"
+  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
+ }
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.IVrdeServer.Enabled -eq $true) {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
+     $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+     $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
+     # apply custom settings as requested
+     Write-Verbose "Processing VRDE server setting: AuthType"
+     if ($AuthType) {$global:vbox.IVRDEServer_setAuthType($mmachine.IVrdeServer.Id, $AuthType)}
+     Write-Verbose "Processing VRDE server setting: AuthTimeout"
+     Write-Verbose "AuthTimeout: $AuthTimeout"
+     if ($MyInvocation.MyCommand -match '-AuthTimeout') {$global:vbox.IVRDEServer_setAuthTimeout($mmachine.IVrdeServer.Id, $AuthTimeout)}
+     Write-Verbose "Processing VRDE server setting: AllowMultiConnection"
+     if ($AllowMultiConnection) {$global:vbox.IVRDEServer_setAllowMultiConnection($mmachine.IVrdeServer.Id, $AllowMultiConnection)}
+     Write-Verbose "Processing VRDE server setting: ReuseSingleConnection"
+     if ($ReuseSingleConnection) {$global:vbox.IVRDEServer_setReuseSingleConnection($mmachine.IVrdeServer.Id, $ReuseSingleConnection)}
+     Write-Verbose "Processing VRDE server setting: VRDEExtPack"
+     if ($VRDEExtPack) {$global:vbox.IVRDEServer_setVRDEExtPack($mmachine.IVrdeServer.Id, $VRDEExtPack)}
+     Write-Verbose "Processing VRDE server setting: AuthLibrary"
+     if ($AuthLibrary) {$global:vbox.IVRDEServer_setAuthLibrary($mmachine.IVrdeServer.Id, $AuthLibrary)}
+     Write-Verbose "Processing VRDE server setting: TcpPort"
+     if ($TcpPort -ne 0) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'TCP/Ports', $TcpPort.ToString())}
+     Write-Verbose "Processing VRDE server setting: IpAddress"
+     if ($IpAddress) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'TCP/Address', $IpAddress)}
+     Write-Verbose "Processing VRDE server setting: VideoChannelEnabled"
+     if ($VideoChannelEnabled -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Enabled', $true)}
+     elseif ($VideoChannelEnabled -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Enabled', '')}
+     Write-Verbose "Processing VRDE server setting: VideoChannelQuality"
+     if ($VideoChannelQuality) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Quality', $VideoChannelQuality)}
+     Write-Verbose "Processing VRDE server setting: VideoChannelDownscaleProtection"
+     if ($VideoChannelDownscaleProtection) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/DownscaleProtection', $VideoChannelDownscaleProtection)}
+     Write-Verbose "Processing VRDE server setting: DisableClientDisplay"
+     if ($DisableClientDisplay -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableDisplay', $false)}
+     elseif ($DisableClientDisplay -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableDisplay', '')}
+     Write-Verbose "Processing VRDE server setting: DisableClientInput"
+     if ($DisableClientInput -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableInput', $false)}
+     elseif ($DisableClientInput -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableInput', '')}
+     Write-Verbose "Processing VRDE server setting: DisableClientAudio"
+     if ($DisableClientAudio -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableAudio', $false)}
+     elseif ($DisableClientAudio -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableAudio', '')}
+     Write-Verbose "Processing VRDE server setting: DisableClientUsb"
+     if ($DisableClientUsb -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUSB', $false)}
+     elseif ($DisableClientUsb -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUSB', '')}
+     Write-Verbose "Processing VRDE server setting: DisableClientClipboard"
+     if ($DisableClientClipboard -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableClipboard', $false)}
+     elseif ($DisableClientClipboard -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableClipboard', '')}
+     Write-Verbose "Processing VRDE server setting: DisableClientUpstreamAudio"
+     if ($DisableClientUpstreamAudio -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUpstreamAudio', $false)}
+     elseif ($DisableClientUpstreamAudio -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUpstreamAudio', '')}
+     Write-Verbose "Processing VRDE server setting: DisableClientRdpdr"
+     if ($DisableClientRdpdr -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableRDPDR', $false)}
+     elseif ($DisableClientRdpdr -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableRDPDR', '')}
+     Write-Verbose "Processing VRDE server setting: H3dRedirectEnabled"
+     if ($H3dRedirectEnabled -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'H3DRedirect/Enabled', $true)}
+     elseif ($H3dRedirectEnabled -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'H3DRedirect/Enabled', '')}
+     Write-Verbose "Processing VRDE server setting: SecurityMethod"
+     if ($SecurityMethod) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/Method', $SecurityMethod)}
+     Write-Verbose "Processing VRDE server setting: SecurityServerCertificate"
+     if ($SecurityServerCertificate) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/ServerCertificate', $SecurityServerCertificate)}
+     Write-Verbose "Processing VRDE server setting: SecurityServerPrivateKey"
+     if ($SecurityServerPrivateKey) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/ServerPrivateKey', $SecurityServerPrivateKey)}
+     Write-Verbose "Processing VRDE server setting: SecurityCaCertificate"
+     if ($SecurityCaCertificate) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/CACertificate', $SecurityCaCertificate)}
+     Write-Verbose "Processing VRDE server setting: AudioRateCorrectionMode"
+     if ($AudioRateCorrectionMode) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Audio/RateCorrectionMode', $AudioRateCorrectionMode)}
+     Write-Verbose "Processing VRDE server setting: AudioLogPath"
+     if ($AudioLogPath) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Audio/LogPath', $AudioLogPath)}
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $global:vbox.IMachine_saveSettings($mmachine.Id)
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $global:vbox.ISession_unlockMachine($imachine.ISession)
+     # update the machine object
+     Write-Verbose "Updating the machine object"
+     $imachine.IVrdeServer.Update()
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the updated machine object to the pipeline"
+     Write-Output $imachine
+    } # end if $imachine.IVrdeServer.Enabled -eq $true
+    else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already disabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+ } # Try
+ catch {
+  Write-Verbose 'Exception editing VRDE server'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession) {
+     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.ISession)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    #$imachine.ISession = $null
+    $imachine.IConsole = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+ } # Finally
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Connect-VirtualBoxVMVRDEServer {
@@ -4478,8 +5172,6 @@ At least one virtual machine object. Can be received via pipeline input.
 The name of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
-.PARAMETER Port
-The TCP port of the virtual machine VRDE server.
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.IVrdeServer.Enabled -eq $true} | Connect-VirtualBoxVMVRDEServer
 Launch Remote Desktop Conenction application and connect it to the VRDE server for all running virtual machines that have it enabled
@@ -4523,7 +5215,7 @@ ParameterSetName="Guid",Mandatory=$true)]
   [guid[]]$Guid
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -4561,7 +5253,7 @@ Process {
  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Import-VirtualBoxOVF {
@@ -4885,7 +5577,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5186,7 +5878,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Export-VirtualBoxOVF {
@@ -5540,7 +6232,7 @@ DynamicParam {
  return $paramDictionary
 }
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  #get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -5823,7 +6515,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Get-VirtualBoxDisk {
@@ -5954,7 +6646,7 @@ ParameterSetName="Machine",Mandatory=$false,Position=0)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6079,7 +6771,7 @@ Process {
  } # end else
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function New-VirtualBoxDisk {
@@ -6162,7 +6854,7 @@ ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6215,7 +6907,7 @@ Process {
  } # end if ParameterSetName -eq HardDisk
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Import-VirtualBoxDisk {
@@ -6267,7 +6959,7 @@ ParameterSetName="HardDisk",Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6282,7 +6974,7 @@ Begin {
 } # Begin
 Process {
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
-  $existingdisks = Get-VirtualBoxDisk -Name $Name -SkipCheck
+  $existingdisks = Get-VirtualBoxDisk -Name $($FileName.Substring($FileName.LastIndexOf('\')+1)) -SkipCheck
   if ($existingdisks) {
    foreach ($existingdisk in $existingdisks) {
     Write-Verbose $existingdisk.Name
@@ -6304,7 +6996,7 @@ Process {
  } # end if ParameterSetName -eq HardDisk
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Remove-VirtualBoxDisk {
@@ -6367,7 +7059,7 @@ ParameterSetName="HardDisk")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6455,7 +7147,7 @@ Process {
  } # end if ParameterSetName -eq HardDisk
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Mount-VirtualBoxDisk {
@@ -6540,7 +7232,7 @@ ParameterSetName="HardDisk")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6673,7 +7365,7 @@ Process {
  } # end if ParameterSetName -eq HardDisk
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Dismount-VirtualBoxDisk {
@@ -6758,7 +7450,7 @@ ParameterSetName="HardDisk")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # check global vbox variable and create it if it doesn't exist
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -6902,7 +7594,7 @@ Process {
  } # end if ParameterSetName -eq HardDisk
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Submit-VirtualBoxVMProcess {
@@ -6998,7 +7690,7 @@ HelpMessage="Enter the credentials to login to the guest OS")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -7216,7 +7908,7 @@ Process {
  } # Finally
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 Function Submit-VirtualBoxVMPowerShellScript {
@@ -7305,7 +7997,7 @@ HelpMessage="Enter the credentials to login to the guest OS")]
   [switch]$SkipCheck
 ) # Param
 Begin {
- Write-Verbose "Beginning $($myinvocation.mycommand)"
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
  # get global vbox variable or create it if it doesn't exist create it
  if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
  # refresh vboxwebsrv variable
@@ -7356,7 +8048,7 @@ Process {
  }
 } # Process
 End {
- Write-Verbose "Ending $($myinvocation.mycommand)"
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
 #########################################################################################
@@ -7390,9 +8082,12 @@ New-Alias -Name nvboxvm -Value New-VirtualBoxVM
 New-Alias -Name rvboxvm -Value Remove-VirtualBoxVM
 New-Alias -Name ipvboxvm -Value Import-VirtualBoxVM
 New-Alias -Name edvboxvm -Value Edit-VirtualBoxVM
+New-Alias -Name svboxvmgp -Value Set-VirtualBoxVMGuestProperty
+New-Alias -Name rvboxvmgp -Value Remove-VirtualBoxVMGuestProperty
 New-Alias -Name opvboxvmc -Value Open-VirtualBoxVMConsole
 New-Alias -Name evboxvmvrde -Value Enable-VirtualBoxVMVRDEServer
 New-Alias -Name dvboxvmvrde -Value Disable-VirtualBoxVMVRDEServer
+New-Alias -Name edvboxvmvrde -Value Edit-VirtualBoxVMVRDEServer
 New-Alias -Name ccvboxvmvrde -Value Connect-VirtualBoxVMVRDEServer
 New-Alias -Name ipvboxovf -Value Import-VirtualBoxOVF
 New-Alias -Name epvboxovf -Value Export-VirtualBoxOVF
