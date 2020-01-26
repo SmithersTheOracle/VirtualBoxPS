@@ -3,44 +3,24 @@
 VirtualBox API Version: 6.1
 TODO:
 Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
-Investigate setting guest properties - https://forums.virtualbox.org/viewtopic.php?f=6&t=90233
- - Name them Get/Set-VirtualBoxVMGuestProperty
 Remove-VirtualBoxDisc
 Remove a CD/DVD/Floppy - void IMedium::close()
 Import-VirtualBoxDisc
 Import a CD/DVD/Floppy - IMedium IVirtualBox::openMedium()
 Mount-VirtualBoxDisc
 Mount a CD/DVD/Floppy - void IMachine::mountMedium()
-Unmount-VirtualBoxDisc
-Unmount a CD/DVD/Floppy - void IMachine::unmountMedium()
-Add support for credential arrays
+Dismount-VirtualBoxDisc
+Dismount a CD/DVD/Floppy - void IMachine::unmountMedium()
+Add support for credential arrays - especially for disk credentials
+Add support for importing/exporting encrypted VMs
 Write more comprehensive error handling (low priority)
-Modify a Disk?
--WhatIf support (Extremely low priority)
+Finish implementing -WhatIf support (Extremely low priority)
 
 Unsupported interface found - IInternalMachineControl - too bad
 void IInternalMachineControl::beginPoweringUp()
 IMediumAttachment IInternalMachineControl::ejectMedium()
 
 IConsole::display() - No. Too many commands not usable with web service.
-$global:vbox.IMachine_getVRDEServer
-$global:vbox.IVRDEServer_getEnabled
-$global:vbox.IVRDEServer_setEnabled
-$global:vbox.IVRDEServer_getAuthType
-$global:vbox.IVRDEServer_setAuthType
-$global:vbox.IVRDEServer_getAuthTimeout
-$global:vbox.IVRDEServer_setAuthTimeout
-$global:vbox.IVRDEServer_getAllowMultiConnection
-$global:vbox.IVRDEServer_setAllowMultiConnection
-$global:vbox.IVRDEServer_getReuseSingleConnection
-$global:vbox.IVRDEServer_setReuseSingleConnection
-$global:vbox.IVRDEServer_getVRDEExtPack
-$global:vbox.IVRDEServer_setVRDEExtPack
-$global:vbox.IVRDEServer_getAuthLibrary
-$global:vbox.IVRDEServer_setAuthLibrary
-$global:vbox.IVRDEServer_getVRDEProperties
-$global:vbox.IVRDEServer_getVRDEProperty
-$global:vbox.IVRDEServer_setVRDEProperty - If you pass null or empty string as a key value, the given key will be deleted.
 
 Useful methods
 IStorageController IMachine::storageControllers
@@ -1772,7 +1752,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Resume-VirtualBoxVM
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -1784,12 +1764,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -1815,21 +1795,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -1920,7 +1904,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Suspend-VirtualBoxVM
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -1932,12 +1916,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -1963,21 +1947,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -2074,7 +2062,7 @@ EDITOR      :  SmithersTheOracle
 Get-VirtualBoxVM
 Stop-VirtualBoxVM
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 PsCredential  :  Credential for virtual machine disks
@@ -2092,7 +2080,7 @@ ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)"
 ,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ParameterSetName='Unencrypted',Mandatory=$false,
 ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
@@ -2101,7 +2089,7 @@ HelpMessage="Enter one or more virtual machine name(s)")]
 ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ParameterSetName='Unencrypted',Mandatory=$false,
 ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)")]
@@ -2145,33 +2133,28 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
-  if ($Encrypted) {
-   Write-Verbose "Getting virtual disks from Machine(s)"
-   $disks = Get-VirtualBoxDisk -Machine $Machine -SkipCheck
-  }
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+  if ($Encrypted) {$disks = Get-VirtualBoxDisk -Machine $imachines}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
-  if ($Encrypted) {
-   Write-Verbose "Getting virtual disks from VM Name(s)"
-   $disks = Get-VirtualBoxDisk -MachineName $Name -SkipCheck
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
   }
- }
- # get vm inventory (by $Guid)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+  if ($Encrypted) {$disks = Get-VirtualBoxDisk -Machine $imachines}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
-  if ($Encrypted) {
-   Write-Verbose "Getting virtual disks from VM GUID(s)"
-   $disks = Get-VirtualBoxDisk -MachineGuid $Guid -SkipCheck
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
   }
- }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+  if ($Encrypted) {$disks = Get-VirtualBoxDisk -Machine $imachines}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -2220,16 +2203,21 @@ Process {
      Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
      foreach ($disk in $disks) {
-      Write-Verbose "Processing disk $disk"
+      Write-Verbose "Processing disk $($disk)"
+      $diskid = $null
       try {
-       Write-Verbose "Checking for Password against disk"
        # check the password against the vm disk
+       Write-Verbose "Checking for Password against disk"
        $global:vbox.IMedium_checkEncryptionPassword($disk.Id, $Credential.GetNetworkCredential().Password)
        Write-Verbose  "The image is configured for encryption and the password is correct"
+       # get the disk id
+       Write-Verbose "Getting the disk ID"
+       $cipher = $global:vbox.IMedium_getEncryptionSettings($disk.Id, [ref]$diskid)
+       Write-Verbose "Ecryption cipher: $cipher"
        # pass disk encryption password to the vm console
        Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
-       $global:vbox.IConsole_addDiskEncryptionPassword($imachine.IConsole, $imachine.Name, $Credential.GetNetworkCredential().Password, $false)
-       Write-Verbose "Password sent"
+       $global:vbox.IConsole_addDiskEncryptionPassword($imachine.IConsole, $diskid, $Credential.GetNetworkCredential().Password, $false)
+       Write-Verbose "Disk decryption successful for disk $($disk)"
       } # Try
       catch {
        Write-Verbose "Exception when sending password for encrypted disk(s)"
@@ -2319,7 +2307,7 @@ Get-VirtualBoxVM
 Start-VirtualBoxVM
 Suspend-VirtualBoxVM
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 PsCredential  :  Credential for virtual machine guests
@@ -2332,11 +2320,11 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)")]
 [ValidateNotNullorEmpty()]
@@ -2372,21 +2360,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -3197,7 +3189,7 @@ EDITOR      :  SmithersTheOracle
 New-VirtualBoxVM
 Import-VirtualBoxVM
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -3209,7 +3201,7 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)"
 ,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -3249,21 +3241,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  if ($imachines) {
   try {
    foreach ($imachine in $imachines) {
@@ -3575,7 +3571,9 @@ EDITOR      :  SmithersTheOracle
 Remove-VirtualBoxVM
 Import-VirtualBoxVM
 .INPUTS
-String        :  String for virtual machine name
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for virtual machine OS Type ID
 Other optional input parameters available. Use "Get-Help Edit-VirtualBoxVM -Full" for a complete list.
 .OUTPUTS
@@ -3587,7 +3585,7 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)"
 ,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -4004,21 +4002,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  if ($imachines) {
   foreach ($imachine in $imachines) {
    if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] Machine $($imachine.Name) is not powered off. Power it off and try again." -ForegroundColor Red -BackgroundColor Black;return}
@@ -4182,7 +4184,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Remove-VirtualBoxVMGuestProperty
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for property name
@@ -4197,12 +4199,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -4239,21 +4241,25 @@ Process {
  [string]$Flags = $Flags -join ','
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -4311,7 +4317,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Remove-VirtualBoxVMGuestProperty
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for property name
@@ -4324,12 +4330,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -4358,21 +4364,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -4426,7 +4436,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 None
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -4438,12 +4448,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -4461,21 +4471,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  if ($imachines) {
   foreach ($imachine in $imachines) {
    if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe") {
@@ -4523,7 +4537,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Disable-VirtualBoxVMVRDEServer
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -4535,12 +4549,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -4566,21 +4580,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -4682,7 +4700,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Enable-VirtualBoxVMVRDEServer
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -4694,12 +4712,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -4725,21 +4743,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -4892,7 +4914,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Enable-VirtualBoxVMVRDEServer
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for VRDE server AuthType
@@ -4911,12 +4933,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -5018,21 +5040,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -5190,7 +5216,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 None
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -5202,12 +5228,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Name",Mandatory=$true)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 ParameterSetName="Guid",Mandatory=$true)]
@@ -5225,21 +5251,25 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  if ($imachines) {
   foreach ($imachine in $imachines) {
    if (Test-Path 'C:\Windows\System32\mstsc.exe') {
@@ -6012,7 +6042,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 None
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for OVA/OVF file path
@@ -6028,7 +6058,7 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)"
 ,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)")]
 [ValidateNotNullorEmpty()]
@@ -6257,21 +6287,25 @@ Process {
  if (!(Test-Path $FilePath)) {New-Item -ItemType Directory -Path $FilePath -Force -Confirm:$false | Write-Verbose}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -6613,7 +6647,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 New-VirtualBoxDisk
 .INPUTS
-VirtualBoxVM[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
@@ -6633,7 +6667,7 @@ ParameterSetName="Disk",Mandatory=$false,Position=0)]
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$false,Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 ParameterSetName="Machine",Mandatory=$false,Position=0)]
@@ -6670,13 +6704,21 @@ Process {
   foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
    Write-Verbose "Getting disk: $($imediumid)"
    $disk = New-Object VirtualBoxVHD
+   $imachines = Get-VirtualBoxVM -SkipCheck
    $disk.Name = $global:vbox.IMedium_getName($imediumid)
    $disk.Description = $global:vbox.IMedium_getDescription($imediumid)
    $disk.Format = $global:vbox.IMedium_getFormat($imediumid)
    $disk.Size = $global:vbox.IMedium_getSize($imediumid)
    $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
    $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
-   foreach ($machineid in $disk.VMIds) {$disk.VMNames = (Get-VirtualBoxVM -Guid $machineid -SkipCheck).Name}
+   foreach ($machineid in $disk.VMIds) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.Guid -eq $machineid) {
+      $disk.VMNames += $imachine.Name
+     } # end if $imachine.Guid -eq $machineid
+     $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
+    } # foreach $imachine in $imachines
+   } # foreach $machineid in $disk.VMIds
    $disk.State = $global:vbox.IMedium_getState($imediumid)
    $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
    $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
@@ -6727,36 +6769,42 @@ Process {
  elseif ($PSCmdlet.ParameterSetName -eq "Machine") {
   # filter by machine object
   if ($Machine) {
-   foreach ($disk in $disks) {
-    $matched = $false
-    foreach ($vmname in $disk.VMNames) {
-     Write-Verbose "Matching $vmname to $($Machine.Name)"
-     if ($vmname -match $Machine.Name) {Write-Verbose "Matched $vmname to $($Machine.Name)";$matched = $true}
-    } # foreach $vmname in $disk.VMNames
-    if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
-   } # foreach $disk in $disks
+   foreach ($item in $Machine) {
+    foreach ($disk in $disks) {
+     $matched = $false
+     foreach ($vmname in $disk.VMNames) {
+      Write-Verbose "Matching $vmname to $($item.Name)"
+      if ($vmname -match $item.Name) {Write-Verbose "Matched $vmname to $($item.Name)";$matched = $true}
+     } # foreach $vmname in $disk.VMNames
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+    } # foreach $disk in $disks
+   } # foreach $item in $Machine
   } # end if $Machine
   # filter by machine name
   elseif ($MachineName) {
-   foreach ($disk in $disks) {
-    $matched = $false
-    foreach ($vmname in $disk.VMNames) {
-     Write-Verbose "Matching $vmname to $MachineName"
-     if ($vmname -match $MachineName) {Write-Verbose "Matched $vmname to $MachineName";$matched = $true}
-    } # foreach $vmname in $disk.VMNames
-    if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
-   } # foreach $disk in $disks
+   foreach ($item in $MachineName) {
+    foreach ($disk in $disks) {
+     $matched = $false
+     foreach ($vmname in $disk.VMNames) {
+      Write-Verbose "Matching $vmname to $item"
+      if ($vmname -match $item) {Write-Verbose "Matched $vmname to $item";$matched = $true}
+     } # foreach $vmname in $disk.VMNames
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+    } # foreach $disk in $disks
+   } # foreach $item in $MachineName
   } # end elseif $MachineName
   # filter by machine GUID
   elseif ($MachineGuid) {
-   foreach ($disk in $disks) {
-    $matched = $false
-    foreach ($vmguid in $disk.VMIds) {
-     Write-Verbose "Matching $vmguid to $MachineGuid"
-     if ($vmguid -eq $MachineGuid) {Write-Verbose "Matched $vmguid to $MachineGuid";$matched = $true}
-    } # foreach $vmguid in $disk.VMIds
-    if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
-   } # foreach $disk in $disks
+   foreach ($item in $MachineGuid) {
+    foreach ($disk in $disks) {
+     $matched = $false
+     foreach ($vmguid in $disk.VMIds) {
+      Write-Verbose "Matching $vmguid to $item"
+      if ($vmguid -eq $item) {Write-Verbose "Matched $vmguid to $item";$matched = $true}
+     } # foreach $vmguid in $disk.VMIds
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+    } # foreach $disk in $disks
+   } # foreach $item in $MachineGuid
   } # end elseif $MachineGuid
   # no filter
   else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
@@ -7028,7 +7076,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-VirtualBoxVHD[]:  Virtual disk objects
+VirtualBoxVHD[]:  VirtualBoxVHDs for Virtual disk objects
 String[]       :  Strings for virtual disk names
 GUID[]         :  GUIDS for virtual disk GUIDS
 .OUTPUTS
@@ -7040,7 +7088,7 @@ Param(
 HelpMessage="Enter one or more virtual disk object(s)",
 ParameterSetName="HardDisk",Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVHD]$Disk,
+  [VirtualBoxVHD[]]$Disk,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual disk name(s)",
 ParameterSetName="HardDisk")]
@@ -7084,21 +7132,25 @@ Process {
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
   # initialize $imachines array
   $imediums = @()
-  # get vm inventory (by $Machine)
   if ($Disk) {
    Write-Verbose "Getting disk inventory from Disk(s) object"
    $imediums = $Disk
-  }
-  # get vm inventory (by $Name)
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Machine)
   elseif ($Name) {
-   Write-Verbose "Getting disk inventory from Name(s)"
-   $imediums = Get-VirtualBoxDisk -Name $Name -SkipCheck
-  }
-  # get vm inventory (by $Guid)
+   foreach ($item in $Name) {
+    Write-Verbose "Getting disk inventory from Name(s)"
+    $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+   }
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Name)
   elseif ($Guid) {
-   Write-Verbose "Getting disk inventory from GUID(s)"
-   $imediums = Get-VirtualBoxDisk -Guid $Guid -SkipCheck
-  }
+   foreach ($item in $Guid) {
+    Write-Verbose "Getting disk inventory from GUID(s)"
+    $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+   }
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Guid)
   if ($imediums) {
    Write-Verbose "[Info] Found disks"
    try {
@@ -7185,7 +7237,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-VirtualBoxVHD[]:  Virtual disk objects
+VirtualBoxVHD[]:  VirtualBoxVHDs for Virtual disk objects
 String[]       :  Strings for virtual disk names
 GUID[]         :  GUIDS for virtual disk GUIDS
 String         :  String for virtual machine name
@@ -7201,7 +7253,7 @@ Param(
 HelpMessage="Enter one or more virtual disk object(s)",
 ParameterSetName="HardDisk",Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVHD]$Disk,
+  [VirtualBoxVHD[]]$Disk,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual disk name(s)",
 ParameterSetName="HardDisk")]
@@ -7258,21 +7310,25 @@ Process {
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
   # initialize $imachines array
   $imediums = @()
-  # get vm inventory (by $Machine)
   if ($Disk) {
    Write-Verbose "Getting disk inventory from Disk(s) object"
    $imediums = $Disk
-  }
-  # get vm inventory (by $Name)
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Machine)
   elseif ($Name) {
-   Write-Verbose "Getting disk inventory from Name(s)"
-   $imediums = Get-VirtualBoxDisk -Name $Name -SkipCheck
-  }
-  # get vm inventory (by $Guid)
+   foreach ($item in $Name) {
+    Write-Verbose "Getting disk inventory from Name(s)"
+    $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+   }
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Name)
   elseif ($Guid) {
-   Write-Verbose "Getting disk inventory from GUID(s)"
-   $imediums = Get-VirtualBoxDisk -Guid $Guid -SkipCheck
-  }
+   foreach ($item in $Guid) {
+    Write-Verbose "Getting disk inventory from GUID(s)"
+    $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+   }
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Guid)
   if ($imediums) {
    Write-Verbose "[Info] Found disks"
    try {
@@ -7403,7 +7459,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-VirtualBoxVHD[]:  Virtual disk objects
+VirtualBoxVHD[]:  VirtualBoxVHDs for Virtual disk objects
 String[]       :  Strings for virtual disk names
 GUID[]         :  GUIDS for virtual disk GUIDS
 String         :  String for virtual machine name
@@ -7419,7 +7475,7 @@ Param(
 HelpMessage="Enter one or more virtual disk object(s)",
 ParameterSetName="HardDisk",Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVHD]$Disk,
+  [VirtualBoxVHD[]]$Disk,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual disk name(s)",
 ParameterSetName="HardDisk")]
@@ -7476,21 +7532,25 @@ Process {
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
   # initialize $imachines array
   $imediums = @()
-  # get vm inventory (by $Machine)
   if ($Disk) {
    Write-Verbose "Getting disk inventory from Disk(s) object"
    $imediums = $Disk
-  }
-  # get vm inventory (by $Name)
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Machine)
   elseif ($Name) {
-   Write-Verbose "Getting disk inventory from Name(s)"
-   $imediums = Get-VirtualBoxDisk -Name $Name -SkipCheck
-  }
-  # get vm inventory (by $Guid)
+   foreach ($item in $Name) {
+    Write-Verbose "Getting disk inventory from Name(s)"
+    $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+   }
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Name)
   elseif ($Guid) {
-   Write-Verbose "Getting disk inventory from GUID(s)"
-   $imediums = Get-VirtualBoxDisk -Guid $Guid -SkipCheck
-  }
+   foreach ($item in $Guid) {
+    Write-Verbose "Getting disk inventory from GUID(s)"
+    $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+   }
+   $imediums = $imediums | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Guid)
   if ($imediums) {
    Write-Verbose "[Info] Found disks"
    try {
@@ -7640,7 +7700,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Submit-VirtualBoxVMPowerShellScript
 .INPUTS
-System.Array[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for process to create
@@ -7656,12 +7716,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 Mandatory=$true,ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 Mandatory=$true,ParameterSetName="Name",Position=0)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 Mandatory=$true,ParameterSetName="Guid",Position=0)]
@@ -7708,21 +7768,25 @@ Process {
  $command = "$($PathToExecutable) -- $($Arguments)"
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
   Write-Verbose "Getting VM inventory from Machine(s)"
   $imachines = $Machine
- }
- # get vm inventory (by $Name)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
-  Write-Verbose "Getting VM inventory from Name(s)"
-  $imachines = Get-VirtualBoxVM -Name $Name -SkipCheck
- }
- # get vm inventory (by $Guid)
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
-  Write-Verbose "Getting VM inventory from GUID(s)"
-  $imachines = Get-VirtualBoxVM -Guid $Guid -SkipCheck
- }
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
@@ -7742,7 +7806,7 @@ Process {
     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
     Write-Verbose "Guest console status: $iguestsessionstatus"
     # create the process in the guest machine and send it a list of arguments
-    Write-Verbose "Sending `"$command`" command (timeout: 10s)"
+    Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
     $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('None'), $Timeout)
     if (!$NoWait) {
      # create event source
@@ -7854,7 +7918,7 @@ Process {
        $global:vbox.IProcess_terminate($iguestprocess)
       } # end if process hasn't terminated
      } # Finally
-    } # end if not bypass
+    } # end if not NoWait
    } # foreach $imachine in $imachines
   } # end if $imachines
   else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
@@ -7952,7 +8016,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Submit-VirtualBoxVMPowerShellScript
 .INPUTS
-System.Array[]:  Array for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 String        :  String for scriptblock to be run
@@ -7967,12 +8031,12 @@ Param(
 HelpMessage="Enter one or more virtual machine object(s)",
 Mandatory=$true,ParameterSetName="Machine",Position=0)]
 [ValidateNotNullorEmpty()]
-  [VirtualBoxVM]$Machine,
+  [VirtualBoxVM[]]$Machine,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine name(s)",
 Mandatory=$true,ParameterSetName="Name",Position=0)]
 [ValidateNotNullorEmpty()]
-  [string]$Name,
+  [string[]]$Name,
 [Parameter(ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine GUID(s)",
 Mandatory=$true,ParameterSetName="Guid",Position=0)]
@@ -8013,39 +8077,36 @@ Process {
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  # initialize $imachines array
  $imachines = @()
- # get vm inventory (by $Machine)
  if ($Machine) {
-  foreach ($item in $Machine) {
-   Write-Verbose "Submitting PowerShell command to VM $($Machine.Name) by VM object"
-   if ($NoWait) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
-   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -StdErr -SkipCheck}
-   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
-   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
-   else {Submit-VirtualBoxVMProcess -Machine $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
-  }
- }
- # get vm inventory (by $Name)
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
  elseif ($Name) {
   foreach ($item in $Name) {
-   Write-Verbose "Submitting PowerShell command to VM $($Name) by Name"
-   if ($NoWait) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
-   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -StdErr -SkipCheck}
-   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
-   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
-   else {Submit-VirtualBoxVMProcess -Name $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
   }
- }
- # get vm inventory (by $Guid)
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
  elseif ($Guid) {
   foreach ($item in $Guid) {
-   Write-Verbose "Submitting PowerShell command to VM $((Get-VirtualBoxVM -Guid $Guid -SkipCheck).Name) by GUID"
-   if ($NoWait) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
-   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential -Timeout $Timeout $Credential -StdOut -StdErr -SkipCheck}
-   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
-   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
-   else {Submit-VirtualBoxVMProcess -Guid $item -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
   }
- }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   Write-Verbose "Submitting PowerShell command to the $($imachine.Name) machine"
+   if ($NoWait) {Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -NoWait -SkipCheck}
+   elseif ($StdOut -and $StdErr) {Submit-VirtualBoxVMProcess -Machine $imachine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential -Timeout $Timeout $Credential -StdOut -StdErr -SkipCheck}
+   elseif ($StdOut) {Submit-VirtualBoxVMProcess -Machine $Machine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdOut -SkipCheck}
+   elseif ($StdErr) {Submit-VirtualBoxVMProcess -Machine $Machine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -StdErr -SkipCheck}
+   else {Submit-VirtualBoxVMProcess -Machine $Machine -PathToExecutable "cmd.exe" -Arguments "/c","powershell","-ExecutionPolicy","Bypass","-Command",$ScriptBlock -Credential $Credential -Timeout $Timeout -SkipCheck}
+  }
+ } # end if $imachines
+ else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
