@@ -11,7 +11,6 @@ Mount-VirtualBoxDisc
 Mount a CD/DVD/Floppy - void IMachine::mountMedium()
 Dismount-VirtualBoxDisc
 Dismount a CD/DVD/Floppy - void IMachine::unmountMedium()
-Add support for credential arrays - especially for disk credentials
 Add support for importing/exporting encrypted VMs
 Write more comprehensive error handling (low priority)
 Finish implementing -WhatIf support (Extremely low priority)
@@ -2029,7 +2028,7 @@ Function Start-VirtualBoxVM {
 .SYNOPSIS
 Start a virtual machine
 .DESCRIPTION
-Start VirtualBox VMs by machine object, name, or GUID. The default Type is to start them in GUI mode. You can also run them headless mode which will start a new hidden process. If the machine(s) disk(s) are encrypted, you must specify the -Encrypted switch and supply credentials using the -Credential parameter. The username (identifier) is the name of the virtual machine by default, unless it has been otherwise specified.
+Start VirtualBox VMs by machine object, name, or GUID in the order they are provided. The default Type is to start them in GUI mode. You can also run them in headless mode which will start a new hidden process. If the machine(s) disk(s) are encrypted, you must specify the -Encrypted switch and supply credential(s) using the -Credentials parameter. The username (identifier) is the name of the virtual machine by default, unless it has been otherwise specified.
 .PARAMETER Machine
 At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER Name
@@ -2040,8 +2039,8 @@ The GUID of at least one virtual machine. Can be received via pipeline input by 
 Specifies whether to run the virtual machine in GUI or headless mode.
 .PARAMETER Encrypted
 A switch to specify use of disk encryption.
-.PARAMETER Credential
-Powershell credentials. Must be provided if the -Encrypted switch is used.
+.PARAMETER Credentials
+Powershell credentials. Must be provided if the -Encrypted switch is used. The 'UserName' field of the credential must be the disk ID of the desired disk. You can supply multiple credentials in comma-separated format. (i.e. -Credentials $cred1,$cred2) Credentials can be provided in any order
 .PARAMETER ProgressBar
 A switch to display a progress bar.
 .PARAMETER SkipCheck
@@ -2050,8 +2049,11 @@ A switch to skip service update (for development use).
 PS C:\> Start-VirtualBoxVM "Win10"
 Starts the virtual machine called Win10 in GUI mode.
 .EXAMPLE
-PS C:\> Start-VirtualBoxVM "2016" -Headless -Encrypted -Credential $diskCredentials
-Starts the virtual machine called "2016 Core" in headless mode and provides credentials to decrypt the disk(s) on boot.
+PS C:\> Start-VirtualBoxVM "2016" -Headless -Encrypted -Credentials $diskCredentials
+Start the virtual machine called "2016 Core" in headless mode and provides credentials to decrypt the disk(s) on boot.
+.EXAMPLE
+PS C:\> Start-VirtualBoxVM "2016","Win10" -Headless -Encrypted -Credentials $10Credentials,$2016Credentials
+Start the virtual machines called "2016 Core" and "Win10" in headless mode and provides credentials to decrypt the disks on boot.
 .NOTES
 NAME        :  Start-VirtualBoxVM
 VERSION     :  1.1
@@ -2065,7 +2067,7 @@ Stop-VirtualBoxVM
 VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
-PsCredential  :  Credential for virtual machine disks
+PsCredential[]:  Credentials for virtual machine disks
 .OUTPUTS
 None
 #>
@@ -2110,7 +2112,7 @@ HelpMessage="Use this switch if VM disk(s) are encrypted")]
   [switch]$Encrypted,
 [Parameter(ParameterSetName='Encrypted',Mandatory=$true,
 HelpMessage="Enter the credentials to unlock the VM disk(s)")]
-  [pscredential]$Credential,
+  [pscredential[]]$Credentials,
 [Parameter(HelpMessage="Use this switch to display a progress bar")]
   [switch]$ProgressBar,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
@@ -2202,29 +2204,42 @@ Process {
      # create new session object for iconsole
      Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-     foreach ($disk in $disks) {
-      Write-Verbose "Processing disk $($disk)"
-      $diskid = $null
-      try {
-       # check the password against the vm disk
-       Write-Verbose "Checking for Password against disk"
-       $global:vbox.IMedium_checkEncryptionPassword($disk.Id, $Credential.GetNetworkCredential().Password)
-       Write-Verbose  "The image is configured for encryption and the password is correct"
-       # get the disk id
-       Write-Verbose "Getting the disk ID"
-       $cipher = $global:vbox.IMedium_getEncryptionSettings($disk.Id, [ref]$diskid)
-       Write-Verbose "Ecryption cipher: $cipher"
-       # pass disk encryption password to the vm console
-       Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
-       $global:vbox.IConsole_addDiskEncryptionPassword($imachine.IConsole, $diskid, $Credential.GetNetworkCredential().Password, $false)
-       Write-Verbose "Disk decryption successful for disk $($disk)"
-      } # Try
-      catch {
-       Write-Verbose "Exception when sending password for encrypted disk(s)"
-       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-       Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-      } # Catch
-     } # end foreach $disk in $disks
+     $exptntrnsltr = New-Object VirtualBoxError
+     foreach ($Credential in $Credentials) {
+      foreach ($disk in $disks) {
+       Write-Verbose "Processing disk $($disk.Name)"
+       $diskid = $null
+       try {
+        # get the disk id
+        Write-Verbose "Getting the disk ID"
+        $cipher = $global:vbox.IMedium_getEncryptionSettings($disk.Id, [ref]$diskid) # this looks really confusing but it's 2 seperate types of ID
+        Write-Verbose "Disk $($disk.Name) encryption cipher: $cipher"
+        if ($diskid -eq $Credential.UserName) {
+         Write-Verbose "Disk ID `"$($diskid)`" matches the UserName `"$($Credential.UserName)`" of the current credential"
+         # check the password against the vm disk
+         Write-Verbose "Checking for Password against disk"
+         $global:vbox.IMedium_checkEncryptionPassword($disk.Id, $Credential.GetNetworkCredential().Password)
+         Write-Verbose  "The image is configured for encryption and the password is correct"
+         # pass disk encryption password to the vm console
+         Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
+         $global:vbox.IConsole_addDiskEncryptionPassword($imachine.IConsole, $diskid, $Credential.GetNetworkCredential().Password, $false)
+         Write-Verbose "Disk decryption successful for disk $($disk.Name)"
+        } # end if $diskid -eq $Credential.UserName
+        else {Write-Verbose "Disk ID `"$($diskid)`" does not match the UserName `"$($Credential.UserName)`" of the current credential"}
+       } # Try
+       catch {
+        Write-Verbose "Exception when sending password for encrypted disk(s)"
+        Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+        Write-Verbose $_.Exception.Message
+        Write-Host "[Error] Could not decrypt disk $($disk.Name) using provided credential: `"$($exptntrnsltr.Description($_.Exception.Message))`"" -ForegroundColor Red -BackgroundColor Black
+       } # Catch
+      } # end foreach $disk in $disks
+     } # foreach $Credential in $Credentials
+     if ($global:vbox.IMachine_getState($imachine.Id) -match 'Paused') {
+      Write-Verbose "Decryption unsuccessful for disk $($disk.Name) - powering off machine $($imachine.Name)"
+      Write-Host "[Error] Could not decrypt disk $($disk.Name) for machine $($imachine.Name) using any of the provided credentials" -ForegroundColor Red -BackgroundColor Black
+      $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
+     }
     } # end elseif Encrypted
    } # end if $machine.State -match 'PoweredOff'
    else {Write-Host "[Error] Only VMs that have been powered off can be started. The state of $($imachine.Name) is $($imachine.State)" -ForegroundColor Red -BackgroundColor Black;return}
@@ -2410,7 +2425,7 @@ Process {
     }
     else {
      Write-Verbose "Power-off requested"
-     if ($imachine.State -eq 'Running') {
+     if ($global:vbox.IMachine_getState($imachine.Id) -ne 'PoweredOff') {
       Write-verbose "Locking the machine session"
       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
       # create iconsole session to vm
@@ -2420,19 +2435,19 @@ Process {
       Write-verbose "Powering off the machine"
       $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
       # collect iprogress data
-      Write-Verbose "Fetching IProgress data"
-      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+      if ($ProgressBar) {Write-Verbose "Fetching IProgress data"}
+      if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
       do {
        # get the current machine state
        $machinestate = $global:vbox.IMachine_getState($imachine.Id)
        # update iprogress data
-       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+       if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
        if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
        if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-      } until ($machinestate -eq 'Running') # continue once the vm is running
+      } until ($machinestate -eq 'PoweredOff') # continue once the vm is stopped
      }
-     else {return "Only machines that are running may be stopped."}
+     else {return "Only machines that are not powered off may be stopped."}
     }
    } #foreach
   } # end if $imachines
@@ -6316,7 +6331,7 @@ Process {
     Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
     [string[]]$ivirtualsystemdescriptions = $global:vbox.IMachine_exportTo($imachine.Id, $iappliance, $FilePath)
     $appliancedescriptions = New-Object IVirtualSystemDescription
-    # get an array of iappliance config values to modify before import
+    # get an array of iappliance config values to modify before export
     foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
      # populate the appliance descriptions
      Write-Verbose "Getting appliance descriptions"
