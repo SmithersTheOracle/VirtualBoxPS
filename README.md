@@ -4,7 +4,10 @@ A PowerShell module to manage a Virtual Box environment. This module was develop
 ---
 
 # IMPORTANT
-This module is currently in a **very** early development phase. You should not try to use it in a production environment. If you do use it, you do so at your own risk! Please realize that it uses the VirtualBox web service in plain text mode by default. If you provide any information to this web service, it will **NOT** be encrypted. Adding SSL support is possible, but has not been added natively to this module's installer.
+
+**This module is on hold for the time being. This is not to say it won't be completed, but there seems to be little interest and life still goes on. Work will resume when possible. If you send any messages regarding this project, don't expect an immediate response.**
+
+This module is currently in a **very** early development phase. You should not try to use it in a production environment. If you do use it, you do so at your own risk! Please realize that it uses the VirtualBox Web Service in plain text mode by default. If you provide any information to this web service, it will **NOT** be encrypted. Adding SSL/TLS support is possible, but has not been added natively to this module's installer. This, and other milestones, will likely need to be a request to the developers to be enabled by default.
 
 ---
 
@@ -23,7 +26,7 @@ This module currently requires PowerShell 5.0 (use $PSVersionTable.PSVersion to 
 This module is being designed to provide as much of the capability as VirtualBox's VBoxManage.exe command line tool or better. The idea is that the module will support greater security, portability, and expandability. That being said, the API being used will be the VirtualBox Web Service. VBoxWebSrv.exe can be launched using certificate based encryption, so it can be accessed using https (still working on a certificate provider for this.) It's also web based so it can be setup to be accessed remotely.
 
 ### **CONTRIBUTION**
-If you would like to contribute to this project, visit [our thread](https://forums.virtualbox.org/viewtopic.php?f=34&t=54027) at the VirtualBox API Forum. Also, note that there is at least one other project on GitHub pursuing a similar goal, which is also posted in that thread. It is planned to merge [NNVirtualBoxPowerShellMode](https://github.com/ajbrehm/NNVirtualBoxPowerShellModule) and [VirtualBoxPS](#-virtualboxps) in the future after local bugs have been ironed out.
+If you would like to contribute to this project, visit [our thread](https://forums.virtualbox.org/viewtopic.php?f=34&t=54027) at the VirtualBox API Forum. Also, note that there is at least one other project on GitHub pursuing a similar goal, which is also posted in that thread. It is planned to merge [NNVirtualBoxPowerShellMode](https://github.com/ajbrehm/NNVirtualBoxPowerShellModule) and [VirtualBoxPS](#-virtualboxps) in the future after local bugs have been ironed out. This will more than likely be done in the form of a Web Service/COM alternative.
 	
 ### **INSTALLATION INSTRUCTIONS**
 For this module to work, a simple "installation" script has been included for Windows to copy all of the required files to the correct locations. Install-VirtualBoxPS.ps1 will need to have vboxweb.wsdl, vboxwebService.wsdl, VirtualBox API Web Service.xml, VirtualBoxPS.psd1, and VirtualBoxPS.psm1 in the same folder. To install, run Install-VirtualBoxPS.ps1 with an elevated PowerShell session. This script will automatically copy the files into the following locations:
