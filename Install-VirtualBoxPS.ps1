@@ -18,6 +18,7 @@ try{
  Write-Host '[INFO] Copying files'
  if (!(Test-Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\")) {New-Item -ItemType Directory -Path "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose}
  Copy-Item -Path "$((Get-Location).Path)\*.wsdl" -Destination "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\" -Force -Confirm:$false | Write-Verbose
+ Copy-Item -Path "$((Get-Location).Path)\*.json" -Destination "$($env:VBOX_MSI_INSTALL_PATH)sdk\" -Force -Confirm:$false | Write-Verbose
  $pspath = (($env:PSModulePath).Split(';') | Where-Object {$_ -like 'c:\windows\system32*'})
  if (!(Test-Path "$($pspath)\VirtualBoxPS\")) {New-Item -ItemType Directory -Path "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
  Copy-Item -Path "$((Get-Location).Path)\*.psm*" -Destination "$($pspath)\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose
@@ -28,6 +29,7 @@ try{
 catch{
  Write-Host "[ERROR] Installer encountered a fatal error:`n" -ForegroundColor Red
  Write-Host $Error[0] -ForegroundColor Red
+ Pause
 }
 finally {
  Stop-Transcript

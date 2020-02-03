@@ -2,6 +2,7 @@
 <#
 VirtualBox API Version: 6.1
 TODO:
+Add COM support (Immediate priority)
 Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
 Remove-VirtualBoxDisc
 Remove a CD/DVD/Floppy - void IMedium::close()
@@ -41,6 +42,27 @@ wstring[] IAppliance::getPasswordIds()
 ****************************************************************
 #>
 #########################################################################################
+# Module Parameters
+Param(
+[Parameter(HelpMessage="Allows you to switch between using COM or WebSrv when importing the module",
+Mandatory=$false,Position=0)]
+[ValidateSet('Com','WebSrv')]
+    [string]$ModuleHost = 'WebSrv',
+[Parameter(HelpMessage="Enter the credentials used to run the web service",
+Mandatory=$false,Position=1)]
+    [pscredential]$WebSrvCredential,
+[Parameter(HelpMessage="Enter protocol to be used to connect to the web service (Default: http)",
+Mandatory=$false,Position=2)]
+[ValidateSet("http","https")]
+    [string]$WebSrvProtocol = 'http',
+[Parameter(HelpMessage="Enter the domain name or IP address running the web service (Default: localhost)",
+Mandatory=$false,Position=3)]
+    [string]$WebSrvAddress = 'localhost',
+[Parameter(HelpMessage="Enter the TCP port the web service is listening on (Default: 18083)",
+Mandatory=$false,Position=4)]
+    [string]$WebSrvPort = '18083'
+) # Param
+#########################################################################################
 # Class Definitions
 # subclasses
 class IProgress {
@@ -63,6 +85,7 @@ class IProgress {
 	[uint64]$OperationPercent
 	[uint64]$OperationWeight
 	[uint64]$Timeout
+    [System.__ComObject]$Progress
     [IProgress]Fetch ([string]$Id) {
         $Variable = [IProgress]::new()
         if ($Variable){
@@ -75,15 +98,15 @@ class IProgress {
 			$Variable.TimeRemaining = $global:vbox.IProgress_getTimeRemaining($Id)
 			$Variable.Completed = $global:vbox.IProgress_getCompleted($Id)
 			$Variable.Canceled = $global:vbox.IProgress_getCanceled($Id)
-			#$Variable.ResultCode = $global:vbox.IProgress_getResultCode($Id)
-			#$Variable.ErrorInfo = $global:vbox.IProgress_getErrorInfo($Id)
+			if ($Variable.Completed -eq $true) {$Variable.ResultCode = $global:vbox.IProgress_getResultCode($Id)}
+			if ($Variable.Completed -eq $true) {$Variable.ErrorInfo = $global:vbox.IProgress_getErrorInfo($Id)}
 			$Variable.OperationCount = $global:vbox.IProgress_getOperationCount($Id)
 			$Variable.Operation = $global:vbox.IProgress_getOperation($Id)
 			$Variable.OperationDescription = $global:vbox.IProgress_getOperationDescription($Id)
 			$Variable.OperationPercent = $global:vbox.IProgress_getOperationPercent($Id)
 			$Variable.OperationWeight = $global:vbox.IProgress_getOperationWeight($Id)
 			#$Variable.getTimeout = $global:vbox.IProgress_getTimeout($Id)
-            return $Variable
+			return $Variable
         }
         else {return $null}
     }
@@ -212,12 +235,17 @@ class GuestProperties {
 	[string]$Flag
 	[uint64]$Timestamp
 	[DateTimeOffset]$DateTimeOffset
-    [array]Enumerate ([string]$IMachine) {
+    [array]Enumerate ($IMachine, $ModuleHost) {
         [string[]]$Names = @()
         [string[]]$Values = @()
-        [uint64[]]$Timestamps = @()
+        [int64[]]$Timestamps = @()
         [string[]]$Flags = @()
-        $Names = $global:vbox.IMachine_enumerateGuestProperties($IMachine, $null, [ref]$Values, [ref]$Timestamps, [ref]$Flags)
+        if ($ModuleHost.ToLower() -eq 'websrv') {
+            $Names = $global:vbox.IMachine_enumerateGuestProperties($IMachine, $null, [ref]$Values, [ref]$Timestamps, [ref]$Flags)
+        }
+        elseif ($ModuleHost.ToLower() -eq 'com') {
+            $IMachine.EnumerateGuestProperties($null, [ref]$Names, [ref]$Values, [ref]$Timestamps, [ref]$Flags)
+        }
         $Variable = [GuestProperties]::new()
         [array]$ret = @()
         for ($i=0;$i-lt($Names | Measure-Object).Count;$i++) {
@@ -229,11 +257,15 @@ class GuestProperties {
     }
 }
 Update-TypeData -TypeName GuestProperties -DefaultDisplayPropertySet @("Name","Value","Flag") -Force
+class ISession {
+    [string]$Id
+    [System.__ComObject]$Session
+}
+Update-TypeData -TypeName ISession -DefaultDisplayPropertySet @("State","Type","Machine","Console") -Force
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
     [string]$Name
-    [ValidateNotNullOrEmpty()]
     [string]$Id
     [string]$MMachine
     [guid]$Guid
@@ -243,7 +275,7 @@ class VirtualBoxVM {
     [bool]$Running
     [string]$Info
     [string]$GuestOS
-    [string]$ISession
+    [ISession]$ISession = [ISession]::new()
     [string]$MSession
     [string]$IConsole
     [string]$MConsole
@@ -253,10 +285,12 @@ class VirtualBoxVM {
     [string[]]$IStorageControllers
     [IVrdeServer]$IVrdeServer = [IVrdeServer]::new()
     [array]$GuestProperties
+    [System.__ComObject]$ComObject
 }
 Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force
 class VirtualBoxVHD {
     [string]$Name
+    [guid]$Guid
     [string]$Description
     [string]$Format
     [string]$Size
@@ -276,6 +310,7 @@ class VirtualBoxVHD {
     [string]$ReadOnly
     [string]$AutoReset
     [string]$LastAccessError
+    [System.__ComObject]$ComObject
     static [array]op_Addition($A,$B) {
         [array]$C = $null
         $C += [VirtualBoxVHD]@{Name=$A.Name;Description=$A.Description;Format=$A.Format;Size=$A.Size;LogicalSize=$A.LogicalSize;VMIds=$A.VMIds;VMNames=$A.VMNames;State=$A.State;Variant=$A.Variant;Location=$A.Location;HostDrive=$A.HostDrive;MediumFormat=$A.MediumFormat;Type=$A.Type;Parent=$A.Parent;Children=$A.Children;Id=$A.Id;ReadOnly=$A.ReadOnly;AutoReset=$A.AutoReset;LastAccessError=$A.LastAccessError}
@@ -299,10 +334,20 @@ class MediumFormats {
         $Ids = $global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties)
         $this.Id = $Ids
         foreach ($Id in $Ids) {
-            $devicetypevar = New-Object VirtualBox.DeviceType
-            $this.Name += $global:vbox.IMediumFormat_getName($Id)
-            $this.Capabilities += $global:vbox.IMediumFormat_getCapabilities($Id)
-            $this.Extensions += $global:vbox.IMediumFormat_describeFileExtensions($Id, [ref]$devicetypevar)
+           	$devicetypevar = New-Object VirtualBox.DeviceType
+           	$this.Name += $global:vbox.IMediumFormat_getName($Id)
+           	$this.Capabilities += $global:vbox.IMediumFormat_getCapabilities($Id)
+           	$this.Extensions += $global:vbox.IMediumFormat_describeFileExtensions($Id, [ref]$devicetypevar)
+        }
+    }
+    FetchCom () {
+        foreach ($mediumformat in $global:vbox.SystemProperties.MediumFormats) {
+           	$devicetypevar = New-Object DeviceTypeEnum
+            $extensionsvar = ''
+           	$this.Name += $mediumformat.Name
+           	$this.Capabilities += $mediumformat.Capabilities
+           	$mediumformat.DescribeFileExtensions([ref]$extensionsvar, [ref]$devicetypevar)
+            $this.Extensions += $extensionsvar
         }
     }
     [array]FetchObject ([string[]]$Ids) {
@@ -315,6 +360,20 @@ class MediumFormats {
 		    $somevar.Capabilities = $global:vbox.IMediumFormat_getCapabilities($Id)
             $somevar.Extensions = @($global:vbox.IMediumFormat_describeFileExtensions($Id, [ref]$devicetypevar))
             [array]$ret += [MediumFormats]@{Id=$somevar.Id;Name=$somevar.Name;Capabilities=$somevar.Capabilities;Extensions=$somevar.Extensions}
+        }
+        return $ret
+    }
+    [array]FetchComObject () {
+        $ret = New-Object MediumFormats
+        foreach ($mediumformat in $global:vbox.SystemProperties.MediumFormats) {
+            $somevar = New-Object MediumFormats
+            $devicetypevar = New-Object DeviceTypeEnum
+            $extensionsvar = ''
+		    $somevar.Name = $mediumformat.Name
+		    $somevar.Capabilities = $mediumformat.Capabilities
+            $mediumformat.DescribeFileExtensions([ref]$extensionsvar, [ref]$devicetypevar)
+            $somevar.Extensions = @($extensionsvar)
+            [array]$ret += [MediumFormats]@{Name=$somevar.Name;Capabilities=$somevar.Capabilities;Extensions=$somevar.Extensions}
         }
         return $ret
     }
@@ -351,6 +410,35 @@ class IVirtualSystemDescription {
         }
         if ((($ret.Types | Where-Object {$_ -eq 'HardDiskControllerIDE'}) | Measure-Object).Count -eq 1) {
             $global:vbox.IVirtualSystemDescription_addDescription($VirtualSystemDescription, 'HardDiskControllerIDE', '', '')
+            [array]$ret += [IVirtualSystemDescription]@{Types='HardDiskControllerIDE';Refs='6';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
+        }
+        $ret = $ret | Where-Object {$_.Types -ne $null}
+        return $ret
+    }
+    [array]FetchCom ([System.__ComObject]$VirtualSystemDescription) {
+        $ret = New-Object IVirtualSystemDescription
+        [int[]]$tempOutTypes = @()
+        [string[]]$outRefs = @()
+        [string[]]$outOVFValues = @()
+        [string[]]$outVBoxValues = @()
+        [string[]]$outExtraConfigValues = @()
+        $VirtualSystemDescription.GetDescription([ref]$tempOutTypes, [ref]$outRefs, [ref]$outOVFValues, [ref]$outVBoxValues, [ref]$outExtraConfigValues)
+        [string[]]$outTypes = @()
+        foreach ($outType in $tempOutTypes) {
+            $outTypes += $global:virtualsystemdescriptiontype.ToStr($outType)
+        }
+        $outTypes = $outTypes | Where-Object {$_ -ne $null}
+        for ($i=0;$i-lt($outTypes | Measure-Object).Count;$i++) {
+		    [array]$ret += [IVirtualSystemDescription]@{Types=$outTypes[$i];Refs=$outRefs[$i];OVFValues=$outOVFValues[$i];VBoxValues=$outVBoxValues[$i];ExtraConfigValues=$outExtraConfigValues[$i];Options=$true}
+        }
+        $ret.TypeNames | Get-Unique | ForEach-Object -Process {
+            if ($ret.Types -notcontains $_) {
+                $VirtualSystemDescription.AddDescription($global:virtualsystemdescriptiontype.ToInt($_), '', '')
+                [array]$ret += [IVirtualSystemDescription]@{Types=$_;Refs='';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
+            }
+        }
+        if ((($ret.Types | Where-Object {$_ -eq 'HardDiskControllerIDE'}) | Measure-Object).Count -eq 1) {
+            $VirtualSystemDescription.AddDescription($global:virtualsystemdescriptiontype.ToInt('HardDiskControllerIDE'), '', '')
             [array]$ret += [IVirtualSystemDescription]@{Types='HardDiskControllerIDE';Refs='6';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
         }
         $ret = $ret | Where-Object {$_.Types -ne $null}
@@ -728,6 +816,34 @@ class LockType {
         else {return $null}
     }
 } # Int
+class AuthType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'     {$ToInt = 0} # Null value, also means “no authentication”.
+                'External' {$ToInt = 1}
+                'Guest'    {$ToInt = 2}
+                Default    {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value, also means “no authentication”.
+                1       {$ToStr = 'External'}
+                2       {$ToStr = 'Guest'}
+                Default {$ToStr = 'None'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
 class ImportOptions {
     [int[]]ToInt ([string[]]$FromStrs) {
         if ($FromStrs){
@@ -738,7 +854,7 @@ class ImportOptions {
                     'KeepAllMACs' {$ToInt = 0} # Don’t generate new MAC addresses of the attached network adapters.
                     'KeepNATMACs' {$ToInt = 1} # Don’t generate new MAC addresses of the attached network adapters when they are using NAT.
                     'ImportToVDI' {$ToInt = 2} # Import all disks to VDI format
-                    Default       {$ToInt = $null} # Default to Null.
+                    Default       {$ToInt = 3} # Default to 3.
                 }
                 $ToInts += $ToInt
             }
@@ -984,6 +1100,126 @@ class Handle {
         else {return $null}
     }
 } # Unsigned Long
+class VirtualSystemDescriptionType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Ignore'                    {$ToInt = 0}
+                'OS'                        {$ToInt = 1}
+                'Name'                      {$ToInt = 2}
+                'Product'                   {$ToInt = 3}
+                'Vendor'                    {$ToInt = 4}
+                'Version'                   {$ToInt = 5}
+                'ProductUrl'                {$ToInt = 6}
+                'VendorUrl'                 {$ToInt = 7}
+                'Description'               {$ToInt = 8}
+                'License'                   {$ToInt = 9}
+                'Miscellaneous'             {$ToInt = 10}
+                'CPU'                       {$ToInt = 11}
+                'Memory'                    {$ToInt = 12}
+                'HardDiskControllerIDE'     {$ToInt = 13}
+                'HardDiskControllerSATA'    {$ToInt = 14}
+                'HardDiskControllerSCSI'    {$ToInt = 15}
+                'HardDiskControllerSAS'     {$ToInt = 16}
+                'HardDiskImage'             {$ToInt = 17}
+                'Floppy'                    {$ToInt = 18}
+                'CDROM'                     {$ToInt = 19}
+                'NetworkAdapter'            {$ToInt = 20}
+                'USBController'             {$ToInt = 21}
+                'SoundCard'                 {$ToInt = 22}
+                'SettingsFile'              {$ToInt = 23} # Optional, may be unset by the API caller. If this is changed by the API caller it defines the absolute path of the VM settings file and therefore also the VM folder with highest priority.
+                'BaseFolder'                {$ToInt = 24} # Optional, may be unset by the API caller. If set (and SettingsFile is not changed), defines the VM base folder (taking the primary group into account if also set).
+                'PrimaryGroup'              {$ToInt = 25} # Optional, empty by default and may be unset by the API caller. Defines the primary group of the VM after import. May influence the selection of the VM folder. Additional groups may be configured later using IMachine::groups[], after importing.
+                'CloudInstanceShape'        {$ToInt = 26}
+                'CloudDomain'               {$ToInt = 27}
+                'CloudBootDiskSize'         {$ToInt = 28}
+                'CloudBucket'               {$ToInt = 29}
+                'CloudOCIVCN'               {$ToInt = 30}
+                'CloudPublicIP'             {$ToInt = 31}
+                'CloudProfileName'          {$ToInt = 32}
+                'CloudOCISubnet'            {$ToInt = 33}
+                'CloudKeepObject'           {$ToInt = 34}
+                'CloudLaunchInstance'       {$ToInt = 35}
+                'CloudInstanceId'           {$ToInt = 36}
+                'CloudImageId'              {$ToInt = 37}
+                'CloudInstanceState'        {$ToInt = 38}
+                'CloudImageState'           {$ToInt = 39}
+                'CloudInstanceDisplayName'  {$ToInt = 40}
+                'CloudImageDisplayName'     {$ToInt = 41}
+                'CloudOCILaunchMode'        {$ToInt = 42}
+                'CloudPrivateIP'            {$ToInt = 43}
+                'CloudBootVolumeId'         {$ToInt = 44}
+                'CloudOCIVCNCompartment'    {$ToInt = 45}
+                'CloudOCISubnetCompartment' {$ToInt = 46}
+                'CloudPublicSSHKey'         {$ToInt = 47}
+                'BootingFirmware'           {$ToInt = 48}
+                Default                     {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Ignore'}
+                1       {$ToStr = 'OS'}
+                2       {$ToStr = 'Name'}
+                3       {$ToStr = 'Product'}
+                4       {$ToStr = 'Vendor'}
+                5       {$ToStr = 'Version'}
+                6       {$ToStr = 'ProductUrl'}
+                7       {$ToStr = 'VendorUrl'}
+                8       {$ToStr = 'Description'}
+                9       {$ToStr = 'License'}
+                10      {$ToStr = 'Miscellaneous'}
+                11      {$ToStr = 'CPU'}
+                12      {$ToStr = 'Memory'}
+                13      {$ToStr = 'HardDiskControllerIDE'}
+                14      {$ToStr = 'HardDiskControllerSATA'}
+                15      {$ToStr = 'HardDiskControllerSCSI'}
+                16      {$ToStr = 'HardDiskControllerSAS'}
+                17      {$ToStr = 'HardDiskImage'}
+                18      {$ToStr = 'Floppy'}
+                19      {$ToStr = 'CDROM'}
+                20      {$ToStr = 'NetworkAdapter'}
+                21      {$ToStr = 'USBController'}
+                22      {$ToStr = 'SoundCard'}
+                23      {$ToStr = 'SettingsFile'} # Optional, may be unset by the API caller. If this is changed by the API caller it defines the absolute path of the VM settings file and therefore also the VM folder with highest priority.
+                24      {$ToStr = 'BaseFolder'} # Optional, may be unset by the API caller. If set (and SettingsFile is not changed), defines the VM base folder (taking the primary group into account if also set).
+                25      {$ToStr = 'PrimaryGroup'} # Optional, empty by default and may be unset by the API caller. Defines the primary group of the VM after import. May influence the selection of the VM folder. Additional groups may be configured later using IMachine::groups[], after importing.
+                26      {$ToStr = 'CloudInstanceShape'}
+                27      {$ToStr = 'CloudDomain'}
+                28      {$ToStr = 'CloudBootDiskSize'}
+                29      {$ToStr = 'CloudBucket'}
+                30      {$ToStr = 'CloudOCIVCN'}
+                31      {$ToStr = 'CloudPublicIP'}
+                32      {$ToStr = 'CloudProfileName'}
+                33      {$ToStr = 'CloudOCISubnet'}
+                34      {$ToStr = 'CloudKeepObject'}
+                35      {$ToStr = 'CloudLaunchInstance'}
+                36      {$ToStr = 'CloudInstanceId'}
+                37      {$ToStr = 'CloudImageId'}
+                38      {$ToStr = 'CloudInstanceState'}
+                39      {$ToStr = 'CloudImageState'}
+                40      {$ToStr = 'CloudInstanceDisplayName'}
+                41      {$ToStr = 'CloudImageDisplayName'}
+                42      {$ToStr = 'CloudOCILaunchMode'}
+                43      {$ToStr = 'CloudPrivateIP'}
+                44      {$ToStr = 'CloudBootVolumeId'}
+                45      {$ToStr = 'CloudOCIVCNCompartment'}
+                46      {$ToStr = 'CloudOCISubnetCompartment'}
+                47      {$ToStr = 'CloudPublicSSHKey'}
+                48      {$ToStr = 'BootingFirmware'}
+                default {$ToStr = 'Ignore'} # Default to Invalid.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
 #########################################################################################
 # Variable Declarations
 $authtype = "VBoxAuth"
@@ -1003,6 +1239,7 @@ $global:cleanupmode = New-Object CleanupMode
 $global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
 $global:mediumvariant = New-Object MediumVariant
 $global:locktype = New-Object LockType
+$global:authtype = New-Object AuthType
 $global:importoptions = New-Object ImportOptions
 $global:exportoptions = New-Object ExportOptions
 $global:processcreateflag = New-Object ProcessCreateFlag
@@ -1010,492 +1247,12 @@ $global:processwaitforflag = New-Object ProcessWaitForFlag
 $global:storagebus = New-Object StorageBus
 $global:vboxeventtype = New-Object VBoxEventType
 $global:handle = New-Object Handle
+$global:virtualsystemdescriptiontype = New-Object VirtualSystemDescriptionType # 430
 #########################################################################################
 # Includes
 # N/A
 #########################################################################################
 # Function Definitions
-Function Get-VirtualBox {
-<#
-.SYNOPSIS
-Get the VirtualBox Web Service
-.DESCRIPTION
-Create a PowerShell reference object for the VirtualBox Web Service. This command is run by default when the VirtualBoxPS module is loaded.
-.EXAMPLE
-PS C:\> $vbox = Get-VirtualBox
-Creates a $vbox variable to reference the VirtualBox Web Service
-.NOTES
-NAME        :  Get-VirtualBox
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Start-VirtualBoxSession
-Stop-VirtualBoxSession
-.INPUTS
-None
-.OUTPUTS
-$global:vbox
-#>
-[cmdletbinding()]
-Param() # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
-} # Begin
-Process {
- # create vbox app
- Write-Verbose 'Creating the VirtualBox Web Service object ($global:vbox)'
- #$global:vbox = New-Object -ComObject "VirtualBox.VirtualBox"
- $global:vbox = New-WebServiceProxy -Uri "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl" -Namespace "VirtualBox" -Class "VirtualBoxWebSrv"
- # if a session exists (probably because the module is being re-imported) try to get all the global data again
- if ($global:ivbox) {
-  try {
-   # get guest OS type IDs
-   Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
-   $global:guestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
-  } # Try
-  catch {
-   Write-Verbose 'Exception fetching guest OS type data'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  } # Catch
-  try {
-   # get system properties interface reference
-   Write-Verbose 'Fetching system properties object ($global:isystemproperties)'
-   $global:isystemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
-  } # Try
-  catch {
-   Write-Verbose 'Exception fetching system properties'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  } # Catch
-  try {
-   Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
-   $global:systempropertiessupported.Fetch()
-  } # Try
-  catch {
-   Write-Verbose 'Exception fetching supported system properties'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  } # Catch
-  try {
-   Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
-   $global:mediumformats.Fetch()
-   # get a human readable copy
-   Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
-   $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
-  } # Try
-  catch {
-   Write-Verbose 'Exception fetching supported medium formats'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  } # Catch
- }
- # write variable to the pipeline
- Write-Output $global:vbox
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Start-VirtualBoxSession {
-<#
-.SYNOPSIS
-Starts a VirtualBox Web Service session and populates the $global:ivbox managed object reference
-.DESCRIPTION
-Create a PowerShell managed object reference to the VirtualBox Web Service managed object.
-.PARAMETER Protocol
-The protocol of the VirtualBox Web Service. Default is http.
-.PARAMETER Address
-The domain name or IP address of the VirtualBox Web Service. Default is localhost.
-.PARAMETER Port
-The TCP port of the VirtualBox Web Service. Default is 18083.
-.PARAMETER Force
-A switch to force updating global properties.
-.EXAMPLE
-PS C:\> Start-VirtualBoxSession -Protocol "http" -Address "localhost" -Port "18083" -Credential $Credential
-Populates the $global:ivbox variable to referece the VirtualBox Web Service managed object
-.NOTES
-NAME        :  Start-VirtualBoxSession
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Get-VirtualBox
-Stop-VirtualBoxSession
-.INPUTS
-string       : string for protocol
-string       : string for IP/FQDN
-string       : string for TCP port
-pscredential :
-.OUTPUTS
-$global:ivbox
-#>
-[cmdletbinding()]
-Param(
-[Parameter(HelpMessage="Enter protocol to be used to connect to the web service (Default: http)",
-Mandatory=$false,Position=0)]
-[ValidateSet("http","https")]
-  [string]$Protocol = "http",
-# localhost ONLY for now since we haven't enabled https
-[Parameter(HelpMessage="Enter the domain name or IP address running the web service (Default: localhost)",
-Mandatory=$false,Position=1)]
-  [string]$Address = "localhost",
-[Parameter(HelpMessage="Enter the TCP port the web service is listening on (Default: 18083)",
-Mandatory=$false,Position=2)]
-  [string]$Port = "18083",
-[Parameter(HelpMessage="Enter the credentials used to run the web service",
-Mandatory=$true,Position=3)]
-  [pscredential]$Credential,
-[Parameter(HelpMessage="Use this switch to force updating global properties")]
-  [switch]$Force
-) # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -and $global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- # set the target web service url
- $global:vbox.Url = "$($Protocol)://$($Address):$($Port)"
- # save the host address
- $global:hostaddress = $Address
- # if a session already exists, stop it
- if ($global:ivbox) {Stop-VirtualBoxSession}
-} # Begin
-Process {
- try {
-  # login to web service
-  Write-Verbose 'Creating the VirtualBox Web Service session ($global:ivbox)'
-  $global:ivbox = $global:vbox.IWebsessionManager_logon($Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password)
-  if ($global:ivbox) {
-   if (!$global:guestostype -or $Force) {
-    try {
-     # get guest OS type IDs
-     Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
-     $global:guestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
-    } # Try
-    catch {
-     Write-Verbose 'Exception fetching guest OS type data'
-     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-    } # Catch
-   }
-   if (!$global:isystemproperties -or $Force) {
-    try {
-     # create a local copy of capabilities for quick reference
-     Write-Verbose 'Fetching system properties object ($global:isystemproperties)'
-     $global:isystemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
-    } # Try
-    catch {
-     Write-Verbose 'Exception fetching system properties'
-     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-    } # Catch
-    <#
-    try {
-     # get a local copy of device types by storage bus
-     Write-Verbose 'Fetching device types by storage bus ($global:devicetypesforstoragebus)'
-     $global:devicetypesforstoragebus = $global:vbox.ISystemProperties_getDeviceTypesForStorageBus($global:isystemproperties, 1)
-     for ($i=2;$i-lt8;$i++) {
-      $global:devicetypesforstoragebus += $global:vbox.ISystemProperties_getDeviceTypesForStorageBus($global:isystemproperties, $i)
-     }
-    }
-    catch {
-     Write-Verbose 'Exception fetching device types for storage buses'
-     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-    }
-    #> # disabling since this isn't really useful data
-    try {
-     Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
-     $global:systempropertiessupported.Fetch()
-    } # Try
-    catch {
-     Write-Verbose 'Exception fetching supported system properties'
-     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-    } # Catch
-    try {
-     Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
-     $global:mediumformats.Fetch()
-     # get a human readable copy
-     Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
-     $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
-    } # Try
-    catch {
-     Write-Verbose 'Exception fetching supported medium formats'
-     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-    } # Catch
-   }
-  }
- }
- catch {
-  Write-Verbose 'Exception creating the VirtualBox Web Service session'
-  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
- }
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Stop-VirtualBoxSession {
-<#
-.SYNOPSIS
-Stops the current VirtualBox Web Service session
-.DESCRIPTION
-Instruct the VirtualBox Web Service to close the current managed object session referenced by $global:ivbox.
-.EXAMPLE
-PS C:\> Stop-VirtualBoxSession
-.NOTES
-NAME        :  Stop-VirtualBoxSession
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Get-VirtualBox
-Start-VirtualBoxSession
-.INPUTS
-None
-.OUTPUTS
-None
-#>
-[cmdletbinding(DefaultParameterSetName="UserPass")]
-Param() # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
-} # Begin
-Process {
- if ($global:ivbox) {
-  try {
-   # tell vboxwebsrv to end the current session
-  Write-Verbose 'Closing the VirtualBox Web Service session ($global:ivbox)'
-   $global:vbox.IWebsessionManager_logoff($global:ivbox)
-   $global:ivbox = $null
-  } # end try
-  catch {
-   Write-Verbose 'Exception closing the VirtualBox Web Service session'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  }
- }
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Start-VirtualBoxWebSrv {
-<#
-.SYNOPSIS
-Starts the VirtualBox Web Service
-.DESCRIPTION
-Starts the VirtualBox Web Service using schtask.exe.
-.EXAMPLE
-PS C:\> Start-VirtualBoxWebSrv
-Starts the VirtualBox Web Service if it isn't already running
-.NOTES
-NAME        :  Start-VirtualBoxWebSrv
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Stop-VirtualBoxWebSrv
-Restart-VirtualBoxWebSrv
-Update-VirtualBoxWebSrv
-.INPUTS
-None
-.OUTPUTS
-None
-#>
-[cmdletbinding()]
-Param() # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
-} # Begin
-Process {
- try {
-  # refresh the vboxwebsrv scheduled task
-  Write-Verbose 'Running Update-VirtualBoxWebSrv cmdlet'
-  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
-  Write-Verbose "$($global:vboxwebsrvtask.Name) status: $($global:vboxwebsrvtask.Status)"
-  if ($global:vboxwebsrvtask.Status -and $global:vboxwebsrvtask.Status -ne 'Running') {
-   # start the web service task
-   Write-Verbose "Starting the VirtualBox Web Service ($($global:vboxwebsrvtask.Name))"
-   & cmd /c schtasks.exe /run /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
-  }
-  else {
-   # return a message
-   return "The VBoxWebSrv task is already running"
-  }
- }
- catch {
-  Write-Verbose 'Exception starting the VirtualBox Web Service'
-  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
- }
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Stop-VirtualBoxWebSrv {
-<#
-.SYNOPSIS
-Stops the VirtualBox Web Service
-.DESCRIPTION
-Stops the VirtualBox Web Service using schtask.exe.
-.EXAMPLE
-PS C:\> Stop-VirtualBoxWebSrv
-Stops the VirtualBox Web Service it is running
-.NOTES
-NAME        :  Stop-VirtualBoxWebSrv
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Start-VirtualBoxWebSrv
-Restart-VirtualBoxWebSrv
-Update-VirtualBoxWebSrv
-.INPUTS
-None
-.OUTPUTS
-None
-#>
-[cmdletbinding(DefaultParameterSetName="UserPass")]
-Param() # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
-} # Begin
-Process {
- # login to web service
- Write-Verbose 'Ending the VirtualBox Web Service'
- try {
-  # tell vboxwebsrv to end the current session
-  & cmd /c schtasks.exe /end /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
- } # end try
- catch {
-  Write-Verbose 'Exception ending the VirtualBox Web Service'
-  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
- } # end catch
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Restart-VirtualBoxWebSrv {
-<#
-.SYNOPSIS
-Restarts the VirtualBox Web Service
-.DESCRIPTION
-Stops then starts the VirtualBox Web Service using schtask.exe.
-.EXAMPLE
-PS C:\> Restart-VirtualBoxWebSrv
-Restarts the VirtualBox Web Service if it is running
-.NOTES
-NAME        :  Restart-VirtualBoxWebSrv
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Start-VirtualBoxWebSrv
-Stop-VirtualBoxWebSrv
-Update-VirtualBoxWebSrv
-.INPUTS
-None
-.OUTPUTS
-None
-#>
-[cmdletbinding()]
-Param() # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
-} # Begin
-Process {
- # restart the web service task
- Stop-VirtualBoxWebSrv
- Start-VirtualBoxWebSrv
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Update-VirtualBoxWebSrv {
-<#
-.SYNOPSIS
-Gets the updated status of the VirtualBox Web Service
-.DESCRIPTION
-Gets the updated status of the VirtualBox Web Service using schtask.exe.
-.EXAMPLE
-PS C:\> Update-VirtualBoxWebSrv
-Returns the updated status of the VirtualBox Web Service
-.NOTES
-NAME        :  Update-VirtualBoxWebSrv
-VERSION     :  1.0
-LAST UPDATED:  1/4/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-Start-VirtualBoxWebSrv
-Stop-VirtualBoxWebSrv
-Restart-VirtualBoxWebSrv
-.INPUTS
-None
-.OUTPUTS
-[VirtualBoxWebSrvTask]$vboxwebsrvtask
-#>
-[cmdletbinding()]
-Param() # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
-} # Begin
-Process {
- # refresh the web service task information
- try {
-  Write-Verbose 'Updating $global:vboxwebsrvtask'
-  $tempjoin = $()
-  $tempobj = (& cmd /c schtasks.exe /query /fo csv | ConvertFrom-Csv | Where-Object {$_.TaskName -match 'VirtualBox API Web Service'}).TaskName.Split("\")
-  $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
-  for ($a=0;$a-lt$tempobj.Count;$a++) {
-   if ($a -lt $tempobj.Count-1) {
-    $tempjoin += $tempobj[$a].Insert($tempobj[$a].Length,'\')
-   }
-   else {
-    $vboxwebsrvtask.Name = $tempobj[$a]
-    $vboxwebsrvtask.Path = [string]::Join('\',$tempjoin)
-   }
-  }
-  $vboxwebsrvtask.Status = (& cmd /c schtasks.exe /query /fo csv | ConvertFrom-Csv | Where-Object {$_.TaskName -match 'VirtualBox API Web Service'}).Status
- } # end try
- catch {
-  Write-Verbose 'Exception updating the VirtualBox Web Service'
-  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
- } # end catch
- if (!$vboxwebsrvtask) {Write-Host '[Error] Failed to update $vboxwebsrvtask' -ForegroundColor Red -BackgroundColor Black;return}
- return $vboxwebsrvtask
-} # Process
-End {
- Write-Verbose $vboxwebsrvtask
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
 Function Get-VirtualBoxVM {
 <#
 .SYNOPSIS
@@ -1613,13 +1370,13 @@ HelpMessage="Enter a virtual machine state you wish to filter by")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
  if (!$Name) {$All = $true}
 } # Begin
 Process {
@@ -1628,91 +1385,196 @@ Process {
  # initialize array object to hold virtual machine values
  $vminventory = @()
  try {
-  # get virtual machine inventory
-  foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
-    $guestprops = New-Object GuestProperties
-    $tempobj = New-Object VirtualBoxVM
-    $tempobj.Name = $global:vbox.IMachine_getName($vmid)
-    $tempobj.Description = $global:vbox.IMachine_getDescription($vmid)
-    $tempobj.State = $global:vbox.IMachine_getState($vmid)
-    $tempobj.GuestOS = $global:vbox.IMachine_getOSTypeId($vmid)
-    $tempobj.MemoryMb = $global:vbox.IMachine_getMemorySize($vmid)
-    $tempobj.Id = $vmid
-    $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
-    $tempobj.ISession = $global:vbox.IWebsessionManager_getSessionObject($vmid)
-    $tempobj.IVrdeServer = $tempobj.IVrdeServer.Fetch($tempobj.Id)
-    $tempobj.GuestProperties = $guestprops.Enumerate($tempobj.Id)
-    # decode state
-    Switch ($tempobj.State) {
-     1 {$tempobj.State = "PoweredOff"}
-     2 {$tempobj.State = "Saved"}
-     3 {$tempobj.State = "Teleported"}
-     4 {$tempobj.State = "Aborted"}
-     5 {$tempobj.State = "Running"}
-     6 {$tempobj.State = "Paused"}
-     7 {$tempobj.State = "Stuck"}
-     8 {$tempobj.State = "Snapshotting"}
-     9 {$tempobj.State = "Starting"}
-     10 {$tempobj.State = "Stopping"}
-     11 {$tempobj.State = "Restoring"}
-     12 {$tempobj.State = "TeleportingPausedVM"}
-     13 {$tempobj.State = "TeleportingIn"}
-     14 {$tempobj.State = "FaultTolerantSync"}
-     15 {$tempobj.State = "DeletingSnapshotOnline"}
-     16 {$tempobj.State = "DeletingSnapshot"}
-     17 {$tempobj.State = "SettingUp"}
-     Default {$tempobj.State = $tempobj.State}
-    }
-    Write-Verbose "Found $($tempobj.Name) and adding to inventory"
-    $vminventory += $tempobj
-  } # end foreach loop inventory
-  # filter virtual machines
-  if ($Name -and $Name -ne "*") {
-   Write-Verbose "Filtering virtual machines by name: $Name"
-   foreach ($vm in $vminventory) {
-    Write-Verbose "Matching $($vm.Name) to $($Name)"
-    if ($vm.Name -match $Name) {
-     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
-     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
-    }
-   }
-  } # end if $Name and not *
-  elseif ($Guid) {
-   Write-Verbose "Filtering virtual machines by GUID: $Guid"
-   foreach ($vm in $vminventory) {
-    Write-Verbose "Matching $($vm.Guid) to $($Guid)"
-    if ($vm.Guid -match $Guid) {
-     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
-     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
-    }
-   }
-  } # end if $Guid
-  elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
-   if ($State) {
-    Write-Verbose "Filtering all virtual machines by state: $State"
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   # get virtual machine inventory
+   foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+     $guestprops = New-Object GuestProperties
+     $tempobj = New-Object VirtualBoxVM
+     $tempobj.Name = $global:vbox.IMachine_getName($vmid)
+     $tempobj.Description = $global:vbox.IMachine_getDescription($vmid)
+     $tempobj.State = $global:vbox.IMachine_getState($vmid)
+     $tempobj.GuestOS = $global:vbox.IMachine_getOSTypeId($vmid)
+     $tempobj.MemoryMb = $global:vbox.IMachine_getMemorySize($vmid)
+     $tempobj.Id = $vmid
+     $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
+     $tempobj.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($vmid)
+     $tempobj.IVrdeServer = $tempobj.IVrdeServer.Fetch($tempobj.Id)
+     $tempobj.GuestProperties = $guestprops.Enumerate($tempobj.Id, $ModuleHost)
+     # decode state
+     Switch ($tempobj.State) {
+      1 {$tempobj.State = "PoweredOff"}
+      2 {$tempobj.State = "Saved"}
+      3 {$tempobj.State = "Teleported"}
+      4 {$tempobj.State = "Aborted"}
+      5 {$tempobj.State = "Running"}
+      6 {$tempobj.State = "Paused"}
+      7 {$tempobj.State = "Stuck"}
+      8 {$tempobj.State = "Snapshotting"}
+      9 {$tempobj.State = "Starting"}
+      10 {$tempobj.State = "Stopping"}
+      11 {$tempobj.State = "Restoring"}
+      12 {$tempobj.State = "TeleportingPausedVM"}
+      13 {$tempobj.State = "TeleportingIn"}
+      14 {$tempobj.State = "FaultTolerantSync"}
+      15 {$tempobj.State = "DeletingSnapshotOnline"}
+      16 {$tempobj.State = "DeletingSnapshot"}
+      17 {$tempobj.State = "SettingUp"}
+      Default {$tempobj.State = $tempobj.State}
+     }
+     Write-Verbose "Found $($tempobj.Name) and adding to inventory"
+     $vminventory += $tempobj
+   } # end foreach loop inventory
+   # filter virtual machines
+   if ($Name -and $Name -ne "*") {
+    Write-Verbose "Filtering virtual machines by name: $Name"
     foreach ($vm in $vminventory) {
-     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+     Write-Verbose "Matching $($vm.Name) to $($Name)"
+     if ($vm.Name -match $Name) {
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+     }
     }
-   }
-   else {
-    Write-Verbose "Filtering all virtual machines"
+   } # end if $Name and not *
+   elseif ($Guid) {
+    Write-Verbose "Filtering virtual machines by GUID: $Guid"
     foreach ($vm in $vminventory) {
-     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}
+     Write-Verbose "Matching $($vm.Guid) to $($Guid)"
+     if ($vm.Guid -match $Guid) {
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+     }
     }
-   }
-  } # end if All
-  Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
-  if ($obj) {
-   Write-Verbose "Found $($obj.Name)"
-   # write virtual machines object to the pipeline as an array
-   Write-Output ([System.Array]$obj)
-  } # end if $obj
-  else {Write-Verbose "[Warning] No matching virtual machines found"}
+   } # end if $Guid
+   elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
+    if ($State) {
+     Write-Verbose "Filtering all virtual machines by state: $State"
+     foreach ($vm in $vminventory) {
+      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+     }
+    }
+    else {
+     Write-Verbose "Filtering all virtual machines"
+     foreach ($vm in $vminventory) {
+      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}
+     }
+    }
+   } # end if All
+   Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
+   if ($obj) {
+    Write-Verbose "Found $($obj.Name)"
+    # write virtual machines object to the pipeline as an array
+    Write-Output ([System.Array]$obj)
+   } # end if $obj
+   else {Write-Verbose "[Warning] No virtual machines found using specified parameters"}
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   # get virtual machine inventory
+   foreach ($vm in ($global:vbox.Machines)) {
+     $guestprops = New-Object GuestProperties
+     $tempobj = New-Object VirtualBoxVM
+     $tempobj.Name = $vm.Name
+     $tempobj.Description = $vm.Description
+     $tempobj.State = $vm.State
+     $tempobj.GuestOS = $vm.OSTypeID
+     $tempobj.MemoryMb = $vm.MemorySize
+     $tempobj.Guid = $vm.ID
+     #$session = New-Object -ComObject VirtualBox.Session
+     #$tempobj.ISession = [ISession]@{State=$session.State;Type=$session.Type;Machine=$session.Machine;Console=$session.Console}
+     $tempobj.ISession.Session = New-Object -ComObject VirtualBox.Session
+     $tempobj.IVrdeServer = [IVrdeServer]@{Enabled=$vm.VRDEServer.Enabled;AuthType=$vm.VRDEServer.AuthType;AuthTimeout=$vm.VRDEServer.AuthTimeout;AllowMultiConnection=$vm.VRDEServer.AllowMultiConnection;ReuseSingleConnection=$vm.VRDEServer.ReuseSingleConnection;VrdeExtPack=$vm.VRDEServer.VRDEExtPack;AuthLibrary=$vm.VRDEServer.AuthLibrary;VrdeProperties=$vm.VRDEServer.VRDEProperties}
+     $tempobj.IVrdeServer.TcpPort = $vm.VRDEServer.GetVRDEProperty('TCP/Ports')
+     $tempobj.IVrdeServer.IpAddress = $vm.VRDEServer.GetVRDEProperty('TCP/Address')
+     $tempobj.IVrdeServer.VideoChannelEnabled = $vm.VRDEServer.GetVRDEProperty('VideoChannel/Enabled')
+     $tempobj.IVrdeServer.VideoChannelQuality = $vm.VRDEServer.GetVRDEProperty('VideoChannel/Quality')
+     $tempobj.IVrdeServer.VideoChannelDownscaleProtection = $vm.VRDEServer.GetVRDEProperty('VideoChannel/DownscaleProtection')
+     $tempobj.IVrdeServer.DisableClientDisplay = $vm.VRDEServer.GetVRDEProperty('Client/DisableDisplay')
+     $tempobj.IVrdeServer.DisableClientInput = $vm.VRDEServer.GetVRDEProperty('Client/DisableInput')
+     $tempobj.IVrdeServer.DisableClientAudio = $vm.VRDEServer.GetVRDEProperty('Client/DisableAudio')
+     $tempobj.IVrdeServer.DisableClientUsb = $vm.VRDEServer.GetVRDEProperty('Client/DisableUSB')
+     $tempobj.IVrdeServer.DisableClientClipboard = $vm.VRDEServer.GetVRDEProperty('Client/DisableClipboard')
+     $tempobj.IVrdeServer.DisableClientUpstreamAudio = $vm.VRDEServer.GetVRDEProperty('Client/DisableUpstreamAudio')
+     $tempobj.IVrdeServer.DisableClientRdpdr = $vm.VRDEServer.GetVRDEProperty('Client/DisableRDPDR')
+     $tempobj.IVrdeServer.H3dRedirectEnabled = $vm.VRDEServer.GetVRDEProperty('H3DRedirect/Enabled')
+     $tempobj.IVrdeServer.SecurityMethod = $vm.VRDEServer.GetVRDEProperty('Security/Method')
+     $tempobj.IVrdeServer.SecurityServerCertificate = $vm.VRDEServer.GetVRDEProperty('Security/ServerCertificate')
+     $tempobj.IVrdeServer.SecurityServerPrivateKey = $vm.VRDEServer.GetVRDEProperty('Security/ServerPrivateKey')
+     $tempobj.IVrdeServer.SecurityCaCertificate = $vm.VRDEServer.GetVRDEProperty('Security/CACertificate')
+     $tempobj.IVrdeServer.AudioRateCorrectionMode = $vm.VRDEServer.GetVRDEProperty('Audio/RateCorrectionMode')
+     $tempobj.IVrdeServer.AudioLogPath = $vm.VRDEServer.GetVRDEProperty('Audio/LogPath')
+     $tempobj.GuestProperties = $guestprops.Enumerate($vm, $ModuleHost)
+     $tempobj.ComObject = $vm
+     # decode state
+     Switch ($tempobj.State) {
+      1 {$tempobj.State = "PoweredOff"}
+      2 {$tempobj.State = "Saved"}
+      3 {$tempobj.State = "Teleported"}
+      4 {$tempobj.State = "Aborted"}
+      5 {$tempobj.State = "Running"}
+      6 {$tempobj.State = "Paused"}
+      7 {$tempobj.State = "Stuck"}
+      8 {$tempobj.State = "Snapshotting"}
+      9 {$tempobj.State = "Starting"}
+      10 {$tempobj.State = "Stopping"}
+      11 {$tempobj.State = "Restoring"}
+      12 {$tempobj.State = "TeleportingPausedVM"}
+      13 {$tempobj.State = "TeleportingIn"}
+      14 {$tempobj.State = "FaultTolerantSync"}
+      15 {$tempobj.State = "DeletingSnapshotOnline"}
+      16 {$tempobj.State = "DeletingSnapshot"}
+      17 {$tempobj.State = "SettingUp"}
+      Default {$tempobj.State = $tempobj.State}
+     }
+     Write-Verbose "Found $($tempobj.Name) and adding to inventory"
+     $vminventory += $tempobj
+   } # end foreach loop inventory
+   # filter virtual machines
+   if ($Name -and $Name -ne "*") {
+    Write-Verbose "Filtering virtual machines by name: $Name"
+    foreach ($vm in $vminventory) {
+     Write-Verbose "Matching $($vm.Name) to $($Name)"
+     if ($vm.Name -match $Name) {
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+     }
+    }
+   } # end if $Name and not *
+   elseif ($Guid) {
+    Write-Verbose "Filtering virtual machines by GUID: $Guid"
+    foreach ($vm in $vminventory) {
+     Write-Verbose "Matching $($vm.Guid) to $($Guid)"
+     if ($vm.Guid -match $Guid) {
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+     }
+    }
+   } # end if $Guid
+   elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
+    if ($State) {
+     Write-Verbose "Filtering all virtual machines by state: $State"
+     foreach ($vm in $vminventory) {
+      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+     }
+    }
+    else {
+     Write-Verbose "Filtering all virtual machines"
+     foreach ($vm in $vminventory) {
+      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}
+     }
+    }
+   } # end if All
+   Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
+   if ($obj) {
+    Write-Verbose "Found $($obj.Name)"
+    # write virtual machines object to the pipeline as an array
+    Write-Output ([System.Array]$obj)
+   } # end if $obj
+   else {Write-Verbose "[Warning] No virtual machines found using specified parameters"}
+  } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception retreiving machine information'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -1779,12 +1641,13 @@ ParameterSetName="Guid",Mandatory=$true)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -1817,19 +1680,30 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.State -eq 'Running') {
-     Write-Verbose "Suspending $($imachine.Name)"
-     # get the machine session
-     Write-Verbose "Getting the machine session"
-     $imachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
-     # lock the vm session
-     Write-Verbose "Locking the machine session"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-     # get the machine IConsole session
-     Write-Verbose "Getting the machine IConsole session"
-     $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-     # suspend the vm
-     Write-Verbose "Pausing the virtual machine"
-     $global:vbox.IConsole_pause($imachine.IConsole)
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Suspending $($imachine.Name)"
+      # get the machine session
+      Write-Verbose "Getting the machine session"
+      $imachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
+      # lock the vm session
+      Write-Verbose "Locking the machine session"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      # get the machine IConsole session
+      Write-Verbose "Getting the machine IConsole session"
+      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
+      # suspend the vm
+      Write-Verbose "Pausing the virtual machine"
+      $global:vbox.IConsole_pause($imachine.IConsole)
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Suspending $($imachine.Name)"
+      # lock the vm session
+      Write-Verbose "Locking the machine session"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      # suspend the vm
+      Write-Verbose "Pausing the virtual machine"
+      $imachine.ISession.Session.Console.Pause()
+     } # end elseif com
     } # end if $imachine.State -eq 'Running'
     else {Write-Verbose "The requested virtual machine `"$($imachine.Name)`" can't be paused because it is not running (State: $($imachine.State))"}
    } # foreach $imachine in $imachines
@@ -1846,18 +1720,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -1931,12 +1810,13 @@ ParameterSetName="Guid",Mandatory=$true)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -1969,19 +1849,30 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.State -eq 'Paused') {
-     Write-Verbose "Resuming $($imachine.Name)"
-     # get the machine session
-     Write-Verbose "Getting the machine session"
-     $imachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
-     # lock the vm session
-     Write-Verbose "Locking the machine session"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-     # get the machine IConsole session
-     Write-Verbose "Getting the machine IConsole session"
-     $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-     # resume the vm
-     Write-Verbose "resuming the virtual machine"
-     $global:vbox.IConsole_resume($imachine.IConsole)
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Resuming $($imachine.Name)"
+      # get the machine session
+      Write-Verbose "Getting the machine session"
+      $imachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
+      # lock the vm session
+      Write-Verbose "Locking the machine session"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      # get the machine IConsole session
+      Write-Verbose "Getting the machine IConsole session"
+      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
+      # resume the vm
+      Write-Verbose "Resuming the virtual machine"
+      $global:vbox.IConsole_resume($imachine.IConsole)
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Resuming $($imachine.Name)"
+      # lock the vm session
+      Write-Verbose "Locking the machine session"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      # resume the vm
+      Write-Verbose "Resuming the virtual machine"
+      $imachine.ISession.Session.Console.Resume()
+     } # end elseif com
     } # end if $imachine.State -eq 'Running'
     else {Write-Verbose "The requested virtual machine `"$($imachine.Name)`" can't be resumed because it is not paused (State: $($imachine.State))"}
    } # foreach $imachine in $imachines
@@ -1998,18 +1889,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -2120,12 +2016,13 @@ HelpMessage="Enter the credentials to unlock the VM disk(s)")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -2161,86 +2058,159 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
    if ($imachine.State -match 'PoweredOff') {
-    if (-not $Encrypted) {
-     # start the vm in $Type mode
-     Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-     $imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, $Type.ToLower(),$null)
-     # collect iprogress data
-     Write-Verbose "Fetching IProgress data"
-     $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-     if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-     do {
-      # get the current machine state
-      $machinestate = $global:vbox.IMachine_getState($imachine.Id)
-      # update iprogress data
-      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     if (-not $Encrypted) {
+      # start the vm in $Type mode
+      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
+      $imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, $Type.ToLower(), $null)
+      # collect iprogress data
+      Write-Verbose "Fetching IProgress data"
+      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-     } until ($machinestate -eq 'Running') # continue once the vm is running
-    } # end if not Encrypted
-    elseif ($Encrypted) {
-     # start the vm in $Type mode
-     Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-     if ($Type -match 'Gui') {Open-VirtualBoxVMConsole -Machine $imachine}
-     elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession, 'headless', $null)}
-     # collect iprogress data
-     Write-Verbose "Fetching IProgress data"
-     if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
-     if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-     Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
-     do {
-      # get the current machine state
-      $machinestate = $global:vbox.IMachine_getState($imachine.Id)
-      # update iprogress data
-      if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
+      do {
+       # get the current machine state
+       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
+       # update iprogress data
+       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($machinestate -eq 'Running') # continue once the vm is running
+     } # end if not Encrypted
+     elseif ($Encrypted) {
+      # start the vm in $Type mode
+      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
+      if ($Type -match 'Gui') {Write-Host "[Warning] Starting VM in GUI mode is not available for the Web Service. VM will be started in Headless mode." -ForegroundColor Yellow}
+      elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, 'headless', $null)}
+      # collect iprogress data
+      Write-Verbose "Fetching IProgress data"
+      if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-     } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
-     Write-Verbose "VM $($imachine.Name) paused"
-     if ($Type -match 'Gui') {
-      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-     }
-     # create new session object for iconsole
-     Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
-     $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-     $exptntrnsltr = New-Object VirtualBoxError
-     foreach ($Credential in $Credentials) {
-      foreach ($disk in $disks) {
-       Write-Verbose "Processing disk $($disk.Name)"
-       $diskid = $null
-       try {
-        # get the disk id
-        Write-Verbose "Getting the disk ID"
-        $cipher = $global:vbox.IMedium_getEncryptionSettings($disk.Id, [ref]$diskid) # this looks really confusing but it's 2 seperate types of ID
-        Write-Verbose "Disk $($disk.Name) encryption cipher: $cipher"
-        if ($diskid -eq $Credential.UserName) {
-         Write-Verbose "Disk ID `"$($diskid)`" matches the UserName `"$($Credential.UserName)`" of the current credential"
-         # check the password against the vm disk
-         Write-Verbose "Checking for Password against disk"
-         $global:vbox.IMedium_checkEncryptionPassword($disk.Id, $Credential.GetNetworkCredential().Password)
-         Write-Verbose  "The image is configured for encryption and the password is correct"
-         # pass disk encryption password to the vm console
-         Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
-         $global:vbox.IConsole_addDiskEncryptionPassword($imachine.IConsole, $diskid, $Credential.GetNetworkCredential().Password, $false)
-         Write-Verbose "Disk decryption successful for disk $($disk.Name)"
-        } # end if $diskid -eq $Credential.UserName
-        else {Write-Verbose "Disk ID `"$($diskid)`" does not match the UserName `"$($Credential.UserName)`" of the current credential"}
-       } # Try
-       catch {
-        Write-Verbose "Exception when sending password for encrypted disk(s)"
-        Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-        Write-Verbose $_.Exception.Message
-        Write-Host "[Error] Could not decrypt disk $($disk.Name) using provided credential: `"$($exptntrnsltr.Description($_.Exception.Message))`"" -ForegroundColor Red -BackgroundColor Black
-       } # Catch
-      } # end foreach $disk in $disks
-     } # foreach $Credential in $Credentials
-     if ($global:vbox.IMachine_getState($imachine.Id) -match 'Paused') {
-      Write-Verbose "Decryption unsuccessful for disk $($disk.Name) - powering off machine $($imachine.Name)"
-      Write-Host "[Error] Could not decrypt disk $($disk.Name) for machine $($imachine.Name) using any of the provided credentials" -ForegroundColor Red -BackgroundColor Black
-      $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
-     }
-    } # end elseif Encrypted
+      Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
+      do {
+       # get the current machine state
+       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
+       # update iprogress data
+       if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
+       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
+      Write-Verbose "VM $($imachine.Name) paused"
+      if ($Type -match 'Gui') {
+       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      }
+      # create new session object for iconsole
+      Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
+      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
+      $exptntrnsltr = New-Object VirtualBoxError
+      foreach ($Credential in $Credentials) {
+       foreach ($disk in $disks) {
+        Write-Verbose "Processing disk $($disk.Name)"
+        $diskid = $null
+        try {
+         # get the disk id
+         Write-Verbose "Getting the disk ID"
+         $cipher = $global:vbox.IMedium_getEncryptionSettings($disk.Id, [ref]$diskid) # this looks really confusing but it's 2 seperate types of ID
+         Write-Verbose "Disk $($disk.Name) encryption cipher: $cipher"
+         if ($diskid -eq $Credential.UserName) {
+          Write-Verbose "Disk ID `"$($diskid)`" matches the UserName `"$($Credential.UserName)`" of the current credential"
+          # check the password against the vm disk
+          Write-Verbose "Checking for Password against disk"
+          $global:vbox.IMedium_checkEncryptionPassword($disk.Id, $Credential.GetNetworkCredential().Password)
+          Write-Verbose  "The image is configured for encryption and the password is correct"
+          # pass disk encryption password to the vm console
+          Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
+          $global:vbox.IConsole_addDiskEncryptionPassword($imachine.IConsole, $diskid, $Credential.GetNetworkCredential().Password, $false)
+          Write-Verbose "Disk decryption successful for disk $($disk.Name)"
+         } # end if $diskid -eq $Credential.UserName
+         else {Write-Verbose "Disk ID `"$($diskid)`" does not match the UserName `"$($Credential.UserName)`" of the current credential"}
+        } # Try
+        catch {
+         Write-Verbose "Exception when sending password for encrypted disk(s)"
+         Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+         Write-Verbose $_.Exception.Message
+         Write-Host "[Error] Could not decrypt disk $($disk.Name) using provided credential: `"$($exptntrnsltr.Description($_.Exception.Message))`"" -ForegroundColor Red -BackgroundColor Black
+        } # Catch
+       } # end foreach $disk in $disks
+      } # foreach $Credential in $Credentials
+      if ($global:vbox.IMachine_getState($imachine.Id) -match 'Paused') {
+       Write-Verbose "Decryption unsuccessful for disk $($disk.Name) - powering off machine $($imachine.Name)"
+       Write-Host "[Error] Could not decrypt disk $($disk.Name) for machine $($imachine.Name) using any of the provided credentials" -ForegroundColor Red -BackgroundColor Black
+       $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
+      }
+     } # end elseif Encrypted
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     if (-not $Encrypted) {
+      # start the vm in $Type mode
+      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
+      $imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($tmachine.ISession.Session, $tType.ToLower(), [string[]]@($null))
+      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      do {
+       # get the current machine state
+       $machinestate = $imachine.ComObject.State
+       # update iprogress data
+       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($machinestate -eq 5) # continue once the vm is running
+     } # end if not Encrypted
+     elseif ($Encrypted) {
+      # start the vm in $Type mode
+      Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
+      if ($Type -match 'Gui') {Open-VirtualBoxVMConsole -Machine $imachine}
+      elseif ($Type -match 'Headless') {$imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())}
+      if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
+      do {
+       # get the current machine state
+       $machinestate = $imachine.ComObject.State
+       # update iprogress data
+       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($machinestate -eq 5) # continue once the vm pauses for password
+      Write-Verbose "VM $($imachine.Name) paused"
+      if ($Type -match 'Gui') {
+       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      }
+      $exptntrnsltr = New-Object VirtualBoxError
+      foreach ($Credential in $Credentials) {
+       foreach ($disk in $disks) {
+        Write-Verbose "Processing disk $($disk.Name)"
+        $cipher = $null
+        try {
+         # get the disk id
+         Write-Verbose "Getting the disk ID"
+         $diskid = $disk.ComObject.getEncryptionSettings([string]@([ref]$cipher))
+         Write-Verbose "Disk $($disk.Name) encryption cipher: $cipher"
+         if ($diskid -eq $Credential.UserName) {
+          Write-Verbose "Disk ID `"$($diskid)`" matches the UserName `"$($Credential.UserName)`" of the current credential"
+          # check the password against the vm disk
+          Write-Verbose "Checking for Password against disk"
+          $disk.ComObject.checkEncryptionPassword($Credential.GetNetworkCredential().Password)
+          Write-Verbose  "The image is configured for encryption and the password is correct"
+          # pass disk encryption password to the vm console
+          Write-Verbose "Sending Identifier: $($imachine.Name) with password: $($Credential.Password)"
+          $imachine.ISession.Session.Console.AddDiskEncryptionPassword($diskid, $Credential.GetNetworkCredential().Password, 0)
+          Write-Verbose "Disk decryption successful for disk $($disk.Name)"
+         } # end if $diskid -eq $Credential.UserName
+         else {Write-Verbose "Disk ID `"$($diskid)`" does not match the UserName `"$($Credential.UserName)`" of the current credential"}
+        } # Try
+        catch {
+         Write-Verbose "Exception when sending password for encrypted disk(s)"
+         Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+         Write-Verbose $_.Exception.Message
+         Write-Host "[Error] Could not decrypt disk $($disk.Name) using provided credential: `"$($exptntrnsltr.Description($_.Exception.Message))`"" -ForegroundColor Red -BackgroundColor Black
+        } # Catch
+       } # end foreach $disk in $disks
+      } # foreach $Credential in $Credentials
+      if ($imachine.ComObject.State -eq 6) {
+       Write-Verbose "Decryption unsuccessful for disk $($disk.Name) - powering off machine $($imachine.Name)"
+       Write-Host "[Error] Could not decrypt disk $($disk.Name) for machine $($imachine.Name) using any of the provided credentials" -ForegroundColor Red -BackgroundColor Black
+       $imachine.IProgress.Progress = $imachine.ISession.Session.Console.PowerDown()
+      }
+     } # end elseif Encrypted
+    } # end elseif com
    } # end if $machine.State -match 'PoweredOff'
    else {Write-Host "[Error] Only VMs that have been powered off can be started. The state of $($imachine.Name) is $($imachine.State)" -ForegroundColor Red -BackgroundColor Black;return}
    } # foreach $imachine in $imachines
@@ -2257,18 +2227,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -2360,12 +2335,13 @@ HelpMessage="Enter the credentials to login to the guest OS")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -2398,19 +2374,28 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     # create Vbox session object
-    Write-Verbose "Creating a session object"
-    $imachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+    #Write-Verbose "Creating a session object"
+    #$imachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
     if ($Acpi) {
      Write-Verbose "ACPI Shutdown requested"
      if ($imachine.State -eq 'Running') {
-      Write-verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-      # create iconsole session to vm
-      Write-verbose "Creating IConsole session to the machine"
-      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-      #send ACPI shutdown signal
-      Write-verbose "Sending ACPI Shutdown signal to the machine"
-      $global:vbox.IConsole_powerButton($imachine.IConsole)
+      if ($ModuleHost.ToLower() -eq 'websrv') {
+       Write-verbose "Locking the machine session"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+       # create iconsole session to vm
+       Write-verbose "Creating IConsole session to the machine"
+       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
+       #send ACPI shutdown signal
+       Write-verbose "Sending ACPI Shutdown signal to the machine"
+       $global:vbox.IConsole_powerButton($imachine.IConsole)
+      } # end if websrv
+      elseif ($ModuleHost.ToLower() -eq 'com') {
+       Write-verbose "Locking the machine session"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+       #send ACPI shutdown signal
+       Write-verbose "Sending ACPI Shutdown signal to the machine"
+       $imachine.ISession.Session.Console.PowerButton()
+      } # end elseif com
      }
      else {return "Only machines that are running may be stopped."}
     }
@@ -2425,29 +2410,50 @@ Process {
     }
     else {
      Write-Verbose "Power-off requested"
-     if ($global:vbox.IMachine_getState($imachine.Id) -ne 'PoweredOff') {
-      Write-verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-      # create iconsole session to vm
-      Write-verbose "Creating IConsole session to the machine"
-      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-      # Power off the machine
-      Write-verbose "Powering off the machine"
-      $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
-      # collect iprogress data
-      if ($ProgressBar) {Write-Verbose "Fetching IProgress data"}
-      if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
-      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      do {
-       # get the current machine state
-       $machinestate = $global:vbox.IMachine_getState($imachine.Id)
-       # update iprogress data
-       if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      if ($global:vbox.IMachine_getState($imachine.Id) -ne 'PoweredOff') {
+       Write-verbose "Locking the machine session"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+       # create iconsole session to vm
+       Write-verbose "Creating IConsole session to the machine"
+       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
+       # Power off the machine
+       Write-verbose "Powering off the machine"
+       $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
+       # collect iprogress data
+       if ($ProgressBar) {Write-Verbose "Fetching IProgress data"}
+       if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
        if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-      } until ($machinestate -eq 'PoweredOff') # continue once the vm is stopped
-     }
-     else {return "Only machines that are not powered off may be stopped."}
+       do {
+        # get the current machine state
+        $machinestate = $global:vbox.IMachine_getState($imachine.Id)
+        # update iprogress data
+        if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
+        if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+        if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       } until ($machinestate -eq 'PoweredOff') # continue once the vm is stopped
+      }
+      else {return "Only machines that are not powered off may be stopped."}
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      if ($imachine.ComObject.State -ne 1) {
+       Write-verbose "Locking the machine session"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+       # Power off the machine
+       Write-verbose "Powering off the machine"
+       $imachine.IProgress.Progress = $imachine.ISession.Session.Console.PowerDown()
+       # collect iprogress data
+       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+       do {
+        # get the current machine state
+        $machinestate = $imachine.ComObject.State
+        # update iprogress data
+        if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+        if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       } until ($machinestate -eq 1) # continue once the vm is stopped
+      }
+      else {return "Only machines that are not powered off may be stopped."}
+     } # end elseif com
     }
    } #foreach
   } # end if $imachines
@@ -2463,12 +2469,17 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
@@ -2485,7 +2496,7 @@ Process {
      Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -3024,12 +3035,13 @@ DynamicParam {
 }
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
  $OsTypeId = $PSBoundParameters['OsTypeId']
  $ParavirtProvider = $PSBoundParameters['ParavirtProvider']
  $ClipboardMode = $PSBoundParameters['ClipboardMode']
@@ -3067,63 +3079,132 @@ Process {
   # create a reference object for the new machine
   Write-Verbose "Creating reference object for $Name"
   $imachine = New-Object VirtualBoxVM
-  $imachine.Id = $global:vbox.IVirtualBox_createMachine($global:ivbox, $Location, $Name, $Group, $OsTypeId, $Flags)
-  $global:vbox.IMachine_applyDefaults($imachine.Id, $null)
-  if ($PsCmdlet.ParameterSetName -eq 'Custom') {
-   try {
-    if ($Icon) {
-     if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
-     # convert to png
-     Add-Type -AssemblyName system.drawing
-     $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
-     $image = [drawing.image]::FromFile($Icon)
-     $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
-     $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
-     $global:vbox.IMachine_setIcon($imachine.Id, $octet)
-     Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   $imachine.Id = $global:vbox.IVirtualBox_createMachine($global:ivbox, $Location, $Name, $Group, $OsTypeId, $Flags)
+   $global:vbox.IMachine_applyDefaults($imachine.Id, $null)
+   if ($PsCmdlet.ParameterSetName -eq 'Custom') {
+    try {
+     if ($Icon) {
+      if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
+      # convert to png
+      Add-Type -AssemblyName system.drawing
+      $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
+      $image = [drawing.image]::FromFile($Icon)
+      $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
+      $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
+      $global:vbox.IMachine_setIcon($imachine.Id, $octet)
+      Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
+     }
+     if ($Description) {$global:vbox.IMachine_setDescription($imachine.Id, $Description)}
+     if ($HardwareUuid) {$global:vbox.IMachine_setHardwareUUID($imachine.Id, $HardwareUuid)}
+     if ($CpuCount) {$global:vbox.IMachine_setCPUCount($imachine.Id, $CpuCount)}
+     if ($CpuHotPlugEnabled) {$global:vbox.IMachine_setCPUHotPlugEnabled($imachine.Id, $CpuHotPlugEnabled)}
+     if ($CpuExecutionCap) {$global:vbox.IMachine_setCPUExecutionCap($imachine.Id, $CpuExecutionCap)}
+     if ($CpuIdPortabilityLevel) {$global:vbox.IMachine_setCPUIDPortabilityLevel($imachine.Id, $CpuIdPortabilityLevel)}
+     if ($MemorySize) {$global:vbox.IMachine_setMemorySize($imachine.Id, $MemorySize)}
+     if ($MemoryBalloonSize) {$global:vbox.IMachine_setMemoryBalloonSize($imachine.Id, $MemoryBalloonSize)}
+     if ($PageFusionEnabled) {$global:vbox.IMachine_setPageFusionEnabled($imachine.Id, $PageFusionEnabled)}
+     if ($FirmwareType) {$global:vbox.IMachine_setFirmwareType($imachine.Id, $FirmwareType)}
+     if ($PointingHidType) {$global:vbox.IMachine_setPointingHIDType($imachine.Id, $PointingHidType)}
+     if ($KeyboardHidType) {$global:vbox.IMachine_setKeyboardHIDType($imachine.Id, $KeyboardHidType)}
+     if ($HpetEnabled) {$global:vbox.IMachine_setHPETEnabled($imachine.Id, $HpetEnabled)}
+     if ($ChipsetType) {$global:vbox.IMachine_setChipsetType($imachine.Id, $ChipsetType)}
+     if ($EmulatedUsbCardReaderEnabled) {$global:vbox.IMachine_setEmulatedUSBCardReaderEnabled($imachine.Id, $EmulatedUsbCardReaderEnabled)}
+     if ($ClipboardMode) {$global:vbox.IMachine_setClipboardMode($imachine.Id, $ClipboardMode)}
+     if ($ClipboardFileTransfersEnabled) {$global:vbox.IMachine_setClipboardFileTransfersEnabled($imachine.Id, $ClipboardFileTransfersEnabled)}
+     if ($DndMode) {$global:vbox.IMachine_setDnDMode($imachine.Id, $DndMode)}
+     if ($TeleporterEnabled) {$global:vbox.IMachine_setTeleporterEnabled($imachine.Id, $TeleporterEnabled)}
+     if ($TeleporterPort) {$global:vbox.IMachine_setTeleporterPort($imachine.Id, $TeleporterPort)}
+     if ($TeleporterAddress) {$global:vbox.IMachine_setTeleporterAddress($imachine.Id, $TeleporterAddress)}
+     if ($TeleporterPassword) {$global:vbox.IMachine_setTeleporterPassword($imachine.Id, [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword)))}
+     if ($ParavirtProvider) {$global:vbox.IMachine_setParavirtProvider($imachine.Id, $ParavirtProvider)}
+     if ($RtcUseUtc) {$global:vbox.IMachine_setRTCUseUTC($imachine.Id, $RtcUseUtc)}
+     if ($IoCacheEnabled) {$global:vbox.IMachine_setIOCacheEnabled($imachine.Id, $IoCacheEnabled)}
+     if ($IoCacheSize) {$global:vbox.IMachine_setIOCacheSize($imachine.Id, $IoCacheSize)}
+     if ($TracingEnabled) {$global:vbox.IMachine_setTracingEnabled($imachine.Id, $TracingEnabled)}
+     if ($TracingConfig) {$global:vbox.IMachine_setTracingConfig($imachine.Id, $TracingConfig)}
+     if ($AllowTracingToAccessVM) {$global:vbox.IMachine_setAllowTracingToAccessVM($imachine.Id, $AllowTracingToAccessVM)}
+     if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($imachine.Id, $AutostartEnabled)}
+     if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($imachine.Id, $AutostartDelay)}
+     if ($AutostopType) {$global:vbox.IMachine_setAutostopType($imachine.Id, $AutostopType)}
+     if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($imachine.Id, $CPUProfile)}
     }
-    if ($Description) {$global:vbox.IMachine_setDescription($imachine.Id, $Description)}
-    if ($HardwareUuid) {$global:vbox.IMachine_setHardwareUUID($imachine.Id, $HardwareUuid)}
-    if ($CpuCount) {$global:vbox.IMachine_setCPUCount($imachine.Id, $CpuCount)}
-    if ($CpuHotPlugEnabled) {$global:vbox.IMachine_setCPUHotPlugEnabled($imachine.Id, $CpuHotPlugEnabled)}
-    if ($CpuExecutionCap) {$global:vbox.IMachine_setCPUExecutionCap($imachine.Id, $CpuExecutionCap)}
-    if ($CpuIdPortabilityLevel) {$global:vbox.IMachine_setCPUIDPortabilityLevel($imachine.Id, $CpuIdPortabilityLevel)}
-    if ($MemorySize) {$global:vbox.IMachine_setMemorySize($imachine.Id, $MemorySize)}
-    if ($MemoryBalloonSize) {$global:vbox.IMachine_setMemoryBalloonSize($imachine.Id, $MemoryBalloonSize)}
-    if ($PageFusionEnabled) {$global:vbox.IMachine_setPageFusionEnabled($imachine.Id, $PageFusionEnabled)}
-    if ($FirmwareType) {$global:vbox.IMachine_setFirmwareType($imachine.Id, $FirmwareType)}
-    if ($PointingHidType) {$global:vbox.IMachine_setPointingHIDType($imachine.Id, $PointingHidType)}
-    if ($KeyboardHidType) {$global:vbox.IMachine_setKeyboardHIDType($imachine.Id, $KeyboardHidType)}
-    if ($HpetEnabled) {$global:vbox.IMachine_setHPETEnabled($imachine.Id, $HpetEnabled)}
-    if ($ChipsetType) {$global:vbox.IMachine_setChipsetType($imachine.Id, $ChipsetType)}
-    if ($EmulatedUsbCardReaderEnabled) {$global:vbox.IMachine_setEmulatedUSBCardReaderEnabled($imachine.Id, $EmulatedUsbCardReaderEnabled)}
-    if ($ClipboardMode) {$global:vbox.IMachine_setClipboardMode($imachine.Id, $ClipboardMode)}
-    if ($ClipboardFileTransfersEnabled) {$global:vbox.IMachine_setClipboardFileTransfersEnabled($imachine.Id, $ClipboardFileTransfersEnabled)}
-    if ($DndMode) {$global:vbox.IMachine_setDnDMode($imachine.Id, $DndMode)}
-    if ($TeleporterEnabled) {$global:vbox.IMachine_setTeleporterEnabled($imachine.Id, $TeleporterEnabled)}
-    if ($TeleporterPort) {$global:vbox.IMachine_setTeleporterPort($imachine.Id, $TeleporterPort)}
-    if ($TeleporterAddress) {$global:vbox.IMachine_setTeleporterAddress($imachine.Id, $TeleporterAddress)}
-    if ($TeleporterPassword) {$global:vbox.IMachine_setTeleporterPassword($imachine.Id, [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword)))}
-    if ($ParavirtProvider) {$global:vbox.IMachine_setParavirtProvider($imachine.Id, $ParavirtProvider)}
-    if ($RtcUseUtc) {$global:vbox.IMachine_setRTCUseUTC($imachine.Id, $RtcUseUtc)}
-    if ($IoCacheEnabled) {$global:vbox.IMachine_setIOCacheEnabled($imachine.Id, $IoCacheEnabled)}
-    if ($IoCacheSize) {$global:vbox.IMachine_setIOCacheSize($imachine.Id, $IoCacheSize)}
-    if ($TracingEnabled) {$global:vbox.IMachine_setTracingEnabled($imachine.Id, $TracingEnabled)}
-    if ($TracingConfig) {$global:vbox.IMachine_setTracingConfig($imachine.Id, $TracingConfig)}
-    if ($AllowTracingToAccessVM) {$global:vbox.IMachine_setAllowTracingToAccessVM($imachine.Id, $AllowTracingToAccessVM)}
-    if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($imachine.Id, $AutostartEnabled)}
-    if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($imachine.Id, $AutostartDelay)}
-    if ($AutostopType) {$global:vbox.IMachine_setAutostopType($imachine.Id, $AutostopType)}
-    if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($imachine.Id, $CPUProfile)}
+    catch {
+     Write-Verbose 'Exception applying custom parameters to machine'
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+    }
    }
-   catch {
-    Write-Verbose 'Exception applying custom parameters to machine'
-    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   $global:vbox.IMachine_saveSettings($imachine.Id)
+   $global:vbox.IVirtualBox_registerMachine($global:ivbox, $imachine.Id)
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   Write-Verbose "Location: `"$Location`""
+   Write-Verbose "Name: `"$Name`""
+   Write-Verbose "Group: `"$Group`""
+   Write-Verbose "OsTypeId: `"$OsTypeId`""
+   Write-Verbose "Flags: `"$Flags`""
+   if (!$Location) {$Location = ''}
+   if (!$Group) {$Group = '/'}
+   if (!$Flags) {$Flags = ''}
+   $imachine.ComObject = $global:vbox.CreateMachine($Location, $Name, [string[]]@($Group), $OsTypeId, $Flags)
+   $imachine.ComObject.ApplyDefaults($null)
+   if ($PsCmdlet.ParameterSetName -eq 'Custom') {
+    try {
+     if ($Icon) {
+      if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
+      # convert to png
+      Add-Type -AssemblyName system.drawing
+      $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
+      $image = [drawing.image]::FromFile($Icon)
+      $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
+      $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
+      $imachine.ComObject.Icon($octet)
+      Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
+     }
+     if ($Description) {$imachine.ComObject.Description = $Description}
+     if ($HardwareUuid) {$imachine.ComObject.HardwareUUID = $HardwareUuid}
+     if ($CpuCount) {$imachine.ComObject.CPUCount = $CpuCount}
+     if ($CpuHotPlugEnabled) {$imachine.ComObject.CPUHotPlugEnabled = $CpuHotPlugEnabled}
+     if ($CpuExecutionCap) {$imachine.ComObject.CPUExecutionCap = $CpuExecutionCap}
+     if ($CpuIdPortabilityLevel) {$imachine.ComObject.CPUIDPortabilityLevel = $CpuIdPortabilityLevel}
+     if ($MemorySize) {$imachine.ComObject.MemorySize = $MemorySize}
+     if ($MemoryBalloonSize) {$imachine.ComObject.MemoryBalloonSize = $MemoryBalloonSize}
+     if ($PageFusionEnabled) {$imachine.ComObject.PageFusionEnabled = $PageFusionEnabled}
+     if ($FirmwareType) {$imachine.ComObject.FirmwareType = $FirmwareType}
+     if ($PointingHidType) {$imachine.ComObject.PointingHIDType = $PointingHidType}
+     if ($KeyboardHidType) {$imachine.ComObject.KeyboardHIDType = $KeyboardHidType}
+     if ($HpetEnabled) {$imachine.ComObject.HPETEnabled = $HpetEnabled}
+     if ($ChipsetType) {$imachine.ComObject.ChipsetType = $ChipsetType}
+     if ($EmulatedUsbCardReaderEnabled) {$imachine.ComObject.EmulatedUSBCardReaderEnabled = $EmulatedUsbCardReaderEnabled}
+     if ($ClipboardMode) {$imachine.ComObject.ClipboardMode = $ClipboardMode}
+     if ($ClipboardFileTransfersEnabled) {$imachine.ComObject.ClipboardFileTransfersEnabled = $ClipboardFileTransfersEnabled}
+     if ($DndMode) {$imachine.ComObject.DnDMode = $DndMode}
+     if ($TeleporterEnabled) {$imachine.ComObject.TeleporterEnabled = $TeleporterEnabled}
+     if ($TeleporterPort) {$imachine.ComObject.TeleporterPort = $TeleporterPort}
+     if ($TeleporterAddress) {$imachine.ComObject.TeleporterAddress = $TeleporterAddress}
+     if ($TeleporterPassword) {$imachine.ComObject.TeleporterPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword))}
+     if ($ParavirtProvider) {$imachine.ComObject.ParavirtProvider = $ParavirtProvider}
+     if ($RtcUseUtc) {$imachine.ComObject.RTCUseUTC = $RtcUseUtc}
+     if ($IoCacheEnabled) {$imachine.ComObject.IOCacheEnabled = $IoCacheEnabled}
+     if ($IoCacheSize) {$imachine.ComObject.IOCacheSize = $IoCacheSize}
+     if ($TracingEnabled) {$imachine.ComObject.TracingEnabled = $TracingEnabled}
+     if ($TracingConfig) {$imachine.ComObject.TracingConfig = $TracingConfig}
+     if ($AllowTracingToAccessVM) {$imachine.ComObject.AllowTracingToAccessVM = $AllowTracingToAccessVM}
+     if ($AutostartEnabled) {$imachine.ComObject.AutostartEnabled = $AutostartEnabled}
+     if ($AutostartDelay) {$imachine.ComObject.AutostartDelay = $AutostartDelay}
+     if ($AutostopType) {$imachine.ComObject.AutostopType = $AutostopType}
+     if ($CPUProfile) {$imachine.ComObject.CPUProfile = $CPUProfile}
+    }
+    catch {
+     Write-Verbose 'Exception applying custom parameters to machine'
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+    }
    }
-  }
-  $global:vbox.IMachine_saveSettings($imachine.Id)
-  $global:vbox.IVirtualBox_registerMachine($global:ivbox, $imachine.Id)
+   $imachine.ComObject.SaveSettings()
+   $global:vbox.RegisterMachine($imachine.ComObject)
+  } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception creating machine'
@@ -3135,18 +3216,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -3241,12 +3327,13 @@ HelpMessage="Use this switch to delete all snapshots, detach all media and retur
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -3279,42 +3366,213 @@ Process {
   try {
    foreach ($imachine in $imachines) {
     if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] Machine $($imachine.Name) is not powered off. Power it off and try again." -ForegroundColor Red -BackgroundColor Black;return}
-    if ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnNone' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and detach all media from virtual machine ")) {
-     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnNone'))
-     # delete VM files
-     Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
-     $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
-    } # end if ParameterSetName -eq DetachAllReturnNone
-    elseif ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnHardDisksOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and delete all virtual disks but keep removable media in inventory ")) {
-     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnHardDisksOnly'))
-     # delete VM files and virtual disk(s)
-     Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
-     $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
-    } # end elseif ParameterSetName -eq DetachAllReturnHardDisksOnly
-    elseif ($PSCmdlet.ParameterSetName -eq 'Full' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, delete all virtual disks, and remove removable media from inventory ")) {
-     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('Full'))
-     # delete VM files and virtual disk(s)
-     Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
-     $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
-     # Remove-VirtualBoxDisc command goes here
-    } # end elseif ParameterSetName -eq Full
-    elseif ($PSCmdlet.ParameterSetName -eq 'UnregisterOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Remove virtual machine from inventory ")) {
-     Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-     $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('UnregisterOnly'))
-    } # end elseif ParameterSetName -eq UnregisterOnly
-    if ($imachine.IProgress.Id) {
-     Write-Verbose 'Displaying progress bar'
-     if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-     do {
-      # update iprogress data
-      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     if ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnNone' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and detach all media from virtual machine ")) {
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnNone'))
+      # delete VM files
+      Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+      $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
+     } # end if ParameterSetName -eq DetachAllReturnNone
+     elseif ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnHardDisksOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and delete all virtual disks but keep removable media in inventory ")) {
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnHardDisksOnly'))
+      # delete VM files and virtual disk(s)
+      Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+      $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
+     } # end elseif ParameterSetName -eq DetachAllReturnHardDisksOnly
+     elseif ($PSCmdlet.ParameterSetName -eq 'Full' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, delete all virtual disks, and remove removable media from inventory ")) {
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('Full'))
+      # delete VM files and virtual disk(s)
+      Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+      $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
+      # Remove-VirtualBoxDisc command goes here
+     } # end elseif ParameterSetName -eq Full
+     elseif ($PSCmdlet.ParameterSetName -eq 'UnregisterOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Remove virtual machine from inventory ")) {
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('UnregisterOnly'))
+     } # end elseif ParameterSetName -eq UnregisterOnly
+     if ($imachine.IProgress.Id) {
+      Write-Verbose 'Displaying progress bar'
       if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-     } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reached 100%
-    }
+      do {
+       # update iprogress data
+       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+       if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+      if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
+     }
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     if ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnNone' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and detach all media from virtual machine ")) {
+      Write-Verbose "[Warning] Configuration cleanup has been disabled due to a bug in the VirtualBox COM"
+      Write-Verbose "          Running cleanup manually"
+      # this mess will go away when the com is fixed, or when Get/Remove-VirtualBoxSnapshot commands are created
+      $Location = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).SettingsFilePath
+      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments
+      $imediums = $imediumattachments.Medium
+      if ($imediums) {
+       foreach ($imedium in $imediums) {
+        <#
+        do {
+         $snapshotids = $imedium.GetSnapshotIds($imachine.Guid)
+         if ($snapshotids) {
+          foreach ($snapshotid in $snapshotids) {
+           if ($imachine.ComObject.FindSnapshot($snapshotid)) {
+            Write-Verbose "Deleting snapshot ID: $($snapshotid) for $($imachine.Name) machine"
+            $snapshotdeleteprogress = $imachine.ComObject.DeleteSnapshot($snapshotid)
+            if ($snapshotdeleteprogress) {
+             Write-Verbose 'Displaying progress bar'
+             if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
+             do {
+              # update iprogress data
+              if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
+              if ($ProgressBar) {Write-Progress -Activity "$($snapshotdeleteprogress.OperationDescription)" -status "$($snapshotdeleteprogress.OperationDescription): $($snapshotdeleteprogress.OperationPercent)%" -percentComplete ($snapshotdeleteprogress.OperationPercent) -Id 2 -ParentId 1}
+             } until ($snapshotdeleteprogress.Percent -eq 100) # continue once the progress reached 100%
+            }
+           }
+          }
+         }
+        } until (!$snapshotids)
+        #>
+        foreach ($imediumattachment in ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments) {
+         Write-Verbose "Dismounting virtual disk: $($imediumattachment.Medium.Name) from $($imachine.Name) machine"
+         Write-Verbose "Controller: $($imediumattachment.Controller)"
+         Write-Verbose "ControllerPort: $($imediumattachment.Port)"
+         Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
+         Dismount-VirtualBoxDisk -Name $imediumattachment.Medium.Name -MachineName $imachine.Name -Controller $imediumattachment.Controller -ControllerPort $imediumattachment.Port -ControllerSlot $imediumattachment.Device
+        }
+       }
+      }
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('DetachAllReturnNone'))
+      # delete VM files
+      Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+      #$imachine.IProgress.Progress = $imachine.ComObject.DeleteConfig($imediums)
+      # additional temp cleanup
+      $Location = $Location.Substring(0,$Location.LastIndexOf('\'))
+      Remove-Item -Path $Location -Recurse -Force -Confirm:$false
+     } # end if ParameterSetName -eq DetachAllReturnNone
+     elseif ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnHardDisksOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and delete all virtual disks but keep removable media in inventory ")) {
+      Write-Verbose "[Warning] Configuration cleanup has been disabled due to a bug in the VirtualBox COM"
+      Write-Verbose "          Running cleanup manually"
+      # this mess will go away when the com is fixed, or when Get/Remove-VirtualBoxSnapshot commands are created
+      $Location = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).SettingsFilePath
+      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments
+      $imediums = $imediumattachments.Medium
+      if ($imediums) {
+       foreach ($imedium in $imediums) {
+        <#
+        do {
+         $snapshotids = $imedium.GetSnapshotIds($imachine.Uuid)
+         if ($snapshotids) {
+          foreach ($snapshotid in $snapshotids) {
+           if ($imachine.ComObject.FindSnapshot($snapshotid)) {
+            Write-Verbose "Deleting snapshot ID: $($snapshotid) for $($imachine.Name) machine"
+            $snapshotdeleteprogress = $imachine.ComObject.DeleteSnapshot($snapshotid)
+            if ($snapshotdeleteprogress) {
+             Write-Verbose 'Displaying progress bar'
+             if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
+             do {
+              # update iprogress data
+              if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
+              if ($ProgressBar) {Write-Progress -Activity "$($snapshotdeleteprogress.OperationDescription)" -status "$($snapshotdeleteprogress.OperationDescription): $($snapshotdeleteprogress.OperationPercent)%" -percentComplete ($snapshotdeleteprogress.OperationPercent) -Id 2 -ParentId 1}
+             } until ($snapshotdeleteprogress.Percent -eq 100) # continue once the progress reached 100%
+            }
+           }
+          }
+         }
+        } until (!$snapshotids)
+        #>
+        foreach ($imediumattachment in ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments) {
+         Write-Verbose "Dismounting virtual disk: $($imediumattachment.Medium.Name) from $($imachine.Name) machine"
+         Write-Verbose "Controller: $($imediumattachment.Controller)"
+         Write-Verbose "ControllerPort: $($imediumattachment.Port)"
+         Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
+         Dismount-VirtualBoxDisk -Name $imediumattachment.Medium.Name -MachineName $imachine.Name -Controller $imediumattachment.Controller -ControllerPort $imediumattachment.Port -ControllerSlot $imediumattachment.Device
+        }
+        if ($ProgressBar) {Remove-VirtualBoxDisk -Name $imedium.Name -DeleteFromHost -ProgressBar -Confirm:$false -SkipCheck}
+        else {Remove-VirtualBoxDisk -Name $imedium.Name -DeleteFromHost -Confirm:$false -SkipCheck}
+       }
+      }
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('DetachAllReturnHardDisksOnly'))
+      # delete VM files and virtual disk(s)
+      Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+      #$imachine.IProgress.Progress = $imachine.ComObject.DeleteConfig($imediums)
+      # additional temp cleanup
+      $Location = $Location.Substring(0,$Location.LastIndexOf('\'))
+      Remove-Item -Path $Location -Recurse -Force -Confirm:$false
+     } # end elseif ParameterSetName -eq DetachAllReturnHardDisksOnly
+     elseif ($PSCmdlet.ParameterSetName -eq 'Full' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, delete all virtual disks, and remove removable media from inventory ")) {
+      Write-Verbose "[Warning] Configuration cleanup has been disabled due to a bug in the VirtualBox COM"
+      Write-Verbose "          Running cleanup manually"
+      # this mess will go away when the com is fixed, or when Get/Remove-VirtualBoxSnapshot commands are created
+      $Location = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).SettingsFilePath
+      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments
+      $imediums = $imediumattachments.Medium
+      if ($imediums) {
+       foreach ($imedium in $imediums) {
+        <#
+        do {
+         $snapshotids = $imedium.GetSnapshotIds($imachine.Uuid)
+         if ($snapshotids) {
+          foreach ($snapshotid in $snapshotids) {
+           if ($imachine.ComObject.FindSnapshot($snapshotid)) {
+            Write-Verbose "Deleting snapshot ID: $($snapshotid) for $($imachine.Name) machine"
+            $snapshotdeleteprogress = $imachine.ComObject.DeleteSnapshot($snapshotid)
+            if ($snapshotdeleteprogress) {
+             Write-Verbose 'Displaying progress bar'
+             if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
+             do {
+              # update iprogress data
+              if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
+              if ($ProgressBar) {Write-Progress -Activity "$($snapshotdeleteprogress.OperationDescription)" -status "$($snapshotdeleteprogress.OperationDescription): $($snapshotdeleteprogress.OperationPercent)%" -percentComplete ($snapshotdeleteprogress.OperationPercent) -Id 2 -ParentId 1}
+             } until ($snapshotdeleteprogress.Percent -eq 100) # continue once the progress reached 100%
+            }
+           }
+          }
+         }
+        } until (!$snapshotids)
+        #>
+        foreach ($imediumattachment in ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments) {
+         Write-Verbose "Dismounting virtual disk: $($imediumattachment.Medium.Name) from $($imachine.Name) machine"
+         Write-Verbose "Controller: $($imediumattachment.Controller)"
+         Write-Verbose "ControllerPort: $($imediumattachment.Port)"
+         Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
+         Dismount-VirtualBoxDisk -Guid $imediumattachment.Medium.Id -SkipCheck
+        }
+        if ($ProgressBar) {Remove-VirtualBoxDisk -Guid $imedium.Id -DeleteFromHost -ProgressBar -Confirm:$false -SkipCheck}
+        else {Remove-VirtualBoxDisk -Guid $imedium.Id -DeleteFromHost -Confirm:$false -SkipCheck}
+       }
+      }
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('Full'))
+      # delete VM files and virtual disk(s)
+      Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
+      #$imachine.IProgress.Progress = $imachine.ComObject.DeleteConfig($imediums)
+      # additional temp cleanup
+      $Location = $Location.Substring(0,$Location.LastIndexOf('\'))
+      Remove-Item -Path $Location -Recurse -Force -Confirm:$false
+      # Remove-VirtualBoxDisc command goes here
+     } # end elseif ParameterSetName -eq Full
+     elseif ($PSCmdlet.ParameterSetName -eq 'UnregisterOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Remove virtual machine from inventory ")) {
+      Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
+      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('UnregisterOnly'))
+     } # end elseif ParameterSetName -eq UnregisterOnly
+     if ($imachine.IProgress.Progress) {
+      Write-Verbose 'Displaying progress bar'
+      if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      do {
+       # update iprogress data
+       if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+      } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+      if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
+     }
+    } # end elseif com
    } # foreach $imachine in $imachines
   } # Try
   catch {
@@ -3327,18 +3585,23 @@ Process {
    Write-Verbose 'Cleaning up machine sessions'
    if ($imachines) {
     foreach ($imachine in $imachines) {
-     if ($imachine.ISession) {
-      if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+     if ($imachine.ISession.Id) {
+      if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-       $global:vbox.ISession_unlockMachine($imachine.ISession)
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
       } # end if session state not unlocked
-     } # end if $imachine.ISession
+     } # end if $imachine.ISession.Id
+     if ($imachine.ISession.Session) {
+      if ($imachine.ISession.Session.State -gt 1) {
+       $imachine.ISession.Session.UnlockMachine()
+      } # end if $imachine.ISession.Session locked
+     } # end if $imachine.ISession.Session
      if ($imachine.IConsole) {
       # release the iconsole session
       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
      } # end if $imachine.IConsole
-     #$imachine.ISession = $null
+     #$imachine.ISession.Id = $null
      $imachine.IConsole = $null
      if ($imachine.IPercent) {$imachine.IPercent = $null}
      $imachine.MSession = $null
@@ -3398,26 +3661,40 @@ ParameterSetName='Custom',Mandatory=$false)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  if (!(Test-Path (Join-Path -Path $Location -ChildPath "$($Name).vbox"))) {Write-Host "[Error] $(Join-Path -Path $Location -ChildPath "$($Name).vbox") does not exist. Check the path and try again." -ForegroundColor Red -BackgroundColor Black;return}
  if ((Get-VirtualBoxVM -Name $Name -SkipCheck).Name -eq $Name) {Write-Host "[Error] Machine $Name already exists. Enter another name and try again." -ForegroundColor Red -BackgroundColor Black;return}
  try {
-  # create a reference object for the new machine
-  Write-Verbose "Creating reference object for $Name"
-  $imachine = New-Object VirtualBoxVM
-  Write-Verbose "Importing virtual machine $Name"
-  $imachine.Id = $global:vbox.IVirtualBox_openMachine($global:ivbox, (Join-Path -Path $Location -ChildPath "$($Name).vbox"))
-  Write-Verbose "Saving settings for $Name"
-  $global:vbox.IMachine_saveSettings($imachine.Id)
-  Write-Verbose "Registering $Name in the VirtualBox inventory"
-  $global:vbox.IVirtualBox_registerMachine($global:ivbox, $imachine.Id)
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   # create a reference object for the new machine
+   Write-Verbose "Creating reference object for $Name"
+   $imachine = New-Object VirtualBoxVM
+   Write-Verbose "Importing virtual machine $Name"
+   $imachine.Id = $global:vbox.IVirtualBox_openMachine($global:ivbox, (Join-Path -Path $Location -ChildPath "$($Name).vbox"))
+   Write-Verbose "Saving settings for $Name"
+   $global:vbox.IMachine_saveSettings($imachine.Id)
+   Write-Verbose "Registering $Name in the VirtualBox inventory"
+   $global:vbox.IVirtualBox_registerMachine($global:ivbox, $imachine.Id)
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   # create a reference object for the new machine
+   Write-Verbose "Creating reference object for $Name"
+   $imachine = New-Object VirtualBoxVM
+   Write-Verbose "Importing virtual machine $Name"
+   $imachine.ComObject = $global:vbox.OpenMachine((Join-Path -Path $Location -ChildPath "$($Name).vbox"))
+   Write-Verbose "Saving settings for $Name"
+   $imachine.ComObject.SaveSettings()
+   Write-Verbose "Registering $Name in the VirtualBox inventory"
+   $global:vbox.RegisterMachine($imachine.ComObject)
+  } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception importing machine'
@@ -3429,18 +3706,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -3974,12 +4256,13 @@ DynamicParam {
 }
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
  $OsTypeId = $PSBoundParameters['OsTypeId']
  $ParavirtProvider = $PSBoundParameters['ParavirtProvider']
  $ClipboardMode = $PSBoundParameters['ClipboardMode']
@@ -4040,75 +4323,149 @@ Process {
   foreach ($imachine in $imachines) {
    if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] Machine $($imachine.Name) is not powered off. Power it off and try again." -ForegroundColor Red -BackgroundColor Black;return}
    try {
-    Write-Verbose "Getting write lock on machine $($imachine.Name)"
-    $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Write'))
-    # create a new machine object
-    $mmachine = New-Object VirtualBoxVM
-    # get the mutable machine object
-    Write-Verbose "Getting the mutable machine object"
-    $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
-    $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-    try {
-     Write-Verbose "Modifying requeseted settings on machine $($mmachine.Name)"
-     if ($Icon -or $Icon -eq '') {
-      if ($Icon -eq '') {$global:vbox.IMachine_setIcon($mmachine.Id, $null)}
-      else {
-       # convert to png
-       if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
-       Add-Type -AssemblyName system.drawing
-       $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
-       $image = [drawing.image]::FromFile($Icon)
-       $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
-       $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
-       $global:vbox.IMachine_setIcon($mmachine.Id, $octet)
-       Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+     $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+     try {
+      Write-Verbose "Modifying requeseted settings on machine $($mmachine.Name)"
+      if ($Icon -or $Icon -eq '') {
+       if ($Icon -eq '') {$global:vbox.IMachine_setIcon($mmachine.Id, $null)}
+       else {
+        # convert to png
+        if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
+        Add-Type -AssemblyName system.drawing
+        $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
+        $image = [drawing.image]::FromFile($Icon)
+        $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
+        $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
+        $global:vbox.IMachine_setIcon($mmachine.Id, $octet)
+        Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
+       }
       }
+      if ($Description) {$global:vbox.IMachine_setDescription($mmachine.Id, $Description)}
+      if ($HardwareUuid) {$global:vbox.IMachine_setHardwareUUID($mmachine.Id, $HardwareUuid)}
+      if ($CpuCount) {$global:vbox.IMachine_setCPUCount($mmachine.Id, $CpuCount)}
+      if ($CpuHotPlugEnabled) {$global:vbox.IMachine_setCPUHotPlugEnabled($mmachine.Id, $CpuHotPlugEnabled)}
+      if ($CpuExecutionCap) {$global:vbox.IMachine_setCPUExecutionCap($mmachine.Id, $CpuExecutionCap)}
+      if ($CpuIdPortabilityLevel) {$global:vbox.IMachine_setCPUIDPortabilityLevel($mmachine.Id, $CpuIdPortabilityLevel)}
+      if ($MemorySize) {$global:vbox.IMachine_setMemorySize($mmachine.Id, $MemorySize)}
+      if ($MemoryBalloonSize) {$global:vbox.IMachine_setMemoryBalloonSize($mmachine.Id, $MemoryBalloonSize)}
+      if ($PageFusionEnabled) {$global:vbox.IMachine_setPageFusionEnabled($mmachine.Id, $PageFusionEnabled)}
+      if ($FirmwareType) {$global:vbox.IMachine_setFirmwareType($mmachine.Id, $FirmwareType)}
+      if ($PointingHidType) {$global:vbox.IMachine_setPointingHIDType($mmachine.Id, $PointingHidType)}
+      if ($KeyboardHidType) {$global:vbox.IMachine_setKeyboardHIDType($mmachine.Id, $KeyboardHidType)}
+      if ($HpetEnabled) {$global:vbox.IMachine_setHPETEnabled($mmachine.Id, $HpetEnabled)}
+      if ($ChipsetType) {$global:vbox.IMachine_setChipsetType($mmachine.Id, $ChipsetType)}
+      if ($EmulatedUsbCardReaderEnabled) {$global:vbox.IMachine_setEmulatedUSBCardReaderEnabled($mmachine.Id, $EmulatedUsbCardReaderEnabled)}
+      if ($ClipboardMode) {$global:vbox.IMachine_setClipboardMode($mmachine.Id, $ClipboardMode)}
+      if ($ClipboardFileTransfersEnabled) {$global:vbox.IMachine_setClipboardFileTransfersEnabled($mmachine.Id, $ClipboardFileTransfersEnabled)}
+      if ($DndMode) {$global:vbox.IMachine_setDnDMode($mmachine.Id, $DndMode)}
+      if ($TeleporterEnabled) {$global:vbox.IMachine_setTeleporterEnabled($mmachine.Id, $TeleporterEnabled)}
+      if ($TeleporterPort) {$global:vbox.IMachine_setTeleporterPort($mmachine.Id, $TeleporterPort)}
+      if ($TeleporterAddress) {$global:vbox.IMachine_setTeleporterAddress($mmachine.Id, $TeleporterAddress)}
+      if ($TeleporterPassword) {$global:vbox.IMachine_setTeleporterPassword($mmachine.Id, [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword)))}
+      if ($ParavirtProvider) {$global:vbox.IMachine_setParavirtProvider($mmachine.Id, $ParavirtProvider)}
+      if ($RtcUseUtc) {$global:vbox.IMachine_setRTCUseUTC($mmachine.Id, $RtcUseUtc)}
+      if ($IoCacheEnabled) {$global:vbox.IMachine_setIOCacheEnabled($mmachine.Id, $IoCacheEnabled)}
+      if ($IoCacheSize) {$global:vbox.IMachine_setIOCacheSize($mmachine.Id, $IoCacheSize)}
+      if ($TracingEnabled) {$global:vbox.IMachine_setTracingEnabled($mmachine.Id, $TracingEnabled)}
+      if ($TracingConfig) {$global:vbox.IMachine_setTracingConfig($mmachine.Id, $TracingConfig)}
+      if ($AllowTracingToAccessVM) {$global:vbox.IMachine_setAllowTracingToAccessVM($mmachine.Id, $AllowTracingToAccessVM)}
+      if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($mmachine.Id, $AutostartEnabled)}
+      if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($mmachine.Id, $AutostartDelay)}
+      if ($AutostopType) {$global:vbox.IMachine_setAutostopType($mmachine.Id, $AutostopType)}
+      if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($mmachine.Id, $CPUProfile)}
      }
-     if ($Description) {$global:vbox.IMachine_setDescription($mmachine.Id, $Description)}
-     if ($HardwareUuid) {$global:vbox.IMachine_setHardwareUUID($mmachine.Id, $HardwareUuid)}
-     if ($CpuCount) {$global:vbox.IMachine_setCPUCount($mmachine.Id, $CpuCount)}
-     if ($CpuHotPlugEnabled) {$global:vbox.IMachine_setCPUHotPlugEnabled($mmachine.Id, $CpuHotPlugEnabled)}
-     if ($CpuExecutionCap) {$global:vbox.IMachine_setCPUExecutionCap($mmachine.Id, $CpuExecutionCap)}
-     if ($CpuIdPortabilityLevel) {$global:vbox.IMachine_setCPUIDPortabilityLevel($mmachine.Id, $CpuIdPortabilityLevel)}
-     if ($MemorySize) {$global:vbox.IMachine_setMemorySize($mmachine.Id, $MemorySize)}
-     if ($MemoryBalloonSize) {$global:vbox.IMachine_setMemoryBalloonSize($mmachine.Id, $MemoryBalloonSize)}
-     if ($PageFusionEnabled) {$global:vbox.IMachine_setPageFusionEnabled($mmachine.Id, $PageFusionEnabled)}
-     if ($FirmwareType) {$global:vbox.IMachine_setFirmwareType($mmachine.Id, $FirmwareType)}
-     if ($PointingHidType) {$global:vbox.IMachine_setPointingHIDType($mmachine.Id, $PointingHidType)}
-     if ($KeyboardHidType) {$global:vbox.IMachine_setKeyboardHIDType($mmachine.Id, $KeyboardHidType)}
-     if ($HpetEnabled) {$global:vbox.IMachine_setHPETEnabled($mmachine.Id, $HpetEnabled)}
-     if ($ChipsetType) {$global:vbox.IMachine_setChipsetType($mmachine.Id, $ChipsetType)}
-     if ($EmulatedUsbCardReaderEnabled) {$global:vbox.IMachine_setEmulatedUSBCardReaderEnabled($mmachine.Id, $EmulatedUsbCardReaderEnabled)}
-     if ($ClipboardMode) {$global:vbox.IMachine_setClipboardMode($mmachine.Id, $ClipboardMode)}
-     if ($ClipboardFileTransfersEnabled) {$global:vbox.IMachine_setClipboardFileTransfersEnabled($mmachine.Id, $ClipboardFileTransfersEnabled)}
-     if ($DndMode) {$global:vbox.IMachine_setDnDMode($mmachine.Id, $DndMode)}
-     if ($TeleporterEnabled) {$global:vbox.IMachine_setTeleporterEnabled($mmachine.Id, $TeleporterEnabled)}
-     if ($TeleporterPort) {$global:vbox.IMachine_setTeleporterPort($mmachine.Id, $TeleporterPort)}
-     if ($TeleporterAddress) {$global:vbox.IMachine_setTeleporterAddress($mmachine.Id, $TeleporterAddress)}
-     if ($TeleporterPassword) {$global:vbox.IMachine_setTeleporterPassword($mmachine.Id, [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword)))}
-     if ($ParavirtProvider) {$global:vbox.IMachine_setParavirtProvider($mmachine.Id, $ParavirtProvider)}
-     if ($RtcUseUtc) {$global:vbox.IMachine_setRTCUseUTC($mmachine.Id, $RtcUseUtc)}
-     if ($IoCacheEnabled) {$global:vbox.IMachine_setIOCacheEnabled($mmachine.Id, $IoCacheEnabled)}
-     if ($IoCacheSize) {$global:vbox.IMachine_setIOCacheSize($mmachine.Id, $IoCacheSize)}
-     if ($TracingEnabled) {$global:vbox.IMachine_setTracingEnabled($mmachine.Id, $TracingEnabled)}
-     if ($TracingConfig) {$global:vbox.IMachine_setTracingConfig($mmachine.Id, $TracingConfig)}
-     if ($AllowTracingToAccessVM) {$global:vbox.IMachine_setAllowTracingToAccessVM($mmachine.Id, $AllowTracingToAccessVM)}
-     if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($mmachine.Id, $AutostartEnabled)}
-     if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($mmachine.Id, $AutostartDelay)}
-     if ($AutostopType) {$global:vbox.IMachine_setAutostopType($mmachine.Id, $AutostopType)}
-     if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($mmachine.Id, $CPUProfile)}
-    }
-    catch {
-     Write-Verbose 'Exception applying custom parameters to machine'
-     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-    }
-    # save new settings
-    Write-Verbose "Saving new settings"
-    $global:vbox.IMachine_saveSettings($mmachine.Id)
-    # unlock machine session
-    Write-Verbose "Unlocking machine session"
-    $global:vbox.ISession_unlockMachine($imachine.ISession)
+     catch {
+      Write-Verbose 'Exception applying custom parameters to machine'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     }
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $global:vbox.IMachine_saveSettings($mmachine.Id)
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.ComObject = $imachine.ISession.Session.Machine
+     $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+     try {
+      Write-Verbose "Modifying requeseted settings on machine $($mmachine.Name)"
+      if ($Icon -or $Icon -eq '') {
+       if ($Icon -eq '') {$mmachine.ComObject.Icon = $null}
+       else {
+        Write-Output "[Warning] Setting VM icon with COM is currently broken."
+        # convert to png
+        if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
+        Add-Type -AssemblyName system.drawing
+        $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
+        $image = [drawing.image]::FromFile($Icon)
+        $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
+        $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
+        $mmachine.ComObject.Icon = $octet
+        Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
+       }
+      }
+      if ($Description) {$mmachine.ComObject.Description = $Description}
+      if ($HardwareUuid) {$mmachine.ComObject.HardwareUUID = $HardwareUuid}
+      if ($CpuCount) {$mmachine.ComObject.CPUCount = $CpuCount}
+      if ($CpuHotPlugEnabled) {$mmachine.ComObject.CPUHotPlugEnabled = $CpuHotPlugEnabled}
+      if ($CpuExecutionCap) {$mmachine.ComObject.CPUExecutionCap = $CpuExecutionCap}
+      if ($CpuIdPortabilityLevel) {$mmachine.ComObject.CPUIDPortabilityLevel = $CpuIdPortabilityLevel}
+      if ($MemorySize) {$mmachine.ComObject.MemorySize = $MemorySize}
+      if ($MemoryBalloonSize) {$mmachine.ComObject.MemoryBalloonSize = $MemoryBalloonSize}
+      if ($PageFusionEnabled) {$mmachine.ComObject.PageFusionEnabled = $PageFusionEnabled}
+      if ($FirmwareType) {$mmachine.ComObject.FirmwareType = $FirmwareType}
+      if ($PointingHidType) {$mmachine.ComObject.PointingHIDType = $PointingHidType}
+      if ($KeyboardHidType) {$mmachine.ComObject.KeyboardHIDType = $KeyboardHidType}
+      if ($HpetEnabled) {$mmachine.ComObject.HPETEnabled = $HpetEnabled}
+      if ($ChipsetType) {$mmachine.ComObject.ChipsetType = $ChipsetType}
+      if ($EmulatedUsbCardReaderEnabled) {$mmachine.ComObject.EmulatedUSBCardReaderEnabled = $EmulatedUsbCardReaderEnabled}
+      if ($ClipboardMode) {$mmachine.ComObject.ClipboardMode = $ClipboardMode}
+      if ($ClipboardFileTransfersEnabled) {$mmachine.ComObject.ClipboardFileTransfersEnabled = $ClipboardFileTransfersEnabled}
+      if ($DndMode) {$mmachine.ComObject.DnDMode = $DndMode}
+      if ($TeleporterEnabled) {$mmachine.ComObject.TeleporterEnabled = $TeleporterEnabled}
+      if ($TeleporterPort) {$mmachine.ComObject.TeleporterPort = $TeleporterPort}
+      if ($TeleporterAddress) {$mmachine.ComObject.TeleporterAddress = $TeleporterAddress}
+      if ($TeleporterPassword) {$mmachine.ComObject.TeleporterPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword))}
+      if ($ParavirtProvider) {$mmachine.ComObject.ParavirtProvider = $ParavirtProvider}
+      if ($RtcUseUtc) {$mmachine.ComObject.RTCUseUTC = $RtcUseUtc}
+      if ($IoCacheEnabled) {$mmachine.ComObject.IOCacheEnabled = $IoCacheEnabled}
+      if ($IoCacheSize) {$mmachine.ComObject.IOCacheSize = $IoCacheSize}
+      if ($TracingEnabled) {$mmachine.ComObject.TracingEnabled = $TracingEnabled}
+      if ($TracingConfig) {$mmachine.ComObject.TracingConfig = $TracingConfig}
+      if ($AllowTracingToAccessVM) {$mmachine.ComObject.AllowTracingToAccessVM = $AllowTracingToAccessVM}
+      if ($AutostartEnabled) {$mmachine.ComObject.AutostartEnabled = $AutostartEnabled}
+      if ($AutostartDelay) {$mmachine.ComObject.AutostartDelay = $AutostartDelay}
+      if ($AutostopType) {$mmachine.ComObject.AutostopType = $AutostopType}
+      if ($CPUProfile) {$mmachine.ComObject.CPUProfile = $CPUProfile}
+     }
+     catch {
+      Write-Verbose 'Exception applying custom parameters to machine'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     }
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $mmachine.ComObject.SaveSettings()
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $imachine.ISession.Session.UnlockMachine()
+    } # end elseif com
    } # Try
    catch {
     Write-Verbose 'Exception creating machine'
@@ -4118,11 +4475,16 @@ Process {
    finally {
     # release mutable machine objects if they exist
     if ($mmachine) {
-     if ($mmachine.ISession) {
+     if ($mmachine.ISession.Id) {
       # release mutable session object
       Write-Verbose "Releasing mutable session object"
-      $global:vbox.IManagedObjectRef_release($mmachine.ISession)
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
      }
+     if ($mmachine.ISession.Session) {
+      if ($mmachine.ISession.Session.State -gt 1) {
+       $mmachine.ISession.Session.UnlockMachine()
+      } # end if $mmachine.ISession.Session locked
+     } # end if $mmachine.ISession.Session
      if ($mmachine.Id) {
       # release mutable object
       Write-Verbose "Releasing mutable object"
@@ -4133,18 +4495,23 @@ Process {
     Write-Verbose 'Cleaning up machine sessions'
     if ($imachines) {
      foreach ($imachine in $imachines) {
-      if ($imachine.ISession) {
-       if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      if ($imachine.ISession.Id) {
+       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
         Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-        $global:vbox.ISession_unlockMachine($imachine.ISession)
+        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
        } # end if session state not unlocked
-      } # end if $imachine.ISession
+      } # end if $imachine.ISession.Id
+      if ($imachine.ISession.Session) {
+       if ($imachine.ISession.Session.State -gt 1) {
+        $imachine.ISession.Session.UnlockMachine()
+       } # end if $imachine.ISession.Session locked
+      } # end if $imachine.ISession.Session
       if ($imachine.IConsole) {
        # release the iconsole session
        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
       } # end if $imachine.IConsole
-      #$imachine.ISession = $null
+      #$imachine.ISession.Id = $null
       $imachine.IConsole = $null
       if ($imachine.IPercent) {$imachine.IPercent = $null}
       $imachine.MSession = $null
@@ -4239,12 +4606,13 @@ Mandatory=$false)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -4278,12 +4646,22 @@ Process {
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    # set the requested property
-    Write-Verbose "Setting property `"$Property`" value to `"$Value`" with flag(s) `"$Flags`" for the $($imachine.Name) machine"
-    $global:vbox.IMachine_setGuestProperty($imachine.Id, $Property, $Value, $Flags)
-    # output the updated machine object to the pipeline
-    Write-Verbose "Outputting the updated machine object to the pipeline"
-    Write-Output (Get-VirtualBoxVM -Name $imachine.Name -SkipCheck)
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     # set the requested property
+     Write-Verbose "Setting property `"$Property`" value to `"$Value`" with flag(s) `"$Flags`" for the $($imachine.Name) machine"
+     $global:vbox.IMachine_setGuestProperty($imachine.Id, $Property, $Value, $Flags)
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the updated machine object to the pipeline"
+     Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     # set the requested property
+     Write-Verbose "Setting property `"$Property`" value to `"$Value`" with flag(s) `"$Flags`" for the $($imachine.Name) machine"
+     $imachine.ComObject.SetGuestProperty($Property, $Value, $Flags)
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the updated machine object to the pipeline"
+     Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+    } # end elseif com
    } # foreach $imachine in $imachines
   } # end if $imachines
   else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
@@ -4364,12 +4742,13 @@ Mandatory=$false)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -4401,12 +4780,22 @@ Process {
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    # remove the requested property
-    Write-Verbose "Removing property `"$Property`" from the $($imachine.Name) machine"
-    $global:vbox.IMachine_deleteGuestProperty($imachine.Id, $Property)
-    # output the updated machine object to the pipeline
-    Write-Verbose "Outputting the updated machine object to the pipeline"
-    Write-Output (Get-VirtualBoxVM -Name $imachine.Name -SkipCheck)
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     # remove the requested property
+     Write-Verbose "Removing property `"$Property`" from the $($imachine.Name) machine"
+     $global:vbox.IMachine_deleteGuestProperty($imachine.Id, $Property)
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the updated machine object to the pipeline"
+     Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     # remove the requested property
+     Write-Verbose "Removing property `"$Property`" from the $($imachine.Name) machine"
+     $imachine.ComObject.DeleteGuestProperty($Property)
+     # output the updated machine object to the pipeline
+     Write-Verbose "Outputting the updated machine object to the pipeline"
+     Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+    } # end elseif com
    } # foreach $imachine in $imachines
   } # end if $imachines
   else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
@@ -4416,105 +4805,6 @@ Process {
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
-} # Process
-End {
- Write-Verbose "Ending $($MyInvocation.MyCommand)"
-} # End
-} # end function
-Function Open-VirtualBoxVMConsole {
-<#
-.SYNOPSIS
-Open a virtual machine console window
-.DESCRIPTION
-Opens a virtual machine console window and powers it on if needed. This command will only work when run from the host machine.
-.PARAMETER Machine
-At least one virtual machine object. Can be received via pipeline input.
-.PARAMETER Name
-The name of at least one virtual machine. Can be received via pipeline input by name.
-.PARAMETER Guid
-The GUID of at least one virtual machine. Can be received via pipeline input by name.
-.EXAMPLE
-PS C:\> Get-VirtualBoxVM -State Running | Open-VirtualBoxVMConsole
-Opens a console window for all running virtual machines
-.EXAMPLE
-PS C:\> Open-VirtualBoxVMConsole -Name "2016"
-Opens a console window for the "2016 Core" virtual machine
-.EXAMPLE
-PS C:\> Open-VirtualBoxVMConsole -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
-Opens a console window for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
-.NOTES
-NAME        :  Open-VirtualBoxVMConsole
-VERSION     :  1.0
-LAST UPDATED:  1/24/2020
-AUTHOR      :  Andrew Brehm
-EDITOR      :  SmithersTheOracle
-.LINK
-None
-.INPUTS
-VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
-String[]      :  Strings for virtual machine names
-Guid[]        :  GUIDs for virtual machine GUIDs
-.OUTPUTS
-None
-#>
-[CmdletBinding()]
-Param(
-[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine object(s)",
-ParameterSetName="Machine",Mandatory=$true,Position=0)]
-[ValidateNotNullorEmpty()]
-  [VirtualBoxVM[]]$Machine,
-[Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine name(s)",
-ParameterSetName="Name",Mandatory=$true)]
-[ValidateNotNullorEmpty()]
-  [string[]]$Name,
-[Parameter(ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual machine GUID(s)",
-ParameterSetName="Guid",Mandatory=$true)]
-[ValidateNotNullorEmpty()]
-  [guid[]]$Guid
-) # Param
-Begin {
- Write-Verbose "Beginning $($MyInvocation.MyCommand)"
-} # Begin
-Process {
- Write-Verbose "Pipeline - Machine: `"$Machine`""
- Write-Verbose "Pipeline - Name: `"$Name`""
- Write-Verbose "Pipeline - Guid: `"$Guid`""
- Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
- # initialize $imachines array
- $imachines = @()
- if ($Machine) {
-  Write-Verbose "Getting VM inventory from Machine(s)"
-  $imachines = $Machine
-  $imachines = $imachines | Where-Object {$_ -ne $null}
- }# get vm inventory (by $Machine)
- elseif ($Name) {
-  foreach ($item in $Name) {
-   Write-Verbose "Getting VM inventory from Name(s)"
-   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
-  }
-  $imachines = $imachines | Where-Object {$_ -ne $null}
- }# get vm inventory (by $Name)
- elseif ($Guid) {
-  foreach ($item in $Guid) {
-   Write-Verbose "Getting VM inventory from GUID(s)"
-   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
-  }
-  $imachines = $imachines | Where-Object {$_ -ne $null}
- }# get vm inventory (by $Guid)
- if ($imachines) {
-  foreach ($imachine in $imachines) {
-   if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe") {
-    Write-Verbose "Launching console window for `"$($imachine.Name)`""
-    Start-Process -FilePath "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe" -ArgumentList ("--startvm `"$($imachine.Name)`" --separate") -WindowStyle Hidden
-   } # end if VBoxSDL.exe exists
-   else {Write-Host "[Error] VBoxSDL.exe not found. Ensure VirtualBox is installed on this machine and try again.";return}
-  } # foreach $imachine in $imachines
- } # end if $imachines
- else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -4580,12 +4870,13 @@ ParameterSetName="Guid",Mandatory=$true)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -4618,30 +4909,54 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.IVrdeServer.Enabled -eq $false) {
-     Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-     # create a new machine object
-     $mmachine = New-Object VirtualBoxVM
-     # get the mutable machine object
-     Write-Verbose "Getting the mutable machine object"
-     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
-     $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-     $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
-     # enable VRDE server
-     Write-Verbose "Enabling VRDE server for $($imachine.Name)"
-     $global:vbox.IVRDEServer_setEnabled($mmachine.IVrdeServer.Id, $true)
-     # save new settings
-     Write-Verbose "Saving new settings"
-     $global:vbox.IMachine_saveSettings($mmachine.Id)
-     # unlock machine session
-     Write-Verbose "Unlocking machine session"
-     $global:vbox.ISession_unlockMachine($imachine.ISession)
-     # update the machine object
-     Write-Verbose "Updating the machine object"
-     $imachine.IVrdeServer.Update()
-     # output the updated machine object to the pipeline
-     Write-Verbose "Outputting the updated machine object to the pipeline"
-     Write-Output $imachine
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+      $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+      $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
+      # enable VRDE server
+      Write-Verbose "Enabling VRDE server for $($imachine.Name)"
+      $global:vbox.IVRDEServer_setEnabled($mmachine.IVrdeServer.Id, $true)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $global:vbox.IMachine_saveSettings($mmachine.Id)
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      # update the machine object
+      Write-Verbose "Updating the machine object"
+      $imachine.IVrdeServer.Update()
+      # output the updated machine object to the pipeline
+      Write-Verbose "Outputting the updated machine object to the pipeline"
+      Write-Output $imachine
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.ComObject = $imachine.ISession.Session.Machine
+      $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+      # enable VRDE server
+      Write-Verbose "Enabling VRDE server for $($imachine.Name)"
+      $mmachine.ComObject.VRDEServer.Enabled = 1
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $mmachine.ComObject.SaveSettings()
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $imachine.ISession.Session.UnlockMachine()
+      # output the updated machine object to the pipeline
+      Write-Verbose "Outputting the updated machine object to the pipeline"
+      Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+     } # end elseif com
     } # end if $imachine.IVrdeServer.Enabled -eq $false
     else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already enabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
    } # foreach $imachine in $imachines
@@ -4658,18 +4973,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -4743,12 +5063,13 @@ ParameterSetName="Guid",Mandatory=$true)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -4781,30 +5102,54 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.IVrdeServer.Enabled -eq $true) {
-     Write-Verbose "Getting write lock on machine $($imachine.Name)"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-     # create a new machine object
-     $mmachine = New-Object VirtualBoxVM
-     # get the mutable machine object
-     Write-Verbose "Getting the mutable machine object"
-     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
-     $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-     $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
-     # enable VRDE server
-     Write-Verbose "Disabling VRDE server for $($imachine.Name)"
-     $global:vbox.IVRDEServer_setEnabled($mmachine.IVrdeServer.Id, $false)
-     # save new settings
-     Write-Verbose "Saving new settings"
-     $global:vbox.IMachine_saveSettings($mmachine.Id)
-     # unlock machine session
-     Write-Verbose "Unlocking machine session"
-     $global:vbox.ISession_unlockMachine($imachine.ISession)
-     # update the machine object
-     Write-Verbose "Updating the machine object"
-     $imachine.IVrdeServer.Update()
-     # output the updated machine object to the pipeline
-     Write-Verbose "Outputting the updated machine object to the pipeline"
-     Write-Output $imachine
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+      $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+      $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
+      # enable VRDE server
+      Write-Verbose "Disabling VRDE server for $($imachine.Name)"
+      $global:vbox.IVRDEServer_setEnabled($mmachine.IVrdeServer.Id, $false)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $global:vbox.IMachine_saveSettings($mmachine.Id)
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      # update the machine object
+      Write-Verbose "Updating the machine object"
+      $imachine.IVrdeServer.Update()
+      # output the updated machine object to the pipeline
+      Write-Verbose "Outputting the updated machine object to the pipeline"
+      Write-Output $imachine
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.ComObject = $imachine.ISession.Session.Machine
+      $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+      # enable VRDE server
+      Write-Verbose "Disabling VRDE server for $($imachine.Name)"
+      $mmachine.ISession.Session.Machine.VRDEServer.Enabled.Equals(0)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $mmachine.ComObject.SaveSettings()
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $imachine.ISession.Session.UnlockMachine()
+      # output the updated machine object to the pipeline
+      Write-Verbose "Outputting the updated machine object to the pipeline"
+      Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+     } # end elseif com
     } # end if $imachine.IVrdeServer.Enabled -eq $true
     else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already disabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
    } # foreach $imachine in $imachines
@@ -4821,18 +5166,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -5040,12 +5390,13 @@ Mandatory=$false)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -5078,88 +5429,168 @@ Process {
   if ($imachines) {
    foreach ($imachine in $imachines) {
     if ($imachine.IVrdeServer.Enabled -eq $true) {
-     Write-Verbose "Getting write lock on machine $($imachine.Name)"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-     # create a new machine object
-     $mmachine = New-Object VirtualBoxVM
-     # get the mutable machine object
-     Write-Verbose "Getting the mutable machine object"
-     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
-     $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-     $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
-     # apply custom settings as requested
-     Write-Verbose "Processing VRDE server setting: AuthType"
-     if ($AuthType) {$global:vbox.IVRDEServer_setAuthType($mmachine.IVrdeServer.Id, $AuthType)}
-     Write-Verbose "Processing VRDE server setting: AuthTimeout"
-     Write-Verbose "AuthTimeout: $AuthTimeout"
-     if ($MyInvocation.MyCommand -match '-AuthTimeout') {$global:vbox.IVRDEServer_setAuthTimeout($mmachine.IVrdeServer.Id, $AuthTimeout)}
-     Write-Verbose "Processing VRDE server setting: AllowMultiConnection"
-     if ($AllowMultiConnection) {$global:vbox.IVRDEServer_setAllowMultiConnection($mmachine.IVrdeServer.Id, $AllowMultiConnection)}
-     Write-Verbose "Processing VRDE server setting: ReuseSingleConnection"
-     if ($ReuseSingleConnection) {$global:vbox.IVRDEServer_setReuseSingleConnection($mmachine.IVrdeServer.Id, $ReuseSingleConnection)}
-     Write-Verbose "Processing VRDE server setting: VRDEExtPack"
-     if ($VRDEExtPack) {$global:vbox.IVRDEServer_setVRDEExtPack($mmachine.IVrdeServer.Id, $VRDEExtPack)}
-     Write-Verbose "Processing VRDE server setting: AuthLibrary"
-     if ($AuthLibrary) {$global:vbox.IVRDEServer_setAuthLibrary($mmachine.IVrdeServer.Id, $AuthLibrary)}
-     Write-Verbose "Processing VRDE server setting: TcpPort"
-     if ($TcpPort -ne 0) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'TCP/Ports', $TcpPort.ToString())}
-     Write-Verbose "Processing VRDE server setting: IpAddress"
-     if ($IpAddress) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'TCP/Address', $IpAddress)}
-     Write-Verbose "Processing VRDE server setting: VideoChannelEnabled"
-     if ($VideoChannelEnabled -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Enabled', $true)}
-     elseif ($VideoChannelEnabled -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Enabled', '')}
-     Write-Verbose "Processing VRDE server setting: VideoChannelQuality"
-     if ($VideoChannelQuality) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Quality', $VideoChannelQuality)}
-     Write-Verbose "Processing VRDE server setting: VideoChannelDownscaleProtection"
-     if ($VideoChannelDownscaleProtection) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/DownscaleProtection', $VideoChannelDownscaleProtection)}
-     Write-Verbose "Processing VRDE server setting: DisableClientDisplay"
-     if ($DisableClientDisplay -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableDisplay', $false)}
-     elseif ($DisableClientDisplay -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableDisplay', '')}
-     Write-Verbose "Processing VRDE server setting: DisableClientInput"
-     if ($DisableClientInput -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableInput', $false)}
-     elseif ($DisableClientInput -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableInput', '')}
-     Write-Verbose "Processing VRDE server setting: DisableClientAudio"
-     if ($DisableClientAudio -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableAudio', $false)}
-     elseif ($DisableClientAudio -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableAudio', '')}
-     Write-Verbose "Processing VRDE server setting: DisableClientUsb"
-     if ($DisableClientUsb -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUSB', $false)}
-     elseif ($DisableClientUsb -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUSB', '')}
-     Write-Verbose "Processing VRDE server setting: DisableClientClipboard"
-     if ($DisableClientClipboard -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableClipboard', $false)}
-     elseif ($DisableClientClipboard -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableClipboard', '')}
-     Write-Verbose "Processing VRDE server setting: DisableClientUpstreamAudio"
-     if ($DisableClientUpstreamAudio -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUpstreamAudio', $false)}
-     elseif ($DisableClientUpstreamAudio -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUpstreamAudio', '')}
-     Write-Verbose "Processing VRDE server setting: DisableClientRdpdr"
-     if ($DisableClientRdpdr -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableRDPDR', $false)}
-     elseif ($DisableClientRdpdr -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableRDPDR', '')}
-     Write-Verbose "Processing VRDE server setting: H3dRedirectEnabled"
-     if ($H3dRedirectEnabled -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'H3DRedirect/Enabled', $true)}
-     elseif ($H3dRedirectEnabled -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'H3DRedirect/Enabled', '')}
-     Write-Verbose "Processing VRDE server setting: SecurityMethod"
-     if ($SecurityMethod) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/Method', $SecurityMethod)}
-     Write-Verbose "Processing VRDE server setting: SecurityServerCertificate"
-     if ($SecurityServerCertificate) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/ServerCertificate', $SecurityServerCertificate)}
-     Write-Verbose "Processing VRDE server setting: SecurityServerPrivateKey"
-     if ($SecurityServerPrivateKey) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/ServerPrivateKey', $SecurityServerPrivateKey)}
-     Write-Verbose "Processing VRDE server setting: SecurityCaCertificate"
-     if ($SecurityCaCertificate) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/CACertificate', $SecurityCaCertificate)}
-     Write-Verbose "Processing VRDE server setting: AudioRateCorrectionMode"
-     if ($AudioRateCorrectionMode) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Audio/RateCorrectionMode', $AudioRateCorrectionMode)}
-     Write-Verbose "Processing VRDE server setting: AudioLogPath"
-     if ($AudioLogPath) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Audio/LogPath', $AudioLogPath)}
-     # save new settings
-     Write-Verbose "Saving new settings"
-     $global:vbox.IMachine_saveSettings($mmachine.Id)
-     # unlock machine session
-     Write-Verbose "Unlocking machine session"
-     $global:vbox.ISession_unlockMachine($imachine.ISession)
-     # update the machine object
-     Write-Verbose "Updating the machine object"
-     $imachine.IVrdeServer.Update()
-     # output the updated machine object to the pipeline
-     Write-Verbose "Outputting the updated machine object to the pipeline"
-     Write-Output $imachine
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+      $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+      $mmachine.IVrdeServer = $mmachine.IVrdeServer.Fetch($mmachine.Id)
+      # apply custom settings as requested
+      Write-Verbose "Processing VRDE server setting: AuthType"
+      if ($AuthType) {$global:vbox.IVRDEServer_setAuthType($mmachine.IVrdeServer.Id, $AuthType)}
+      Write-Verbose "Processing VRDE server setting: AuthTimeout"
+      if ($MyInvocation.BoundParameters.Keys -contains 'AuthTimeout') {$global:vbox.IVRDEServer_setAuthTimeout($mmachine.IVrdeServer.Id, $AuthTimeout)}
+      Write-Verbose "Processing VRDE server setting: AllowMultiConnection"
+      if ($AllowMultiConnection) {$global:vbox.IVRDEServer_setAllowMultiConnection($mmachine.IVrdeServer.Id, $AllowMultiConnection)}
+      Write-Verbose "Processing VRDE server setting: ReuseSingleConnection"
+      if ($ReuseSingleConnection) {$global:vbox.IVRDEServer_setReuseSingleConnection($mmachine.IVrdeServer.Id, $ReuseSingleConnection)}
+      Write-Verbose "Processing VRDE server setting: VRDEExtPack"
+      if ($VRDEExtPack) {$global:vbox.IVRDEServer_setVRDEExtPack($mmachine.IVrdeServer.Id, $VRDEExtPack)}
+      Write-Verbose "Processing VRDE server setting: AuthLibrary"
+      if ($AuthLibrary) {$global:vbox.IVRDEServer_setAuthLibrary($mmachine.IVrdeServer.Id, $AuthLibrary)}
+      Write-Verbose "Processing VRDE server setting: TcpPort"
+      if ($TcpPort -ne 0) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'TCP/Ports', $TcpPort.ToString())}
+      Write-Verbose "Processing VRDE server setting: IpAddress"
+      if ($IpAddress) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'TCP/Address', $IpAddress)}
+      Write-Verbose "Processing VRDE server setting: VideoChannelEnabled"
+      if ($VideoChannelEnabled -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Enabled', $true)}
+      elseif ($VideoChannelEnabled -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Enabled', '')}
+      Write-Verbose "Processing VRDE server setting: VideoChannelQuality"
+      if ($VideoChannelQuality) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/Quality', $VideoChannelQuality)}
+      Write-Verbose "Processing VRDE server setting: VideoChannelDownscaleProtection"
+      if ($VideoChannelDownscaleProtection) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'VideoChannel/DownscaleProtection', $VideoChannelDownscaleProtection)}
+      Write-Verbose "Processing VRDE server setting: DisableClientDisplay"
+      if ($DisableClientDisplay -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableDisplay', $false)}
+      elseif ($DisableClientDisplay -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableDisplay', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientInput"
+      if ($DisableClientInput -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableInput', $false)}
+      elseif ($DisableClientInput -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableInput', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientAudio"
+      if ($DisableClientAudio -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableAudio', $false)}
+      elseif ($DisableClientAudio -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableAudio', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientUsb"
+      if ($DisableClientUsb -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUSB', $false)}
+      elseif ($DisableClientUsb -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUSB', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientClipboard"
+      if ($DisableClientClipboard -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableClipboard', $false)}
+      elseif ($DisableClientClipboard -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableClipboard', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientUpstreamAudio"
+      if ($DisableClientUpstreamAudio -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUpstreamAudio', $false)}
+      elseif ($DisableClientUpstreamAudio -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableUpstreamAudio', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientRdpdr"
+      if ($DisableClientRdpdr -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableRDPDR', $false)}
+      elseif ($DisableClientRdpdr -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Client/DisableRDPDR', '')}
+      Write-Verbose "Processing VRDE server setting: H3dRedirectEnabled"
+      if ($H3dRedirectEnabled -eq $true) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'H3DRedirect/Enabled', $true)}
+      elseif ($H3dRedirectEnabled -eq $false) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'H3DRedirect/Enabled', '')}
+      Write-Verbose "Processing VRDE server setting: SecurityMethod"
+      if ($SecurityMethod) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/Method', $SecurityMethod)}
+      Write-Verbose "Processing VRDE server setting: SecurityServerCertificate"
+      if ($SecurityServerCertificate) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/ServerCertificate', $SecurityServerCertificate)}
+      Write-Verbose "Processing VRDE server setting: SecurityServerPrivateKey"
+      if ($SecurityServerPrivateKey) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/ServerPrivateKey', $SecurityServerPrivateKey)}
+      Write-Verbose "Processing VRDE server setting: SecurityCaCertificate"
+      if ($SecurityCaCertificate) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Security/CACertificate', $SecurityCaCertificate)}
+      Write-Verbose "Processing VRDE server setting: AudioRateCorrectionMode"
+      if ($AudioRateCorrectionMode) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Audio/RateCorrectionMode', $AudioRateCorrectionMode)}
+      Write-Verbose "Processing VRDE server setting: AudioLogPath"
+      if ($AudioLogPath) {$global:vbox.IVRDEServer_setVRDEProperty($mmachine.IVrdeServer.Id, 'Audio/LogPath', $AudioLogPath)}
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $global:vbox.IMachine_saveSettings($mmachine.Id)
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      # update the machine object
+      Write-Verbose "Updating the machine object"
+      $imachine.IVrdeServer.Update()
+      # output the updated machine object to the pipeline
+      Write-Verbose "Outputting the updated machine object to the pipeline"
+      Write-Output $imachine
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Getting shared lock on machine $($imachine.Name)"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.ComObject = $imachine.ISession.Session.Machine
+      $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+      # apply custom settings as requested
+      Write-Verbose "Processing VRDE server setting: AuthType"
+      if ($AuthType) {$mmachine.ComObject.VRDEServer.AuthType = ($global:authtype.ToInt($AuthType)).ToString()}
+      Write-Verbose "Processing VRDE server setting: AuthTimeout"
+      if ($MyInvocation.BoundParameters.Keys -contains 'AuthTimeout') {$mmachine.ComObject.VRDEServer.AuthTimeout = $AuthTimeout}
+      Write-Verbose "Processing VRDE server setting: AllowMultiConnection"
+      if ($AllowMultiConnection) {$mmachine.ComObject.VRDEServer.AllowMultiConnection = [int]$AllowMultiConnection}
+      Write-Verbose "Processing VRDE server setting: ReuseSingleConnection"
+      if ($ReuseSingleConnection) {$mmachine.ComObject.VRDEServer.ReuseSingleConnection = [int]$ReuseSingleConnection}
+      Write-Verbose "Processing VRDE server setting: VRDEExtPack"
+      if ($VRDEExtPack) {$mmachine.ComObject.VRDEServer.VRDEExtPack = $VRDEExtPack}
+      Write-Verbose "Processing VRDE server setting: AuthLibrary"
+      if ($AuthLibrary) {$mmachine.ComObject.VRDEServer.AuthLibrary = $AuthLibrary}
+      Write-Verbose "Processing VRDE server setting: TcpPort"
+      if ($TcpPort -ne 0) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('TCP/Ports', $TcpPort.ToString())}
+      Write-Verbose "Processing VRDE server setting: IpAddress"
+      if ($IpAddress) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('TCP/Address', $IpAddress)}
+      Write-Verbose "Processing VRDE server setting: VideoChannelEnabled"
+      if ($VideoChannelEnabled -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('VideoChannel/Enabled', $true)}
+      elseif ($VideoChannelEnabled -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('VideoChannel/Enabled', '')}
+      Write-Verbose "Processing VRDE server setting: VideoChannelQuality"
+      if ($VideoChannelQuality) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('VideoChannel/Quality', $VideoChannelQuality)}
+      Write-Verbose "Processing VRDE server setting: VideoChannelDownscaleProtection"
+      if ($VideoChannelDownscaleProtection) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('VideoChannel/DownscaleProtection', $VideoChannelDownscaleProtection)}
+      Write-Verbose "Processing VRDE server setting: DisableClientDisplay"
+      if ($DisableClientDisplay -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableDisplay', $false)}
+      elseif ($DisableClientDisplay -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableDisplay', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientInput"
+      if ($DisableClientInput -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableInput', $false)}
+      elseif ($DisableClientInput -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableInput', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientAudio"
+      if ($DisableClientAudio -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableAudio', $false)}
+      elseif ($DisableClientAudio -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableAudio', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientUsb"
+      if ($DisableClientUsb -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableUSB', $false)}
+      elseif ($DisableClientUsb -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableUSB', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientClipboard"
+      if ($DisableClientClipboard -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableClipboard', $false)}
+      elseif ($DisableClientClipboard -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableClipboard', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientUpstreamAudio"
+      if ($DisableClientUpstreamAudio -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableUpstreamAudio', $false)}
+      elseif ($DisableClientUpstreamAudio -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableUpstreamAudio', '')}
+      Write-Verbose "Processing VRDE server setting: DisableClientRdpdr"
+      if ($DisableClientRdpdr -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableRDPDR', $false)}
+      elseif ($DisableClientRdpdr -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Client/DisableRDPDR', '')}
+      Write-Verbose "Processing VRDE server setting: H3dRedirectEnabled"
+      if ($H3dRedirectEnabled -eq $true) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('H3DRedirect/Enabled', $true)}
+      elseif ($H3dRedirectEnabled -eq $false) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('H3DRedirect/Enabled', '')}
+      Write-Verbose "Processing VRDE server setting: SecurityMethod"
+      if ($SecurityMethod) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Security/Method', $SecurityMethod)}
+      Write-Verbose "Processing VRDE server setting: SecurityServerCertificate"
+      if ($SecurityServerCertificate) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Security/ServerCertificate', $SecurityServerCertificate)}
+      Write-Verbose "Processing VRDE server setting: SecurityServerPrivateKey"
+      if ($SecurityServerPrivateKey) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Security/ServerPrivateKey', $SecurityServerPrivateKey)}
+      Write-Verbose "Processing VRDE server setting: SecurityCaCertificate"
+      if ($SecurityCaCertificate) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Security/CACertificate', $SecurityCaCertificate)}
+      Write-Verbose "Processing VRDE server setting: AudioRateCorrectionMode"
+      if ($AudioRateCorrectionMode) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Audio/RateCorrectionMode', $AudioRateCorrectionMode)}
+      Write-Verbose "Processing VRDE server setting: AudioLogPath"
+      if ($AudioLogPath) {$mmachine.ComObject.VRDEServer.SetVRDEProperty('Audio/LogPath', $AudioLogPath)}
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $mmachine.ComObject.SaveSettings()
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $imachine.ISession.Session.UnlockMachine()
+      # output the updated machine object to the pipeline
+      Write-Verbose "Outputting the updated machine object to the pipeline"
+      Write-Output (Get-VirtualBoxVM -Guid $imachine.Guid -SkipCheck)
+     } # end elseif com
     } # end if $imachine.IVrdeServer.Enabled -eq $true
     else {Write-Host "[Error] The VRDE server for the virtual machine `"$($imachine.Name)`" is already disabled or the state is unknown." -ForegroundColor Red -BackgroundColor Black;return}
    } # foreach $imachine in $imachines
@@ -5176,18 +5607,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -5439,7 +5875,7 @@ Mandatory=$true,Position=0)]
 Mandatory=$false)]
 [ValidateSet('KeepAllMACs','KeepNATMACs','ImportToVDI')]
 [ValidateNotNullorEmpty()]
-  [string[]]$ImportOptions,
+  [string[]]$ImportOptions = ' ',
 [Parameter(HelpMessage="Enter custom virtual machine name",
 ParameterSetName='Custom',Mandatory=$false)]
   [string]$Name,
@@ -5623,12 +6059,13 @@ DynamicParam {
 }
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
  $OsTypeId = $PSBoundParameters['OsTypeId']
  $CpuCount = $PSBoundParameters['CpuCount']
  $MemorySize = $PSBoundParameters['MemorySize']
@@ -5637,249 +6074,501 @@ Begin {
 Process {
  if ($Name) {if ((Get-VirtualBoxVM -Name $Name -SkipCheck).Name -eq $Name) {Write-Host "[Error] Machine $Name already exists. Enter another name and try again." -ForegroundColor Red -BackgroundColor Black;return}}
  try {
-  # create a vm shell
-  Write-Verbose "Creating a shell machine object"
-  $imachine = New-Object VirtualBoxVM
-  # create an appliance shell
-  Write-Verbose "Creating a shell appliance object"
-  $iappliance = $global:vbox.IVirtualBox_createAppliance($global:ivbox)
-  # read the ovf/ova file
-  Write-Verbose "Reading the OVf/OVA settings file"
-  $imachine.IProgress.Id = $global:vbox.IAppliance_read($iappliance, $FileName)
-  # collect iprogress data
-  Write-Verbose "Fetching IProgress data"
-  $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-  if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-  do {
-   # update iprogress data
-   $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   # create a vm shell
+   Write-Verbose "Creating a shell machine object"
+   $imachine = New-Object VirtualBoxVM
+   # create an appliance shell
+   Write-Verbose "Creating a shell appliance object"
+   $iappliance = $global:vbox.IVirtualBox_createAppliance($global:ivbox)
+   # read the ovf/ova file
+   Write-Verbose "Reading the OVf/OVA settings file"
+   $imachine.IProgress.Id = $global:vbox.IAppliance_read($iappliance, $FileName)
+   # collect iprogress data
+   Write-Verbose "Fetching IProgress data"
+   $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
    if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-   if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-  } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reaches 100%
-  # interpret the iappliance
-  Write-Verbose "Interpreting the OVF/OVA settings"
-  $global:vbox.IAppliance_interpret($iappliance)
-  # get warnings
-  Write-Verbose "Getting any warnings in reading the OVf/OVA settings file and displaying to Verbose output"
-  [string[]]$warnings = $global:vbox.IAppliance_getWarnings($iappliance)
-  foreach ($warning in $warnings) {
-   Write-Verbose $warning
-  }
-  # get the $ivirtualsystemdescriptions object reference(s) found by interperet()
-  Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
-  [string[]]$ivirtualsystemdescriptions = $global:vbox.IAppliance_getVirtualSystemDescriptions($iappliance)
-  $appliancedescriptions = New-Object IVirtualSystemDescription
-  # get an array of iappliance config values to modify before import
-  foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
-   # populate the appliance descriptions
-   Write-Verbose "Getting appliance descriptions"
-   [array]$appliancedescriptions += $appliancedescriptions.Fetch($ivirtualsystemdescription)
-   # remove null rows
-   $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
-   if ($PsCmdlet.ParameterSetName -eq 'Custom') {
-    Write-Verbose "Setting requested custom appliance setting(s)"
-    if ($Name) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
-    }
-    if ($OsTypeId) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
-    }
-    if ($PrimaryGroup) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
-    }
-    if ($SettingsFile) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
-    }
-    if ($BaseFolder) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
-    }
-    if ($Description) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
-    }
-    if ($CpuCount) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $CpuCount
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
-    }
-    if ($MemorySize) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $MemorySize
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
-    }
-    if ($UsbController) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
-    }
-    if ($NetworkAdapter) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
-    }
-    if ($CdRom) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).ExtraConfigValues = $CdRom
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
-    }
-    if ($HardDiskControllerScsi) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Refs = '0'
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
-    }
-    if ($HardDiskControllerIdePrimary) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).VBoxValues = $HardDiskControllerIdePrimary
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).Options = $true
-    }
-    if ($HardDiskControllerIdeSecondary) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).VBoxValues = $HardDiskControllerIdeSecondary
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).Options = $true
-    }
-    if ($HardDiskControllerSata) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Refs = '0'
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
-    }
-    if ($HardDiskControllerSas) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = 'LsiLogicSas'
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Refs = '0'
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
-    }
-    if ($HardDiskImage) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
-    }
-    if ($Product) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
-    }
-    if ($Vendor) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
-    }
-    if ($Version) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
-    }
-    if ($ProductUrl) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
-    }
-    if ($VendorUrl) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
-    }
-    if ($License) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
-    }
-    if ($Miscellaneous) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
-    }
-    if ($Floppy) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).ExtraConfigValues = $Floppy
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
-    }
-    if ($SoundCard) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
-    }
-    if ($CloudInstanceShape) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
-    }
-    if ($CloudDomain) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
-    }
-    if ($CloudBootDiskSize) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
-    }
-    if ($CloudBucket) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
-    }
-    if ($CloudOciVcn) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
-    }
-    if ($CloudPublicIp) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
-    }
-    if ($CloudProfileName) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
-    }
-    if ($CloudOciSubnet) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
-    }
-    if ($CloudKeepObject) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
-    }
-    if ($CloudLaunchInstance) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
-    }
-    if ($CloudImageState) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
-    }
-    if ($CloudInstanceDisplayName) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
-    }
-    if ($CloudImageDisplayName) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
-    }
-    if ($CloudOciLaunchMode) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
-    }
-    if ($CloudPrivateIp) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
-    }
-    if ($CloudBootVolumeId) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
-    }
-    if ($CloudOciVcnCompartment) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
-    }
-    if ($CloudOciSubnetCompartment) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
-    }
-    if ($CloudPublicSshKey) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
-    }
-    if ($FirmwareType) {
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $FirmwareType
-     ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
-    }
+   do {
+    # update iprogress data
+    $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+    if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+   if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
+   # interpret the iappliance
+   Write-Verbose "Interpreting the OVF/OVA settings"
+   $global:vbox.IAppliance_interpret($iappliance)
+   # get warnings
+   Write-Verbose "Getting any warnings in reading the OVf/OVA settings file and displaying to Verbose output"
+   [string[]]$warnings = $global:vbox.IAppliance_getWarnings($iappliance)
+   foreach ($warning in $warnings) {
+    Write-Verbose $warning
    }
-   Write-Verbose "Applying final settings to appliance"
-   $global:vbox.IVirtualSystemDescription_setFinalValues($ivirtualsystemdescription, $appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
-  } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
-  # import the machine to inventory
-  Write-Verbose "Importing machine to VirtualBox inventory"
-  $imachine.IProgress.Id = $global:vbox.IAppliance_importMachines($iappliance, $global:importoptions.ToInt($ImportOptions))
-  # collect iprogress data
-  Write-Verbose "Fetching IProgress data"
-  $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-  if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-  do {
-   # update iprogress data
-   $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+   # get the $ivirtualsystemdescriptions object reference(s) found by interperet()
+   Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
+   [string[]]$ivirtualsystemdescriptions = $global:vbox.IAppliance_getVirtualSystemDescriptions($iappliance)
+   $appliancedescriptions = New-Object IVirtualSystemDescription
+   # get an array of iappliance config values to modify before import
+   foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
+    # populate the appliance descriptions
+    Write-Verbose "Getting appliance descriptions"
+    [array]$appliancedescriptions += $appliancedescriptions.Fetch($ivirtualsystemdescription)
+    # remove null rows
+    $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
+    if ($PsCmdlet.ParameterSetName -eq 'Custom') {
+     Write-Verbose "Setting requested custom appliance setting(s)"
+     if ($Name) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
+     }
+     if ($OsTypeId) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
+     }
+     if ($PrimaryGroup) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
+     }
+     if ($SettingsFile) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
+     }
+     if ($BaseFolder) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
+     }
+     if ($Description) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
+     }
+     if ($CpuCount) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $CpuCount
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
+     }
+     if ($MemorySize) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $MemorySize
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
+     }
+     if ($UsbController) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
+     }
+     if ($NetworkAdapter) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
+     }
+     if ($CdRom) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).ExtraConfigValues = $CdRom
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
+     }
+     if ($HardDiskControllerScsi) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Refs = '0'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
+     }
+     if ($HardDiskControllerIdePrimary) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).VBoxValues = $HardDiskControllerIdePrimary
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).Options = $true
+     }
+     if ($HardDiskControllerIdeSecondary) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).VBoxValues = $HardDiskControllerIdeSecondary
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).Options = $true
+     }
+     if ($HardDiskControllerSata) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Refs = '0'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
+     }
+     if ($HardDiskControllerSas) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = 'LsiLogicSas'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Refs = '0'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
+     }
+     if ($HardDiskImage) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
+     }
+     if ($Product) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
+     }
+     if ($Vendor) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
+     }
+     if ($Version) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
+     }
+     if ($ProductUrl) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
+     }
+     if ($VendorUrl) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
+     }
+     if ($License) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
+     }
+     if ($Miscellaneous) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
+     }
+     if ($Floppy) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).ExtraConfigValues = $Floppy
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
+     }
+     if ($SoundCard) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
+     }
+     if ($CloudInstanceShape) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
+     }
+     if ($CloudDomain) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
+     }
+     if ($CloudBootDiskSize) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
+     }
+     if ($CloudBucket) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
+     }
+     if ($CloudOciVcn) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
+     }
+     if ($CloudPublicIp) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
+     }
+     if ($CloudProfileName) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
+     }
+     if ($CloudOciSubnet) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
+     }
+     if ($CloudKeepObject) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
+     }
+     if ($CloudLaunchInstance) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
+     }
+     if ($CloudImageState) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
+     }
+     if ($CloudInstanceDisplayName) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
+     }
+     if ($CloudImageDisplayName) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
+     }
+     if ($CloudOciLaunchMode) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
+     }
+     if ($CloudPrivateIp) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
+     }
+     if ($CloudBootVolumeId) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
+     }
+     if ($CloudOciVcnCompartment) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
+     }
+     if ($CloudOciSubnetCompartment) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
+     }
+     if ($CloudPublicSshKey) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
+     }
+     if ($FirmwareType) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $FirmwareType
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
+     }
+    }
+    Write-Verbose "Applying final settings to appliance"
+    $global:vbox.IVirtualSystemDescription_setFinalValues($ivirtualsystemdescription, $appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
+   } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
+   # import the machine to inventory
+   Write-Verbose "Importing machine to VirtualBox inventory"
+   $imachine.IProgress.Id = $global:vbox.IAppliance_importMachines($iappliance, $global:importoptions.ToInt($ImportOptions))
+   # collect iprogress data
+   Write-Verbose "Fetching IProgress data"
+   $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
    if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-   if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-  } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reaches 100%
+   do {
+    # update iprogress data
+    $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+    if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+   if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   # create a vm shell
+   Write-Verbose "Creating a shell machine object"
+   $imachine = New-Object VirtualBoxVM
+   # create an appliance shell
+   Write-Verbose "Creating a shell appliance object"
+   $iappliance = $global:vbox.CreateAppliance()
+   # read the ovf/ova file
+   Write-Verbose "Reading the OVf/OVA settings file"
+   $imachine.IProgress.Progress = $iappliance.Read($FileName)
+   if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+   do {
+    # update iprogress data
+    if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+   if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
+   # interpret the iappliance
+   Write-Verbose "Interpreting the OVF/OVA settings"
+   $iappliance.Interpret()
+   # get warnings
+   Write-Verbose "Getting any warnings in reading the OVf/OVA settings file and displaying to Verbose output"
+   [string[]]$warnings = $iappliance.GetWarnings()
+   foreach ($warning in $warnings) {
+    Write-Verbose $warning
+   }
+   # create virtual system description
+   #Write-Verbose "Creating virtual system description"
+   #$iappliance.CreateVirtualSystemDescriptions(1)
+   # get the $ivirtualsystemdescriptions object reference(s) found by interperet()
+   Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
+   $ivirtualsystemdescriptions = $iappliance.VirtualSystemDescriptions
+   $appliancedescriptions = New-Object IVirtualSystemDescription
+   # get an array of iappliance config values to modify before import
+   foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
+    # populate the appliance descriptions
+    Write-Verbose "Getting appliance descriptions"
+    [array]$appliancedescriptions += $appliancedescriptions.FetchCom($ivirtualsystemdescription)
+    # remove null rows
+    $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
+    if ($PsCmdlet.ParameterSetName -eq 'Custom') {
+     Write-Verbose "Setting requested custom appliance setting(s)"
+     if ($Name) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
+     }
+     if ($OsTypeId) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
+     }
+     if ($PrimaryGroup) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
+     }
+     if ($SettingsFile) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
+     }
+     if ($BaseFolder) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
+     }
+     if ($Description) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
+     }
+     if ($CpuCount) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $CpuCount
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
+     }
+     if ($MemorySize) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $MemorySize
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
+     }
+     if ($UsbController) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
+     }
+     if ($NetworkAdapter) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
+     }
+     if ($CdRom) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).ExtraConfigValues = $CdRom
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
+     }
+     if ($HardDiskControllerScsi) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Refs = '0'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
+     }
+     if ($HardDiskControllerIdePrimary) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).VBoxValues = $HardDiskControllerIdePrimary
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -ne '6'}).Options = $true
+     }
+     if ($HardDiskControllerIdeSecondary) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).VBoxValues = $HardDiskControllerIdeSecondary
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'} | Where-Object {$_.Refs -eq '6'}).Options = $true
+     }
+     if ($HardDiskControllerSata) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Refs = '0'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
+     }
+     if ($HardDiskControllerSas) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = 'LsiLogicSas'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Refs = '0'
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
+     }
+     if ($HardDiskImage) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
+     }
+     if ($Product) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
+     }
+     if ($Vendor) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
+     }
+     if ($Version) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
+     }
+     if ($ProductUrl) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
+     }
+     if ($VendorUrl) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
+     }
+     if ($License) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
+     }
+     if ($Miscellaneous) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
+     }
+     if ($Floppy) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).ExtraConfigValues = $Floppy
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
+     }
+     if ($SoundCard) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
+     }
+     if ($CloudInstanceShape) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
+     }
+     if ($CloudDomain) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
+     }
+     if ($CloudBootDiskSize) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
+     }
+     if ($CloudBucket) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
+     }
+     if ($CloudOciVcn) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
+     }
+     if ($CloudPublicIp) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
+     }
+     if ($CloudProfileName) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
+     }
+     if ($CloudOciSubnet) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
+     }
+     if ($CloudKeepObject) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
+     }
+     if ($CloudLaunchInstance) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
+     }
+     if ($CloudImageState) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
+     }
+     if ($CloudInstanceDisplayName) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
+     }
+     if ($CloudImageDisplayName) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
+     }
+     if ($CloudOciLaunchMode) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
+     }
+     if ($CloudPrivateIp) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
+     }
+     if ($CloudBootVolumeId) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
+     }
+     if ($CloudOciVcnCompartment) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
+     }
+     if ($CloudOciSubnetCompartment) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
+     }
+     if ($CloudPublicSshKey) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
+     }
+     if ($FirmwareType) {
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $FirmwareType
+      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
+     }
+    }
+    Write-Verbose "Converting options to integers"
+    foreach ($option in $appliancedescriptions.Options) {[int[]]$finalOptions += $option}
+    Write-Verbose "Converting values to strings"
+    foreach ($value in $appliancedescriptions.VBoxValues) {[string[]]$finalValues += $value}
+    Write-Verbose "Converting extra config values to strings"
+    foreach ($extraconfigvalue in $appliancedescriptions.ExtraConfigValues) {[string[]]$finalExtraConfigValues += $extraconfigvalue}
+    Write-Verbose "Applying final settings to appliance"
+    $ivirtualsystemdescription.SetFinalValues($finalOptions, $finalValues, $finalExtraConfigValues)
+   } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
+   # import the machine to inventory
+   Write-Verbose "Importing machine to VirtualBox inventory"
+   $imachine.IProgress.Progress = $iappliance.ImportMachines($global:importoptions.ToInt($ImportOptions))
+   if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+   do {
+    # update iprogress data
+    if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+   if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
+  } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception importing OVF'
@@ -5891,18 +6580,23 @@ Process {
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
     if ($imachine.IConsole) {
      # release the iconsole session
      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -5910,12 +6604,12 @@ Process {
     $imachine.MMachine = $null
    } # end foreach $imachine in $imachines
   } # end if $imachines
-  if ($ivirtualsystemdescriptions) {
+  if ($ivirtualsystemdescriptions -and $ModuleHost.ToLower() -eq 'websrv') {
    foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
     $global:vbox.IManagedObjectRef_release($ivirtualsystemdescription)
    }
   }
-  if ($iappliance) {
+  if ($iappliance -and $ModuleHost.ToLower() -eq 'websrv') {
    $global:vbox.IManagedObjectRef_release($iappliance)
   }
   $ivirtualsystemdescriptions = $null
@@ -6278,12 +6972,13 @@ DynamicParam {
 }
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- #get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
  $OsTypeId = $PSBoundParameters['OsTypeId']
  $CpuCount = $PSBoundParameters['CpuCount']
  $MemorySize = $PSBoundParameters['MemorySize']
@@ -6324,216 +7019,428 @@ Process {
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    # create an appliance shell
-    Write-Verbose "Creating a shell appliance object"
-    $iappliance = $global:vbox.IVirtualBox_createAppliance($global:ivbox)
-    # populate the appliance with the requested virtual machine's settings
-    Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
-    [string[]]$ivirtualsystemdescriptions = $global:vbox.IMachine_exportTo($imachine.Id, $iappliance, $FilePath)
-    $appliancedescriptions = New-Object IVirtualSystemDescription
-    # get an array of iappliance config values to modify before export
-    foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
-     # populate the appliance descriptions
-     Write-Verbose "Getting appliance descriptions"
-     [array]$appliancedescriptions += $appliancedescriptions.Fetch($ivirtualsystemdescription)
-     # remove null rows
-     $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
-     Write-Verbose "Applying requested custom appliance setting(s)"
-     if ($OsTypeId) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
-     }
-     if ($Name) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
-     }
-     if ($PrimaryGroup) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
-     }
-     if ($SettingsFile) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
-     }
-     if ($BaseFolder) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
-     }
-     if ($Description) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
-     }
-     if ($Cpu) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $Cpu
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
-     }
-     if ($Memory) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $Memory
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
-     }
-     if ($UsbController) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
-     }
-     if ($NetworkAdapter) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
-     }
-     if ($CdRom) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).VBoxValues = $CdRom
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
-     }
-     if ($HardDiskControllerScsi) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
-     }
-     if ($HardDiskControllerIde) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'}).VBoxValues = $HardDiskControllerIde
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'}).Options = $true
-     }
-     if ($HardDiskImage) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
-     }
-     if ($Product) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
-     }
-     if ($Vendor) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
-     }
-     if ($Version) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
-     }
-     if ($ProductUrl) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
-     }
-     if ($VendorUrl) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
-     }
-     if ($License) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
-     }
-     if ($Miscellaneous) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
-     }
-     if ($HardDiskControllerSata) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).VBoxValues = $HardDiskControllerSata
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
-     }
-     if ($HardDiskControllerSas) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = $HardDiskControllerSas
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
-     }
-     if ($Floppy) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).VBoxValues = $Floppy
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
-     }
-     if ($SoundCard) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).VBoxValues = $SoundCard
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
-     }
-     if ($CloudInstanceShape) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
-     }
-     if ($CloudDomain) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
-     }
-     if ($CloudBootDiskSize) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
-     }
-     if ($CloudBucket) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
-     }
-     if ($CloudOciVcn) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
-     }
-     if ($CloudPublicIp) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
-     }
-     if ($CloudProfileName) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
-     }
-     if ($CloudOciSubnet) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
-     }
-     if ($CloudKeepObject) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
-     }
-     if ($CloudLaunchInstance) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
-     }
-     if ($CloudImageState) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
-     }
-     if ($CloudInstanceDisplayName) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
-     }
-     if ($CloudImageDisplayName) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
-     }
-     if ($CloudOciLaunchMode) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
-     }
-     if ($CloudPrivateIp) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
-     }
-     if ($CloudBootVolumeId) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
-     }
-     if ($CloudOciVcnCompartment) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
-     }
-     if ($CloudOciSubnetCompartment) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
-     }
-     if ($CloudPublicSshKey) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
-     }
-     if ($BootingFirmware) {
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $BootingFirmware
-      ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
-     }
-     $global:vbox.IVirtualSystemDescription_setFinalValues($ivirtualsystemdescription, $appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
-    } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
-    # export the machine to disk
-    Write-Verbose "Writing OVF to disk"
-    $imachine.IProgress.Id = $global:vbox.IAppliance_write($iappliance, $OvfFormat, $global:exportoptions.ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
-    # collect iprogress data
-    Write-Verbose "Fetching IProgress data"
-    $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-    if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-    do {
-     # update iprogress data
-     $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     # create an appliance shell
+     Write-Verbose "Creating a shell appliance object"
+     $iappliance = $global:vbox.IVirtualBox_createAppliance($global:ivbox)
+     # populate the appliance with the requested virtual machine's settings
+     Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
+     [string[]]$ivirtualsystemdescriptions = $global:vbox.IMachine_exportTo($imachine.Id, $iappliance, $FilePath)
+     $appliancedescriptions = New-Object IVirtualSystemDescription
+     # get an array of iappliance config values to modify before export
+     foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
+      # populate the appliance descriptions
+      Write-Verbose "Getting appliance descriptions"
+      [array]$appliancedescriptions += $appliancedescriptions.Fetch($ivirtualsystemdescription)
+      # remove null rows
+      $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
+      Write-Verbose "Applying requested custom appliance setting(s)"
+      if ($OsTypeId) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
+      }
+      if ($Name) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
+      }
+      if ($PrimaryGroup) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
+      }
+      if ($SettingsFile) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
+      }
+      if ($BaseFolder) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
+      }
+      if ($Description) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
+      }
+      if ($Cpu) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $Cpu
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
+      }
+      if ($Memory) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $Memory
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
+      }
+      if ($UsbController) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
+      }
+      if ($NetworkAdapter) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
+      }
+      if ($CdRom) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).VBoxValues = $CdRom
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
+      }
+      if ($HardDiskControllerScsi) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
+      }
+      if ($HardDiskControllerIde) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'}).VBoxValues = $HardDiskControllerIde
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'}).Options = $true
+      }
+      if ($HardDiskImage) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
+      }
+      if ($Product) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
+      }
+      if ($Vendor) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
+      }
+      if ($Version) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
+      }
+      if ($ProductUrl) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
+      }
+      if ($VendorUrl) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
+      }
+      if ($License) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
+      }
+      if ($Miscellaneous) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
+      }
+      if ($HardDiskControllerSata) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).VBoxValues = $HardDiskControllerSata
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
+      }
+      if ($HardDiskControllerSas) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = $HardDiskControllerSas
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
+      }
+      if ($Floppy) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).VBoxValues = $Floppy
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
+      }
+      if ($SoundCard) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).VBoxValues = $SoundCard
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
+      }
+      if ($CloudInstanceShape) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
+      }
+      if ($CloudDomain) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
+      }
+      if ($CloudBootDiskSize) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
+      }
+      if ($CloudBucket) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
+      }
+      if ($CloudOciVcn) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
+      }
+      if ($CloudPublicIp) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
+      }
+      if ($CloudProfileName) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
+      }
+      if ($CloudOciSubnet) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
+      }
+      if ($CloudKeepObject) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
+      }
+      if ($CloudLaunchInstance) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
+      }
+      if ($CloudImageState) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
+      }
+      if ($CloudInstanceDisplayName) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
+      }
+      if ($CloudImageDisplayName) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
+      }
+      if ($CloudOciLaunchMode) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
+      }
+      if ($CloudPrivateIp) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
+      }
+      if ($CloudBootVolumeId) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
+      }
+      if ($CloudOciVcnCompartment) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
+      }
+      if ($CloudOciSubnetCompartment) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
+      }
+      if ($CloudPublicSshKey) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
+      }
+      if ($BootingFirmware) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $BootingFirmware
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
+      }
+      $global:vbox.IVirtualSystemDescription_setFinalValues($ivirtualsystemdescription, $appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
+     } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
+     # export the machine to disk
+     Write-Verbose "Writing OVF to disk"
+     $imachine.IProgress.Id = $global:vbox.IAppliance_write($iappliance, $OvfFormat, $global:exportoptions.ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
+     # collect iprogress data
+     Write-Verbose "Fetching IProgress data"
+     $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
      if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-     if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-    } until ($imachine.IProgress.Percent -eq 100) # continue once the progress reaches 100%
+     do {
+      # update iprogress data
+      $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+      if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+     if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     # create an appliance shell
+     Write-Verbose "Creating a shell appliance object"
+     $iappliance = $global:vbox.CreateAppliance()
+     # populate the appliance with the requested virtual machine's settings
+     Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
+     [string[]]$ivirtualsystemdescriptions = $imachine.ComObject.ExportTo($iappliance, $FilePath)
+     $appliancedescriptions = New-Object IVirtualSystemDescription
+     # get an array of iappliance config values to modify before export
+     foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
+      # populate the appliance descriptions
+      Write-Verbose "Getting appliance descriptions"
+      [array]$appliancedescriptions += $appliancedescriptions.FetchCom($ivirtualsystemdescription)
+      # remove null rows
+      $appliancedescriptions = $appliancedescriptions | Where-Object {$_.Types -ne $null}
+      Write-Verbose "Applying requested custom appliance setting(s)"
+      if ($OsTypeId) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).VBoxValues = $OsTypeId
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'OS'}).Options = $true
+      }
+      if ($Name) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).VBoxValues = $Name
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Name'}).Options = $true
+      }
+      if ($PrimaryGroup) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).VBoxValues = $PrimaryGroup
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'PrimaryGroup'}).Options = $true
+      }
+      if ($SettingsFile) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).VBoxValues = $SettingsFile
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SettingsFile'}).Options = $true
+      }
+      if ($BaseFolder) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).VBoxValues = $BaseFolder
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BaseFolder'}).Options = $true
+      }
+      if ($Description) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).VBoxValues = $Description
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Description'}).Options = $true
+      }
+      if ($Cpu) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).VBoxValues = $Cpu
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CPU'}).Options = $true
+      }
+      if ($Memory) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).VBoxValues = $Memory
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Memory'}).Options = $true
+      }
+      if ($UsbController) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).VBoxValues = $USBController
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'USBController'}).Options = $true
+      }
+      if ($NetworkAdapter) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).VBoxValues = $NetworkAdapter
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'NetworkAdapter'}).Options = $true
+      }
+      if ($CdRom) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).VBoxValues = $CdRom
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CDROM'}).Options = $true
+      }
+      if ($HardDiskControllerScsi) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).VBoxValues = $HardDiskControllerScsi
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSCSI'}).Options = $true
+      }
+      if ($HardDiskControllerIde) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'}).VBoxValues = $HardDiskControllerIde
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerIDE'}).Options = $true
+      }
+      if ($HardDiskImage) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).VBoxValues = $HardDiskImage
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskImage'}).Options = $true
+      }
+      if ($Product) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).VBoxValues = $Product
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Product'}).Options = $true
+      }
+      if ($Vendor) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).VBoxValues = $Vendor
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Vendor'}).Options = $true
+      }
+      if ($Version) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).VBoxValues = $Version
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Version'}).Options = $true
+      }
+      if ($ProductUrl) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).VBoxValues = $ProductUrl
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'ProductUrl'}).Options = $true
+      }
+      if ($VendorUrl) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).VBoxValues = $VendorUrl
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'VendorUrl'}).Options = $true
+      }
+      if ($License) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).VBoxValues = $License
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'License'}).Options = $true
+      }
+      if ($Miscellaneous) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).VBoxValues = $Miscellaneous
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Miscellaneous'}).Options = $true
+      }
+      if ($HardDiskControllerSata) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).VBoxValues = $HardDiskControllerSata
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSATA'}).Options = $true
+      }
+      if ($HardDiskControllerSas) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).VBoxValues = $HardDiskControllerSas
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'HardDiskControllerSAS'}).Options = $true
+      }
+      if ($Floppy) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).VBoxValues = $Floppy
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'Floppy'}).Options = $true
+      }
+      if ($SoundCard) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).VBoxValues = $SoundCard
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'SoundCard'}).Options = $true
+      }
+      if ($CloudInstanceShape) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).VBoxValues = $CloudInstanceShape
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceShape'}).Options = $true
+      }
+      if ($CloudDomain) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).VBoxValues = $CloudDomain
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudDomain'}).Options = $true
+      }
+      if ($CloudBootDiskSize) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).VBoxValues = $CloudBootDiskSize
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootDiskSize'}).Options = $true
+      }
+      if ($CloudBucket) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).VBoxValues = $CloudBucket
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBucket'}).Options = $true
+      }
+      if ($CloudOciVcn) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).VBoxValues = $CloudOciVcn
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCN'}).Options = $true
+      }
+      if ($CloudPublicIp) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).VBoxValues = $CloudPublicIp
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicIP'}).Options = $true
+      }
+      if ($CloudProfileName) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).VBoxValues = $CloudProfileName
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudProfileName'}).Options = $true
+      }
+      if ($CloudOciSubnet) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).VBoxValues = $CloudOciSubnet
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnet'}).Options = $true
+      }
+      if ($CloudKeepObject) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).VBoxValues = $CloudKeepObject
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudKeepObject'}).Options = $true
+      }
+      if ($CloudLaunchInstance) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).VBoxValues = $CloudLaunchInstance
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudLaunchInstance'}).Options = $true
+      }
+      if ($CloudImageState) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).VBoxValues = $CloudImageState
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageState'}).Options = $true
+      }
+      if ($CloudInstanceDisplayName) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).VBoxValues = $CloudInstanceDisplayName
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudInstanceDisplayName'}).Options = $true
+      }
+      if ($CloudImageDisplayName) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).VBoxValues = $CloudImageDisplayName
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudImageDisplayName'}).Options = $true
+      }
+      if ($CloudOciLaunchMode) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).VBoxValues = $CloudOciLaunchMode
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCILaunchMode'}).Options = $true
+      }
+      if ($CloudPrivateIp) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).VBoxValues = $CloudPrivateIp
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPrivateIP'}).Options = $true
+      }
+      if ($CloudBootVolumeId) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).VBoxValues = $CloudBootVolumeId
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudBootVolumeId'}).Options = $true
+      }
+      if ($CloudOciVcnCompartment) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).VBoxValues = $CloudOciVcnCompartment
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCIVCNCompartment'}).Options = $true
+      }
+      if ($CloudOciSubnetCompartment) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).VBoxValues = $CloudOciSubnetCompartment
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudOCISubnetCompartment'}).Options = $true
+      }
+      if ($CloudPublicSshKey) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).VBoxValues = $CloudPublicSshKey
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'CloudPublicSSHKey'}).Options = $true
+      }
+      if ($BootingFirmware) {
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $BootingFirmware
+       ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
+      }
+      $ivirtualsystemdescription.SetFinalValues($appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
+     } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
+     # export the machine to disk
+     Write-Verbose "Writing OVF to disk"
+     $imachine.IProgress.Progress = $iappliance.Write($OvfFormat, $global:exportoptions.ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
+     if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+     do {
+      # update iprogress data
+      if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+     } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+     if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
+    } # end elseif com
    } # end foreach $imachine in $imachines
   } # end if $imachines
   else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
@@ -6678,6 +7585,10 @@ ParameterSetName="Disk",Mandatory=$false,Position=0)]
 ParameterSetName="Disk",Mandatory=$false,Position=0)]
 [ValidateNotNullorEmpty()]
   [string[]]$Format,
+[Parameter(HelpMessage="Enter one or more disk GUID(s)",
+ParameterSetName="Disk",Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
 [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual machine object(s)",
 ParameterSetName="Machine",Mandatory=$false,Position=0)]
@@ -6696,17 +7607,18 @@ ParameterSetName="Machine",Mandatory=$false,Position=0)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Format: `"$Format`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "Pipeline - Machine: `"$Machine`""
  Write-Verbose "Pipeline - MachineName: `"$MachineName`""
  Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
@@ -6714,40 +7626,79 @@ Process {
  $disks = @()
  $obj = @()
  try {
+  # get entire virtual machine inventory for matching
+  Write-Verbose "Getting virtual machine inventory"
+  $imachines = Get-VirtualBoxVM -SkipCheck
   # get virtual machine disk inventory
   Write-Verbose "Getting virtual disk inventory"
-  foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
-   Write-Verbose "Getting disk: $($imediumid)"
-   $disk = New-Object VirtualBoxVHD
-   $imachines = Get-VirtualBoxVM -SkipCheck
-   $disk.Name = $global:vbox.IMedium_getName($imediumid)
-   $disk.Description = $global:vbox.IMedium_getDescription($imediumid)
-   $disk.Format = $global:vbox.IMedium_getFormat($imediumid)
-   $disk.Size = $global:vbox.IMedium_getSize($imediumid)
-   $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
-   $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
-   foreach ($machineid in $disk.VMIds) {
-    foreach ($imachine in $imachines) {
-     if ($imachine.Guid -eq $machineid) {
-      $disk.VMNames += $imachine.Name
-     } # end if $imachine.Guid -eq $machineid
-     $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
-    } # foreach $imachine in $imachines
-   } # foreach $machineid in $disk.VMIds
-   $disk.State = $global:vbox.IMedium_getState($imediumid)
-   $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
-   $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
-   $disk.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
-   $disk.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
-   $disk.Type = $global:vbox.IMedium_getType($imediumid)
-   $disk.Parent = $global:vbox.IMedium_getParent($imediumid)
-   $disk.Children = $global:vbox.IMedium_getChildren($imediumid)
-   $disk.Id = $imediumid
-   $disk.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
-   $disk.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
-   $disk.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
-   [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}
-  } # end foreach loop inventory
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   foreach ($imediumid in $global:vbox.IVirtualBox_getHardDisks($global:ivbox)) {
+    Write-Verbose "Getting disk: $($imediumid)"
+    $disk = New-Object VirtualBoxVHD
+    $disk.Name = $global:vbox.IMedium_getName($imediumid)
+    $disk.GUID = $global:vbox.IMedium_getId($imediumid)
+    $disk.Description = $global:vbox.IMedium_getDescription($imediumid)
+    $disk.Format = $global:vbox.IMedium_getFormat($imediumid)
+    $disk.Size = $global:vbox.IMedium_getSize($imediumid)
+    $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+    $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
+    foreach ($machineid in $disk.VMIds) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.Guid -eq $machineid) {
+       $disk.VMNames += $imachine.Name
+      } # end if $imachine.Guid -eq $machineid
+      $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
+     } # foreach $imachine in $imachines
+    } # foreach $machineid in $disk.VMIds
+    $disk.State = $global:vbox.IMedium_getState($imediumid)
+    $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
+    $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
+    $disk.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+    $disk.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+    $disk.Type = $global:vbox.IMedium_getType($imediumid)
+    $disk.Parent = $global:vbox.IMedium_getParent($imediumid)
+    $disk.Children = $global:vbox.IMedium_getChildren($imediumid)
+    $disk.Id = $imediumid
+    $disk.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+    $disk.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+    $disk.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+    [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}
+   } # end foreach loop inventory
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   foreach ($imedium in $vbox.HardDisks) {
+    Write-Verbose "Getting disk: $($imedium.Id)"
+    $disk = New-Object VirtualBoxVHD
+    $disk.Name = $imedium.Name
+    $disk.Guid = $imedium.Id
+    $disk.Description = $imedium.Description
+    $disk.Format = $imedium.Format
+    $disk.Size = $imedium.Size
+    $disk.LogicalSize = $imedium.LogicalSize
+    $disk.VMIds = $imedium.MachineIds
+    foreach ($machineid in $disk.VMIds) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.Guid -eq $machineid) {
+       $disk.VMNames += $imachine.Name
+      } # end if $imachine.Guid -eq $machineid
+      $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
+     } # foreach $imachine in $imachines
+    } # foreach $machineid in $disk.VMIds
+    $disk.State = $imedium.State
+    $disk.Variant = $imedium.Variant
+    $disk.Location = $imedium.Location
+    $disk.HostDrive = $imedium.HostDrive
+    $disk.MediumFormat = $imedium.MediumFormat.Name
+    $disk.Type = $imedium.Type
+    if ($imedium.Parent) {$disk.Parent = $imedium.Parent.Name}
+    if ($imedium.Children) {$disk.Children = $imedium.Children.Name}
+    $disk.ComObject = $imedium
+    $disk.ReadOnly = $imedium.ReadOnly
+    $disk.AutoReset = $imedium.AutoReset
+    $disk.LastAccessError = $imedium.LastAccessError
+    [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}
+   } # end foreach loop inventory
+  } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception retrieving virtual disk information'
@@ -6757,28 +7708,40 @@ Process {
  if ($PSCmdlet.ParameterSetName -eq "Disk") {
   # filter by disk name
   if ($Name -and $Name -ne '*') {
-   foreach ($inputname in $Name) {
+   foreach ($item in $Name) {
     foreach ($disk in $disks) {
      $matched = $false
-     Write-Verbose "Matching $($disk.Name) to $inputname"
-     if ($disk.Name -match $inputname) {Write-Verbose "Matched $($disk.Name) to $inputname";$matched = $true}
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+     Write-Verbose "Matching $($disk.Name) to $item"
+     if ($disk.Name -match $item) {Write-Verbose "Matched $($disk.Name) to $item";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
-   } # foreach $inputname in $Name
+   } # foreach $item in $Name
   } # end if $Name
   # filter by disk format
   elseif ($Format -and $Format -ne '*') {
-   foreach ($inputformat in $Format) {
+   foreach ($item in $Format) {
     foreach ($disk in $disks) {
      $matched = $false
-     Write-Verbose "Matching $($disk.Format) to $inputformat"
-     if ($disk.Format -match $inputformat) {Write-Verbose "Matched $($disk.Format) to $inputformat";$matched = $true}
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+     Write-Verbose "Matching $($disk.Format) to $item"
+     if ($disk.Format -match $item) {Write-Verbose "Matched $($disk.Format) to $item";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
-   } # foreach $inputformat in $Format
-  } # end elseif $Format
+   } # foreach $item in $Format
+   $obj = $obj | Where-Object {$_ -ne $null}
+  } # end if $Format
+  # filter by disk guid
+  elseif ($Guid) {
+   foreach ($item in $Guid) {
+    foreach ($disk in $disks) {
+     $matched = $false
+     Write-Verbose "Matching $($disk.Guid) to $item"
+     if ($disk.Guid -match $item) {Write-Verbose "Matched $($disk.Guid) to $item";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+    } # foreach $disk in $disks
+   } # foreach $item in $Guid
+  } # end if $Guid
   # no filter
-  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
+  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}}
   Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  }
  elseif ($PSCmdlet.ParameterSetName -eq "Machine") {
@@ -6791,7 +7754,7 @@ Process {
       Write-Verbose "Matching $vmname to $($item.Name)"
       if ($vmname -match $item.Name) {Write-Verbose "Matched $vmname to $($item.Name)";$matched = $true}
      } # foreach $vmname in $disk.VMNames
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $Machine
   } # end if $Machine
@@ -6804,7 +7767,7 @@ Process {
       Write-Verbose "Matching $vmname to $item"
       if ($vmname -match $item) {Write-Verbose "Matched $vmname to $item";$matched = $true}
      } # foreach $vmname in $disk.VMNames
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $MachineName
   } # end elseif $MachineName
@@ -6817,12 +7780,12 @@ Process {
       Write-Verbose "Matching $vmguid to $item"
       if ($vmguid -eq $item) {Write-Verbose "Matched $vmguid to $item";$matched = $true}
      } # foreach $vmguid in $disk.VMIds
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $MachineGuid
   } # end elseif $MachineGuid
   # no filter
-  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
+  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
   Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  }
  if ($obj) {
@@ -6908,7 +7871,7 @@ ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
 [ValidateSet('Standard','VmdkSplit2G','VmdkRawDisk','VmdkStreamOptimized','VmdkESX','VdiZeroExpand')]
   [string]$VariantType,
 [Parameter(HelpMessage="Enter the virtual disk variant flag",
-ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
+ParameterSetName="HardDisk",Mandatory=$false,Position=5)]
 [ValidateSet('Fixed','Diff','Formatted','NoCreateDir')]
   [string]$VariantFlag,
 [Parameter(HelpMessage="Use this switch to display a progress bar")]
@@ -6918,17 +7881,17 @@ ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
-  # get extensions supported by the selected format
-  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
-  # get the last of the extensions and use it
-  $Ext = $Ext[$Ext.GetUpperBound(0)]
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
 } # Begin
 Process {
  if (!(Test-Path $Location)) {
@@ -6948,19 +7911,53 @@ Process {
    }
   }
   try {
+   Write-Verbose "Creating virtual disk object"
    $imedium = New-Object VirtualBoxVHD
-   $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
-   $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
-   # collect iprogress data
-   Write-Verbose "Fetching IProgress data"
-   $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
-   if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-   do {
-    # update iprogress data
-    $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
+   if ($ModuleHost.ToLower() -eq 'websrv') {
+    Write-Verbose "Creating medium"
+    Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
+    Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
+    Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
+    $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+    Write-Verbose "Creating base storage"
+    Write-Verbose "LogicalSize: `"$($LogicalSize)`""
+    Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
+    Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
+    $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+    # collect iprogress data
+    Write-Verbose "Fetching IProgress data"
+    $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-    if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
-   } until ($imedium.IProgress.Percent -eq 100) # continue once the progress reached 100%
+    do {
+     $mediumstate = $global:vbox.IMedium_getState($imedium.Id)
+     # update iprogress data
+     $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
+     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+     if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
+    } until ($imedium.IProgress.Percent -eq 100 -or $mediumstate -match 'NotCreated') # continue once the progress reached 100%
+    if ($mediumstate -match 'NotCreated') {Write-Host "[Error] Failed to create base storage" -ForegroundColor Red -BackgroundColor Black}
+   } # end if websrv
+   elseif ($ModuleHost.ToLower() -eq 'com') {
+    Write-Verbose "Creating medium"
+    Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
+    Write-Verbose "Format: `"$($Format)`""
+    Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
+    Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
+    $newdisk = $global:vbox.CreateMedium($Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+    $imedium.ComObject = $newdisk
+    Write-Verbose "Creating base storage"
+    Write-Verbose "LogicalSize: `"$($LogicalSize)`""
+    Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
+    Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
+    $imedium.IProgress.Progress = $newdisk.CreateBaseStorage($LogicalSize, [int[]]@($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+    if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+    do {
+     # update iprogress data
+     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+     if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.Progress.OperationDescription)" -status "$($imedium.IProgress.Progress.OperationDescription): $($imedium.IProgress.Progress.OperationPercent)%" -percentComplete ($imedium.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+    } until ($imedium.IProgress.Progress.Percent -eq 100 -or $newdisk.State -eq 0) # continue once the progress reached 100%
+    if ($newdisk.State -eq 0) {Write-Host "[Error] Failed to create base storage" -ForegroundColor Red -BackgroundColor Black}
+   } # end elseif com
   } # Try
   catch {
    Write-Verbose 'Exception creating virtual disk'
@@ -7023,17 +8020,17 @@ ParameterSetName="HardDisk",Mandatory=$false)]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
-  # get extensions supported by the selected format
-  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
-  # get the last of the extensions and use it
-  $Ext = $Ext[$Ext.GetUpperBound(0)]
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
 } # Begin
 Process {
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
@@ -7049,7 +8046,12 @@ Process {
   }
   try {
    $imedium = New-Object VirtualBoxVHD
-   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('HardDisk'), $AccessMode, $(if ($ForceNewUuid) {$true}))
+   if ($ModuleHost.ToLower() -eq 'websrv') {
+    $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('HardDisk'), $AccessMode, $(if ($ForceNewUuid) {$true} else {$false}))
+   } # end if websrv
+   elseif ($ModuleHost.ToLower() -eq 'com') {
+    $imedium.ComObject = $global:vbox.OpenMedium($FileName, $global:devicetype.ToULong('HardDisk'), $global:accessmode.ToULong($AccessMode), $(if ($ForceNewUuid) {1} else {0}))
+   } # end elseif com
   } # Try
   catch {
    Write-Verbose 'Exception creating virtual disk'
@@ -7123,17 +8125,17 @@ ParameterSetName="HardDisk")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
-  # get extensions supported by the selected format
-  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
-  # get the last of the extensions and use it
-  $Ext = $Ext[$Ext.GetUpperBound(0)]
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
 } # Begin
 Process {
  Write-Verbose "Pipeline - Disk: `"$Disk`""
@@ -7179,26 +8181,44 @@ Process {
      } # end if $imedium.VMNames
      if ($DeleteFromHost) {
       if ($PSCmdlet.ShouldProcess("$($imedium.Name)" , "Delete storage medium from host ")) {
-       # delete disk from host
-       Write-Verbose "Removing disk $($imedium.Name)"
-       $imedium.IProgress.Id = $global:vbox.IMedium_deleteStorage($imedium.Id)
-       # collect iprogress data
-       Write-Verbose "Fetching IProgress data"
-       $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
-       if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-       do {
-        # update iprogress data
-        $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
+       if ($ModuleHost.ToLower() -eq 'websrv') {
+        # delete disk from host
+        Write-Verbose "Removing disk $($imedium.Name)"
+        $imedium.IProgress.Id = $global:vbox.IMedium_deleteStorage($imedium.Id)
+        # collect iprogress data
+        Write-Verbose "Fetching IProgress data"
+        $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
         if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-        if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
-       } until ($imedium.IProgress.Percent -eq 100) # continue once the progress reaches 100%
+        do {
+         # update iprogress data
+         $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
+         if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+         if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
+        } until ($imedium.IProgress.Percent -eq 100) # continue once the progress reaches 100%
+       } # end if websrv
+       elseif ($ModuleHost.ToLower() -eq 'com') {
+        # delete disk from host
+        Write-Verbose "Removing disk $($imedium.Name)"
+        $imedium.IProgress.Progress = $imedium.ComObject.DeleteStorage()
+        if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+        do {
+         # update iprogress data
+         if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+         if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.Progress.OperationDescription)" -status "$($imedium.IProgress.Progress.OperationDescription): $($imedium.IProgress.Progress.OperationPercent)%" -percentComplete ($imedium.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+        } until ($imedium.IProgress.Progress.Percent -eq 100) # continue once the progress reaches 100%
+       } # end elseif com
       } # end if $PSCmdlet.ShouldProcess(
       else {Write-Verbose "Operation cancelled by user";return}
      } # end if $DeleteFromHost
      else {
       # close the disk
       Write-Verbose "Removing disk $($imedium.Name) from VirtualBox inventory"
-      $global:vbox.IMedium_close($imedium.Id)
+      if ($ModuleHost.ToLower() -eq 'websrv') {
+       $global:vbox.IMedium_close($imedium.Id)
+      } # end if websrv
+      elseif ($ModuleHost.ToLower() -eq 'com') {
+       $imedium.ComObject.Close()
+      } # end elseif com
      }
     } # foreach $imedium in $imediums
    } # Try
@@ -7300,17 +8320,17 @@ ParameterSetName="HardDisk")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
-  # get extensions supported by the selected format
-  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
-  # get the last of the extensions and use it
-  $Ext = $Ext[$Ext.GetUpperBound(0)]
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
 } # Begin
 Process {
  Write-Verbose "Pipeline - Disk: `"$Disk`""
@@ -7359,33 +8379,63 @@ Process {
      $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
      foreach ($imachine in $imachines) {
       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
-      $istoragecontrollers = New-Object IStorageController
-      $istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
-      foreach ($istoragecontroller in $istoragecontrollers) {
-       if ($istoragecontroller.Name -eq $Controller) {
-        if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-        if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-        $controllerfound = $true
-       } # end if $istoragecontroller.Name -eq $Controller
-       if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify a new controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-      } # foreach $istoragecontroller in $istoragecontrollers
-      Write-Verbose "Getting write lock on machine $($imachine.Name)"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Write'))
-      # create a new machine object
-      $mmachine = New-Object VirtualBoxVM
-      # get the mutable machine object
-      Write-Verbose "Getting the mutable machine object"
-      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
-      $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-      # attach the disk
-      Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-      $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
-      # save new settings
-      Write-Verbose "Saving new settings"
-      $global:vbox.IMachine_saveSettings($mmachine.Id)
-      # unlock machine session
-      Write-Verbose "Unlocking machine session"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      if ($ModuleHost.ToLower() -eq 'websrv') {
+       $istoragecontrollers = New-Object IStorageController
+       $istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+       foreach ($istoragecontroller in $istoragecontrollers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $istoragecontrollers
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+       $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+       # attach the disk
+       Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+       $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $global:vbox.IMachine_saveSettings($mmachine.Id)
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if websrv
+      elseif ($ModuleHost.ToLower() -eq 'com') {
+       $istoragecontrollers = $imachine.ComObject.StorageControllers
+       foreach ($istoragecontroller in $istoragecontrollers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $istoragecontrollers
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.ComObject = $imachine.ISession.Session.Machine
+       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+       # attach the disk
+       Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+       $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.ComObject)
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $mmachine.ComObject.SaveSettings()
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $imachine.ISession.Session.UnlockMachine()
+      } # end elseif com
      } # foreach $imachine in $imachines
     } # foreach $imedium in $imediums
    } # Try
@@ -7397,11 +8447,16 @@ Process {
    finally {
     # release mutable machine objects if they exist
     if ($mmachine) {
-     if ($mmachine.ISession) {
+     if ($mmachine.ISession.Id) {
       # release mutable session object
       Write-Verbose "Releasing mutable session object"
-      $global:vbox.IManagedObjectRef_release($mmachine.ISession)
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
      }
+     if ($mmachine.ISession.Session) {
+      if ($mmachine.ISession.Session.State -gt 1) {
+       $mmachine.ISession.Session.UnlockMachine()
+      } # end if $mmachine.ISession.Session locked
+     } # end if $mmachine.ISession.Session
      if ($mmachine.Id) {
       # release mutable object
       Write-Verbose "Releasing mutable object"
@@ -7412,18 +8467,23 @@ Process {
     Write-Verbose 'Cleaning up machine sessions'
     if ($imachines) {
      foreach ($imachine in $imachines) {
-      if ($imachine.ISession) {
-       if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      if ($imachine.ISession.Id) {
+       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
         Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-        $global:vbox.ISession_unlockMachine($imachine.ISession)
+        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
        } # end if session state not unlocked
-      } # end if $imachine.ISession
+      } # end if $imachine.ISession.Id
+      if ($imachine.ISession.Session) {
+       if ($imachine.ISession.Session.State -gt 1) {
+        $imachine.ISession.Session.UnlockMachine()
+       } # end if $imachine.ISession.Session locked
+      } # end if $imachine.ISession.Session
       if ($imachine.IConsole) {
        # release the iconsole session
        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
       } # end if $imachine.IConsole
-      #$imachine.ISession = $null
+      #$imachine.ISession.Id = $null
       $imachine.IConsole = $null
       if ($imachine.IPercent) {$imachine.IPercent = $null}
       $imachine.MSession = $null
@@ -7453,12 +8513,6 @@ The name of at least one virtual disk. Can be received via pipeline input by nam
 The GUID of at least one virtual disk. Can be received via pipeline input by name.
 .PARAMETER MachineName
 The name of the virtual machine to dismount the disk from. This is a required parameter.
-.PARAMETER Controller
-The name of the storage controller to dismount the disk from. This is a required parameter.
-.PARAMETER ControllerPort
-The port of the storage controller to dismount the disk from. This is a required parameter.
-.PARAMETER ControllerSlot
-The slot of the storage controller to dismount the disk from. This is a required parameter.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
@@ -7501,48 +8555,28 @@ HelpMessage="Enter one or more virtual disk GUID(s)",
 ParameterSetName="HardDisk")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
-[Parameter(Mandatory=$true,HelpMessage="Enter the name of the virtual machine to dismount the disk from",
-ParameterSetName="HardDisk")]
-[ValidateNotNullorEmpty()]
-  [string]$MachineName,
-[Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to dismount the disk from",
-ParameterSetName="HardDisk")]
-[ValidateNotNullorEmpty()]
-  [string]$Controller,
-[Parameter(Mandatory=$true,HelpMessage="Enter the port number to dismount the disk from",
-ParameterSetName="HardDisk")]
-[ValidateNotNullorEmpty()]
-  [int]$ControllerPort,
-[Parameter(Mandatory=$true,HelpMessage="Enter the slot number to dismount the disk from",
-ParameterSetName="HardDisk")]
-[ValidateNotNullorEmpty()]
-  [int]$ControllerSlot,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # check global vbox variable and create it if it doesn't exist
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
- if (-Not $global:ivbox) {Start-VirtualBoxSession}
-  # get extensions supported by the selected format
-  $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
-  # get the last of the extensions and use it
-  $Ext = $Ext[$Ext.GetUpperBound(0)]
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
 } # Begin
 Process {
  Write-Verbose "Pipeline - Disk: `"$Disk`""
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
- Write-Verbose "Machine Name: `"$MachineName`""
- Write-Verbose "Controller Name: `"$Controller`""
- Write-Verbose "Controller Port: `"$ControllerPort`""
- Write-Verbose "Controller Slot: `"$ControllerSlot`""
  if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
   # initialize $imachines array
@@ -7571,52 +8605,59 @@ Process {
    try {
     foreach ($imedium in $imediums) {
      Write-Verbose "Found disk: $($imedium.Name)"
-     if ($imedium.VMNames) {
-      foreach ($vmname in $imedium.VMNames) {
+     if ($imedium.VMIds) {
+      foreach ($vmids in $imedium.VMIds) {
        Write-Verbose "Disk attached to VM: $vmname"
-       $imachine = Get-VirtualBoxVM -Name $vmname -SkipCheck
+       $imachines = Get-VirtualBoxVM -Guid $vmids -SkipCheck
        if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
        if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
-        if (!($Controller -and $ControllerPort -ge 0 -and $ControllerSlot -ge 0)) {Write-Host "[Error] The disk $($imedium.Name) is currently attached to the $($imachine.Name) machine. Supply the name, port, and slot number of the controller the disk is connected to using the provided parameters and try again." -ForegroundColor Red -BackgroundColor Black;return}
-        # need to write stuff here to get the storage controller info before detaching the disk
-        $istoragecontrollers = New-Object IStorageController
-        $istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
-        foreach ($istoragecontroller in $istoragecontrollers) {
-         if ($istoragecontroller.Name -eq $Controller) {
-          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have that many ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have that many slots on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-          $controllerfound = $true
-         } # end if $istoragecontroller.Name -eq $Controller
-         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify a new controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-        } # foreach $istoragecontroller in $istoragecontrollers
-        Write-Verbose "Getting write lock on machine $($imachine.Name)"
-        $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Write'))
-        # create a new machine object
-        $mmachine = New-Object VirtualBoxVM
-        # get the mutable machine object
-        Write-Verbose "Getting the mutable machine object"
-        $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession)
-        $mmachine.ISession = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-        Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
-        $global:vbox.IMachine_detachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot)
-        # save new settings
-        Write-Verbose "Saving new settings"
-        $global:vbox.IMachine_saveSettings($mmachine.Id)
-        if ((Get-VirtualBoxDisk -Machine ($imachine) -SkipCheck).Name -contains $imedium.Name) {
-         Write-Verbose "Failed to dismount disk $($imedium.Name) from machine: $($imachine.Name)"
-         $global:vbox.IMachine_attachDevice($imachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
-         # revert to old settings
-         Write-Verbose "Reverting to original settings"
-         $global:vbox.IMachine_saveSettings($mmachine.Id)
-         Write-Host "[Error] The disk $($imedium.Name) was not mounted to machine $($imachine.Name) controller $Controller at port $ControllerPort slot $ControllerSlot. Unmount the disk manually or correct the supplied parameters and try again." -ForegroundColor Red -BackgroundColor Black
-         # unlock machine session
-         Write-Verbose "Unlocking machine session"
-         $global:vbox.ISession_unlockMachine($imachine.ISession)
-         return
-        }
-        # unlock machine session
-        Write-Verbose "Unlocking machine session"
-        $global:vbox.ISession_unlockMachine($imachine.ISession)
+        if ($ModuleHost.ToLower() -eq 'websrv') {
+         foreach ($imachine in $imachines) {
+          Write-Verbose "Getting medium attachment information"
+          $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
+          Write-Verbose "Getting write lock on machine $($imachine.Name)"
+          $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+          # create a new machine object
+          $mmachine = New-Object VirtualBoxVM
+          # get the mutable machine object
+          Write-Verbose "Getting the mutable machine object"
+          $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+          $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+          Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+          $global:vbox.IMachine_detachDevice($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device)
+          # save new settings
+          Write-Verbose "Saving new settings"
+          $global:vbox.IMachine_saveSettings($mmachine.Id)
+          # unlock machine session
+          Write-Verbose "Unlocking machine session"
+          $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+         }
+        } # end if websrv
+        elseif ($ModuleHost.ToLower() -eq 'com') {
+         foreach ($imachine in $imachines) {
+          Write-Verbose "Getting medium attachment information"
+          $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
+          Write-Verbose "Getting write lock on machine $($imachine.Name)"
+          $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+          # create a new machine object
+          $mmachine = New-Object VirtualBoxVM
+          # get the mutable machine object
+          Write-Verbose "Getting the mutable machine object"
+          $mmachine.ComObject = $imachine.ISession.Session.Machine
+          $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+          Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+          Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+          Write-Verbose "Port: `"$($imediumattachment.Port)`""
+          Write-Verbose "Device: `"$($imediumattachment.Device)`""
+          $mmachine.ComObject.DetachDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)
+          # save new settings
+          Write-Verbose "Saving new settings"
+          $mmachine.ComObject.SaveSettings()
+          # unlock machine session
+          Write-Verbose "Unlocking machine session"
+          $imachine.ISession.Session.UnlockMachine()
+         } # foreach $imachine in $imachines
+        } # end elseif com
        } # end if $PSCmdlet.ShouldProcess(
       } # foreach $vmname in $imedium.VMNames
      } # end if $imedium.VMNames
@@ -7630,11 +8671,16 @@ Process {
    finally {
     # release mutable machine objects if they exist
     if ($mmachine) {
-     if ($mmachine.ISession) {
+     if ($mmachine.ISession.Id) {
       # release mutable session object
       Write-Verbose "Releasing mutable session object"
-      $global:vbox.IManagedObjectRef_release($mmachine.ISession)
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
      }
+     if ($mmachine.ISession.Session) {
+      if ($mmachine.ISession.Session.State -gt 1) {
+       $mmachine.ISession.Session.UnlockMachine()
+      } # end if $mmachine.ISession.Session locked
+     } # end if $mmachine.ISession.Session
      if ($mmachine.Id) {
       # release mutable object
       Write-Verbose "Releasing mutable object"
@@ -7645,18 +8691,23 @@ Process {
     Write-Verbose 'Cleaning up machine sessions'
     if ($imachines) {
      foreach ($imachine in $imachines) {
-      if ($imachine.ISession) {
-       if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+      if ($imachine.ISession.Id) {
+       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
         Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-        $global:vbox.ISession_unlockMachine($imachine.ISession)
+        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
        } # end if session state not unlocked
-      } # end if $imachine.ISession
+      } # end if $imachine.ISession.Id
+      if ($imachine.ISession.Session) {
+       if ($imachine.ISession.Session.State -gt 1) {
+        $imachine.ISession.Session.UnlockMachine()
+       } # end if $imachine.ISession.Session locked
+      } # end if $imachine.ISession.Session
       if ($imachine.IConsole) {
        # release the iconsole session
        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
       } # end if $imachine.IConsole
-      #$imachine.ISession = $null
+      #$imachine.ISession.Id = $null
       $imachine.IConsole = $null
       if ($imachine.IPercent) {$imachine.IPercent = $null}
       $imachine.MSession = $null
@@ -7766,12 +8817,13 @@ HelpMessage="Enter the credentials to login to the guest OS")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -7779,7 +8831,7 @@ Process {
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
- if ($Arguments) {$Arguments = ,$PathToExecutable + $Arguments}
+ if ($Arguments) {$Arguments = $PathToExecutable,$Arguments}
  $command = "$($PathToExecutable) -- $($Arguments)"
  # initialize $imachines array
  $imachines = @()
@@ -7805,135 +8857,239 @@ Process {
  try {
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    Write-verbose "Locking the machine session"
-    $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession, $global:locktype.ToInt('Shared'))
-    # create iconsole session to vm
-    Write-verbose "Creating IConsole session to the machine"
-    $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession)
-    # create iconsole guest session to vm
-    Write-verbose "Creating IConsole guest session to the machine"
-    $imachine.IConsoleGuest = $global:vbox.IConsole_getGuest($imachine.IConsole)
-    # create a guest session
-    Write-Verbose "Creating a guest console session"
-    $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest,$Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password,$Credential.GetNetworkCredential().Domain,"PsLaunchProcess_$($imachine.IConsoleGuest)")
-    # wait 10 seconds for the session to be created successfully
-    Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
-    $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
-    Write-Verbose "Guest console status: $iguestsessionstatus"
-    # create the process in the guest machine and send it a list of arguments
-    Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
-    $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), $global:processcreateflag.ToInt('None'), $Timeout)
-    if (!$NoWait) {
-     # create event source
-     Write-Verbose "Creating event source"
-     $ieventsource = $global:vbox.IConsole_getEventSource($imachine.IConsole)
-     # create event listener
-     Write-Verbose "Creating event listener"
-     $ieventlistener = $global:vbox.IEventSource_createListener($ieventsource)
-     # register event listener
-     Write-Verbose "Registering event listener"
-     $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, $global:vboxeventtype.ToInt('Any'), $false)
-     try {
-      # wait for process creation
-      Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
-      $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
-      Write-Verbose "Process wait result: $($processwaitresult)"
-      # gather extra data
-      $guestprocessexecutablepath = $global:vbox.IProcess_getExecutablePath($iguestprocess)
-      $guestprocesspid = $global:vbox.IProcess_getPID($iguestprocess)
-      $guestprocessarguments = $global:vbox.IProcess_getArguments($iguestprocess)
-      Write-Verbose "Launched process: `"$($guestprocessexecutablepath)`""
-      Write-Verbose "Process PID: `"$($guestprocesspid)`""
-      Write-Verbose "Guest syntax: `"$($guestprocessarguments)`""
-      $ieventsublistener = $null
-      do {
-       # get new events
-       $ievent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventlistener, 200)
-       if ($ievent -ne '') {
-        # process new event
-        Write-Verbose "Encountered event ID: $($ievent)"
-        $ieventtype = $global:vbox.IEvent_getType($ievent)
-        Write-Verbose "Event type: $($ieventtype)"
-        if ($ieventtype -eq 'OnEventSourceChanged') {
-         # new event source... let's listen
-         $ieventsublistener = $global:vbox.IEventSourceChangedEvent_getListener($ievent)
-         Write-Verbose "New event listener object found: $($ieventsublistener)"
-        } # end if event source changed
-        if ($ieventtype -eq 'OnGuestPropertyChanged') {
-         $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($ievent)
-         $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($ievent)
-         $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($ievent)
-         $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
-         Write-Verbose "Guest property name: $($guestpropertyname)"
-         Write-Verbose "Guest property value: $($guestpropertyvalue)"
-         Write-Verbose "Guest property flags: $($guestpropertyflags)"
-         Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
-        }
-        $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
-       } # end if $ievent -ne ''
-       if ($ieventsublistener -ne $null) {$isubevent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventsublistener, 200)}
-       if ($isubevent -ne '') {
-        Write-Verbose "Encountered sub event ID: $($isubevent)"
-        $isubeventtype = $global:vbox.IEvent_getType($isubevent)
-        Write-Verbose "Sub event type: $($ieventtype)"
-        if ($isubeventtype -eq 'OnGuestPropertyChanged') {
-         $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($isubevent)
-         $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($isubevent)
-         $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($isubevent)
-         $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
-         Write-Verbose "Guest property name: $($guestpropertyname)"
-         Write-Verbose "Guest property value: $($guestpropertyvalue)"
-         Write-Verbose "Guest property flags: $($guestpropertyflags)"
-         Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
-        }
-        $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
-       } # end if $isubevent -ne ''
-       # this is returning WaitFlagNotSupported - waiting for stdout and stderr is not currently implemented - leaving this for when it does work and waitfor terminate still works
-       $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('StdErr'),$global:processwaitforflag.ToULong('Terminate')), 200)
-       #Write-Verbose "[DEBUG] Process wait result: $($processwaitresult)"
-       # read guest process stdout
-       [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), (64 * 1024), 0)
-       # the next two lines should be removed after debugging $readstdout
-       Write-Verbose "[DEBUG] StdOut: `"$($readstdout)`""
-       if ($readstdout -ne $null) {Write-Verbose "[DEBUG] StdOut Type: $($readstdout.GetType())"}
-       if ($readstdout -and $StdOut) {
-        # write stdout to pipeline
-        Write-Verbose "Writing StdOut to pipeline"
-        Write-Output $($readstdout -join '')
-       } # end if $readstdout
-       # read guest process stderr
-       [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), (64 * 1024), 0)
-       # write stderr to the host as error text if it contains anything
-       if ($readstderr -and $StdErr) {
-        # write stderr to pipeline
-        Write-Verbose "Writing StdErr to host"
-        Write-Host ($readstderr -join '') -ForegroundColor Red -BackgroundColor Black
-       }
-       $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
-       # note the process status to look for abnormal return
-       if ($iprocessstatus -notmatch 'Start') {
-        if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
-        else {Write-Verbose "Process status: $($iprocessstatus)"}
-       } # end if $iprocessstatus -notmatch 'Start'
-       if ($processwaitresult -match 'Timeout') {Write-Verbose "Process timed out"}
-      } until ($iprocessstatus.toString() -match 'Terminated' -or $processwaitresult -match 'Timeout')
-     } # Try
-     catch {
-      Write-Verbose 'Exception while running process in guest machine'
-      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-     } # Catch
-     finally {
-      # unregister listener object
-      Write-Verbose 'Unregistering listener'
-      $global:vbox.IEventSource_unregisterListener($ieventsource, $ieventlistener)
-      if (!($global:vbox.IProcess_getStatus($iguestprocess)).toString().contains('Terminated')) {
-       # kill guest process if it hasn't ended yet
-       Write-Verbose 'Terminating guest process'
-       $global:vbox.IProcess_terminate($iguestprocess)
-      } # end if process hasn't terminated
-     } # Finally
-    } # end if not NoWait
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     Write-verbose "Locking the machine session"
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+     # create iconsole session to vm
+     Write-verbose "Creating IConsole session to the machine"
+     $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
+     # create iconsole guest session to vm
+     Write-verbose "Creating IConsole guest session to the machine"
+     $imachine.IConsoleGuest = $global:vbox.IConsole_getGuest($imachine.IConsole)
+     # create a guest session
+     Write-Verbose "Creating a guest console session"
+     $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest, $Credential.GetNetworkCredential().UserName, $Credential.GetNetworkCredential().Password, $Credential.GetNetworkCredential().Domain, "WsPsLaunchProcess_$([datetime]::Now)")
+     # wait 10 seconds for the session to be created successfully
+     Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
+     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
+     Write-Verbose "Guest console status: $iguestsessionstatus"
+     # create the process in the guest machine and send it a list of arguments
+     Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
+     if ($global:vbox.IGuestSession_fsObjExists($imachine.IGuestSession, $PathToExecutable, 1)) {
+      $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), [array]@($global:processcreateflag.ToInt('WaitForStdOut'), $global:processcreateflag.ToInt('WaitForStdErr')), $Timeout)
+     }
+     else {Write-Host "[Error] Executable specified ($PathToExecutable) does not exist on the guest. Check the path and try again." -ForegroundColor Red -BackgroundColor Black;return}
+     if (!$NoWait) {
+      # create event source
+      Write-Verbose "Creating event source"
+      $ieventsource = $global:vbox.IConsole_getEventSource($imachine.IConsole)
+      # create event listener
+      Write-Verbose "Creating event listener"
+      $ieventlistener = $global:vbox.IEventSource_createListener($ieventsource)
+      # register event listener
+      Write-Verbose "Registering event listener"
+      $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, $global:vboxeventtype.ToInt('Any'), $false)
+      try {
+       # wait for process creation
+       Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
+       $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
+       Write-Verbose "Process wait result: $($processwaitresult)"
+       # gather extra data
+       $guestprocessexecutablepath = $global:vbox.IProcess_getExecutablePath($iguestprocess)
+       $guestprocesspid = $global:vbox.IProcess_getPID($iguestprocess)
+       $guestprocessarguments = $global:vbox.IProcess_getArguments($iguestprocess)
+       Write-Verbose "Launched process: `"$($guestprocessexecutablepath)`""
+       Write-Verbose "Process PID: `"$($guestprocesspid)`""
+       Write-Verbose "Guest syntax: `"$($guestprocessarguments)`""
+       $ieventsublistener = $null
+       do {
+        # get new events
+        $ievent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventlistener, 200)
+        if ($ievent -ne '') {
+         # process new event
+         Write-Verbose "Encountered event ID: $($ievent)"
+         $ieventtype = $global:vbox.IEvent_getType($ievent)
+         Write-Verbose "Event type: $($ieventtype)"
+         if ($ieventtype -eq 'OnEventSourceChanged') {
+          # new event source... let's listen
+          $ieventsublistener = $global:vbox.IEventSourceChangedEvent_getListener($ievent)
+          Write-Verbose "New event listener object found: $($ieventsublistener)"
+         } # end if event source changed
+         if ($ieventtype -eq 'OnGuestPropertyChanged') {
+          $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($ievent)
+          $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($ievent)
+          $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($ievent)
+          $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
+          Write-Verbose "Guest property name: $($guestpropertyname)"
+          Write-Verbose "Guest property value: $($guestpropertyvalue)"
+          Write-Verbose "Guest property flags: $($guestpropertyflags)"
+          Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
+         }
+         $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventlistener, $ievent)
+        } # end if $ievent -ne ''
+        if ($ieventsublistener -ne $null) {$isubevent = $global:vbox.IEventSource_getEvent($ieventsource, $ieventsublistener, 200)}
+        if ($isubevent -ne '') {
+         Write-Verbose "Encountered sub event ID: $($isubevent)"
+         $isubeventtype = $global:vbox.IEvent_getType($isubevent)
+         Write-Verbose "Sub event type: $($ieventtype)"
+         if ($isubeventtype -eq 'OnGuestPropertyChanged') {
+          $guestpropertyname = $global:vbox.IGuestPropertyChangedEvent_getName($isubevent)
+          $guestpropertyvalue = $global:vbox.IGuestPropertyChangedEvent_getValue($isubevent)
+          $guestpropertyflags = $global:vbox.IGuestPropertyChangedEvent_getFlags($isubevent)
+          $guestpropertytimestamp = $global:vbox.IMachine_getGuestPropertyTimestamp($imachine.Id,$guestpropertyname)
+          Write-Verbose "Guest property name: $($guestpropertyname)"
+          Write-Verbose "Guest property value: $($guestpropertyvalue)"
+          Write-Verbose "Guest property flags: $($guestpropertyflags)"
+          Write-Verbose "Guest property timestamp: $($guestpropertytimestamp)"
+         }
+         $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
+        } # end if $isubevent -ne ''
+        # this is returning WaitFlagNotSupported - waiting for stdout and stderr is not currently implemented - leaving this for when it does work and waitfor terminate still works
+        $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('StdErr'),$global:processwaitforflag.ToULong('Terminate')), 200)
+        if ($StdOut) {
+         # read guest process stdout
+         [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), (64 * 1024), 0)
+         if ($readstdout) {
+          # write stdout to pipeline
+          Write-Verbose "Writing StdOut to pipeline"
+          Write-Host $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join ''))) -NoNewline
+         } # end if $readstdout
+        } # end if $StdOut
+        # write stderr to the host as error text if it contains anything
+        if ($StdErr) {
+         # read guest process stderr
+         [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), (64 * 1024), 0)
+         if ($readstderr) {
+          # write stderr to pipeline
+          Write-Verbose "Writing StdErr to host"
+          Write-Host $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))) -ForegroundColor Red -BackgroundColor Black
+         } # end if $readstderr
+        } # end if $StdErr
+        $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
+        # note the process status to look for abnormal return
+        if ($iprocessstatus -notmatch 'Start') {
+         if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
+         else {Write-Verbose "Process status: $($iprocessstatus)"}
+        } # end if $iprocessstatus -notmatch 'Start'
+        if ($processwaitresult -match 'Timeout') {Write-Verbose "Process timed out"}
+       } until ($iprocessstatus.toString() -match 'Terminated' -or $processwaitresult -match 'Timeout')
+      } # Try
+      catch {
+       Write-Verbose 'Exception while running process in guest machine'
+       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+       Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      } # Catch
+      finally {
+       # unregister listener object
+       Write-Verbose 'Unregistering listener'
+       $global:vbox.IEventSource_unregisterListener($ieventsource, $ieventlistener)
+       if (!($global:vbox.IProcess_getStatus($iguestprocess)).toString().contains('Terminated')) {
+        # kill guest process if it hasn't ended yet
+        Write-Verbose 'Terminating guest process'
+        $global:vbox.IProcess_terminate($iguestprocess)
+       } # end if process hasn't terminated
+      } # Finally
+     } # end if not NoWait
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     Write-verbose "Locking the machine session"
+     $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+     # create a guest session
+     Write-Verbose "Creating a guest console session"
+     $imachine.ISession.Session.Console.Guest.CreateSession($Credential.GetNetworkCredential().UserName, $Credential.GetNetworkCredential().Password, $Credential.GetNetworkCredential().Domain, "ComPsLaunchProcess_$([datetime]::Now)") | Out-Null
+     # wait 10 seconds for the session to be created successfully
+     Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
+     $iguestsessionstatus = $imachine.ISession.Session.Console.Guest.Sessions.WaitFor(1, 10000)
+     Write-Verbose "Guest console status: $($iguestsessionstatus)"
+     Write-Verbose "Guest console status: $($iguestsessionstatus.GetType())"
+     Write-Verbose "Guest console status: $($global:guestsessionwaitforflag.ToStr($iguestsessionstatus))"
+     # create the process in the guest machine and send it a list of arguments
+     Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
+     if ($imachine.ISession.Session.Console.Guest.Sessions.FsObjExists($PathToExecutable, 1) -eq 1) {
+      if ($StdOut -and $StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('WaitForStdOut'), $global:processcreateflag.ToInt('WaitForStdErr')), $Timeout)}
+      elseif ($StdOut) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('WaitForStdOut')), $Timeout)}
+      elseif ($StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('WaitForStdErr')), $Timeout)}
+      else {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('Hidden')), $Timeout)}
+     }
+     else {Write-Host "[Error] Executable specified ($PathToExecutable) does not exist on the guest. Check the path and try again." -ForegroundColor Red -BackgroundColor Black;return}
+     if (!$NoWait) {
+      # create event listener
+      Write-Verbose "Creating event listener"
+      $ieventlistener = $imachine.ISession.Session.Console.EventSource.CreateListener()
+      # register event listener
+      Write-Verbose "Registering event listener"
+      $imachine.ISession.Session.Console.EventSource.RegisterListener($ieventlistener, [int[]]@($global:vboxeventtype.ToInt('Any')), $false)
+      try {
+       # wait for process creation
+       Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
+       $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitFor($global:processwaitforflag.ToULong('Start'), 10000)
+       Write-Verbose "Process wait result: $($processwaitresult)"
+       # gather extra data
+       $guestprocessexecutablepath = $imachine.ISession.Session.Console.Guest.Sessions.Processes.ExecutablePath
+       $guestprocesspid = $imachine.ISession.Session.Console.Guest.Sessions.Processes.PID
+       $guestprocessarguments = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Arguments
+       Write-Verbose "Launched process: `"$($guestprocessexecutablepath)`""
+       Write-Verbose "Process PID: `"$($guestprocesspid)`""
+       Write-Verbose "Guest syntax: `"$($guestprocessarguments)`""
+       $ieventsublistener = $null
+       do {
+        # get new events
+        $ievent = $imachine.ISession.Session.Console.EventSource.GetEvent($ieventlistener, 200)
+        if ($ievent) {
+         # process new event
+         Write-Verbose "Encountered event: $($ievent)"
+         $imachine.ISession.Session.Console.EventSource.EventProcessed($ieventlistener, $ievent)
+        } # end if $ievent -ne ''
+        # this is returning WaitFlagNotSupported - waiting for stdout and stderr is not currently implemented - leaving this for when it does work and waitfor terminate still works
+        $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitForArray([int[]]@($global:processwaitforflag.ToULong('StdOut'), $global:processwaitforflag.ToULong('StdErr'), $global:processwaitforflag.ToULong('Terminate')), 200)
+        if ($StdOut) {
+         # read guest process stdout
+         [byte[]]$readstdout = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdOut'), (64 * 1024), 0)
+         # the next two lines should be removed after debugging $readstdout
+         Write-Verbose "[DEBUG] StdOut: `"$($readstdout -join '')`""
+         Write-Verbose "[DEBUG] StdOut type: `"$($readstdout.GetType())`""
+         if ($readstdout) {
+          # write stdout to pipeline
+          Write-Verbose "Writing StdOut to pipeline"
+          Write-Output $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join '')))
+         } # end if $readstdout
+        } # end if $StdOut
+        # write stderr to the host as error text if it contains anything
+        if ($StdErr) {
+         # read guest process stderr
+         [char[]]$readstderr = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdErr'), (64 * 1024), 0)
+         if ($readstderr) {
+          # write stderr to pipeline
+          Write-Verbose "Writing StdErr to host"
+          Write-Host $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))) -ForegroundColor Red -BackgroundColor Black
+         } # end if $readstderr
+        } # end if $StdErr
+        $iprocessstatus = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Status
+        # note the process status to look for abnormal return
+        if ($iprocessstatus -notmatch '100') {
+         if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
+         else {Write-Verbose "Process status: $($iprocessstatus)"}
+        } # end if $iprocessstatus -notmatch 'Start'
+        if ($processwaitresult -eq 5) {Write-Verbose "Process timed out"}
+       } until ($iprocessstatus.toString() -match '500' -or $processwaitresult -eq 5)
+      } # Try
+      catch {
+       Write-Verbose 'Exception while running process in guest machine'
+       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+       Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      } # Catch
+      finally {
+       # unregister listener object
+       Write-Verbose 'Unregistering listener'
+       $imachine.ISession.Session.Console.EventSource.UnregisterListener($ieventlistener)
+       if (!$imachine.ISession.Session.Console.Guest.Sessions.Processes.Status.toString().contains('Terminated')) {
+        # kill guest process if it hasn't ended yet
+        Write-Verbose 'Terminating guest process'
+        $imachine.ISession.Session.Console.Guest.Sessions.Processes.Terminate()
+       } # end if process hasn't terminated
+      } # Finally
+     } # end if not NoWait
+    } # end elseif com
    } # foreach $imachine in $imachines
   } # end if $imachines
   else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
@@ -7941,19 +9097,19 @@ Process {
  catch {
   Write-Verbose 'Exception running process in guest machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
   Write-Verbose 'Cleaning up machine sessions'
   if ($imachines) {
    foreach ($imachine in $imachines) {
-    if ($imachine.ISession) {
-     if ($global:vbox.ISession_getState($imachine.ISession) -eq 'Locked') {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-      $global:vbox.ISession_unlockMachine($imachine.ISession)
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
      } # end if session state not unlocked
-    } # end if $imachine.ISession
+    } # end if $imachine.ISession.Id
     if ($imachine.IConsole) {
      # release the iconsole session object
      Write-verbose "Releasing the IConsole session object for VM $($imachine.Name)"
@@ -7968,12 +9124,20 @@ Process {
      Write-verbose "Releasing the IGuestSession object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IGuestSession)
     } # end if $imachine.IConsole and not bypass
+    if ($imachine.ISession.Session -and !$NoWait) {
+     if ($imachine.ISession.Session.Console.Guest.Sessions) {
+      $imachine.ISession.Session.Console.Guest.Sessions.Close()
+     } # end if guest session
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if machine session locked
+    } # end if machine session and not bypass
     if ($imachine.IConsoleGuest) {
      # release the iconsole session
      Write-verbose "Releasing the IConsoleGuest object for VM $($imachine.Name)"
      $global:vbox.IManagedObjectRef_release($imachine.IConsoleGuest)
     } # end if $imachine.IConsole
-    #$imachine.ISession = $null
+    #$imachine.ISession.Id = $null
     $imachine.IConsole = $null
     if ($imachine.IPercent) {$imachine.IPercent = $null}
     $imachine.MSession = $null
@@ -8077,12 +9241,13 @@ HelpMessage="Enter the credentials to login to the guest OS")]
 ) # Param
 Begin {
  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
- # get global vbox variable or create it if it doesn't exist create it
- if (-Not $global:vbox) {$global:vbox = Get-VirtualBox}
- # refresh vboxwebsrv variable
- if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
- # start the websrvtask if it's not running
- if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
 } # Begin
 Process {
  Write-Verbose "Pipeline - Machine: `"$Machine`""
@@ -8127,28 +9292,595 @@ End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
+if ($ModuleHost.ToLower() -eq 'websrv') {
+ Function Start-VirtualBoxSession {
+ <#
+ .SYNOPSIS
+ Starts a VirtualBox Web Service session and populates the $global:ivbox managed object reference
+ .DESCRIPTION
+ Create a PowerShell managed object reference to the VirtualBox Web Service managed object.
+ .PARAMETER Protocol
+ The protocol of the VirtualBox Web Service. Default is http.
+ .PARAMETER Address
+ The domain name or IP address of the VirtualBox Web Service. Default is localhost.
+ .PARAMETER Port
+ The TCP port of the VirtualBox Web Service. Default is 18083.
+ .PARAMETER Force
+ A switch to force updating global properties.
+ .EXAMPLE
+ PS C:\> Start-VirtualBoxSession -Protocol "http" -Address "localhost" -Port "18083" -Credential $Credential
+ Populates the $global:ivbox variable to referece the VirtualBox Web Service managed object
+ .NOTES
+ NAME        :  Start-VirtualBoxSession
+ VERSION     :  1.0
+ LAST UPDATED:  1/4/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ Get-VirtualBox
+ Stop-VirtualBoxSession
+ .INPUTS
+ string       : string for protocol
+ string       : string for IP/FQDN
+ string       : string for TCP port
+ pscredential :
+ .OUTPUTS
+ $global:ivbox
+ #>
+ [cmdletbinding()]
+ Param(
+ [Parameter(HelpMessage="Enter protocol to be used to connect to the web service (Default: http)",
+ Mandatory=$false,Position=0)]
+ [ValidateSet("http","https")]
+   [string]$Protocol = "http",
+ # localhost ONLY for now since we haven't enabled https
+ [Parameter(HelpMessage="Enter the domain name or IP address running the web service (Default: localhost)",
+ Mandatory=$false,Position=1)]
+   [string]$Address = "localhost",
+ [Parameter(HelpMessage="Enter the TCP port the web service is listening on (Default: 18083)",
+ Mandatory=$false,Position=2)]
+   [string]$Port = "18083",
+ [Parameter(HelpMessage="Enter the credentials used to run the web service",
+ Mandatory=$true,Position=3)]
+   [pscredential]$Credential,
+ [Parameter(HelpMessage="Use this switch to force updating global properties")]
+   [switch]$Force
+ ) # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -and $global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  # set the target web service url
+  $global:vbox.Url = "$($Protocol)://$($Address):$($Port)"
+  # save the host address
+  $global:hostaddress = $Address
+  # if a session already exists, stop it
+  if ($global:ivbox) {Stop-VirtualBoxSession}
+ } # Begin
+ Process {
+  try {
+   # login to web service
+   Write-Verbose 'Creating the VirtualBox Web Service session ($global:ivbox)'
+   $global:ivbox = $global:vbox.IWebsessionManager_logon($Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password)
+   $apiversion = ($vbox.IVirtualBox_getAPIVersion($ivbox)).Replace('_','.')
+   if ($apiversion -lt 6.1) {Write-Host "[Warning] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$apiversion`"." -ForegroundColor Yellow -BackgroundColor Black;return}
+   if ($global:ivbox) {
+    if (!$global:guestostype -or $Force) {
+     try {
+      # get guest OS type IDs
+      Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+      $global:guestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
+     } # Try
+     catch {
+      Write-Verbose 'Exception fetching guest OS type data'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     } # Catch
+    }
+    if (!$global:isystemproperties -or $Force) {
+     try {
+      # create a local copy of capabilities for quick reference
+      Write-Verbose 'Fetching system properties object ($global:isystemproperties)'
+      $global:isystemproperties = $global:vbox.IVirtualBox_getSystemProperties($global:ivbox)
+     } # Try
+     catch {
+      Write-Verbose 'Exception fetching system properties'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     } # Catch
+     <#
+     try {
+      # get a local copy of device types by storage bus
+      Write-Verbose 'Fetching device types by storage bus ($global:devicetypesforstoragebus)'
+      $global:devicetypesforstoragebus = $global:vbox.ISystemProperties_getDeviceTypesForStorageBus($global:isystemproperties, 1)
+      for ($i=2;$i-lt8;$i++) {
+       $global:devicetypesforstoragebus += $global:vbox.ISystemProperties_getDeviceTypesForStorageBus($global:isystemproperties, $i)
+      }
+     }
+     catch {
+      Write-Verbose 'Exception fetching device types for storage buses'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     }
+     #> # disabling since this isn't really useful data
+     try {
+      Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+      $global:systempropertiessupported.Fetch()
+     } # Try
+     catch {
+      Write-Verbose 'Exception fetching supported system properties'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     } # Catch
+     try {
+      Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
+      $global:mediumformats.Fetch()
+      # get a human readable copy
+      Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
+      $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
+     } # Try
+     catch {
+      Write-Verbose 'Exception fetching supported medium formats'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     } # Catch
+    }
+   }
+  }
+  catch {
+   Write-Verbose 'Exception creating the VirtualBox Web Service session'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  }
+ } # Process
+ End {
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+ Function Stop-VirtualBoxSession {
+ <#
+ .SYNOPSIS
+ Stops the current VirtualBox Web Service session
+ .DESCRIPTION
+ Instruct the VirtualBox Web Service to close the current managed object session referenced by $global:ivbox.
+ .EXAMPLE
+ PS C:\> Stop-VirtualBoxSession
+ .NOTES
+ NAME        :  Stop-VirtualBoxSession
+ VERSION     :  1.0
+ LAST UPDATED:  1/4/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ Get-VirtualBox
+ Start-VirtualBoxSession
+ .INPUTS
+ None
+ .OUTPUTS
+ None
+ #>
+ [cmdletbinding(DefaultParameterSetName="UserPass")]
+ Param() # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+ } # Begin
+ Process {
+  if ($global:ivbox) {
+   try {
+    # tell vboxwebsrv to end the current session
+   Write-Verbose 'Closing the VirtualBox Web Service session ($global:ivbox)'
+    $global:vbox.IWebsessionManager_logoff($global:ivbox)
+    $global:ivbox = $null
+   } # end try
+   catch {
+    Write-Verbose 'Exception closing the VirtualBox Web Service session'
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   }
+  }
+ } # Process
+ End {
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+ Function Start-VirtualBoxWebSrv {
+ <#
+ .SYNOPSIS
+ Starts the VirtualBox Web Service
+ .DESCRIPTION
+ Starts the VirtualBox Web Service using schtask.exe.
+ .EXAMPLE
+ PS C:\> Start-VirtualBoxWebSrv
+ Starts the VirtualBox Web Service if it isn't already running
+ .NOTES
+ NAME        :  Start-VirtualBoxWebSrv
+ VERSION     :  1.0
+ LAST UPDATED:  1/4/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ Stop-VirtualBoxWebSrv
+ Restart-VirtualBoxWebSrv
+ Update-VirtualBoxWebSrv
+ .INPUTS
+ None
+ .OUTPUTS
+ None
+ #>
+ [cmdletbinding()]
+ Param() # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ } # Begin
+ Process {
+  try {
+   # refresh the vboxwebsrv scheduled task
+   Write-Verbose 'Running Update-VirtualBoxWebSrv cmdlet'
+   if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+   Write-Verbose "$($global:vboxwebsrvtask.Name) status: $($global:vboxwebsrvtask.Status)"
+   if ($global:vboxwebsrvtask.Status -and $global:vboxwebsrvtask.Status -ne 'Running') {
+    # start the web service task
+    Write-Verbose "Starting the VirtualBox Web Service ($($global:vboxwebsrvtask.Name))"
+    & cmd /c schtasks.exe /run /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
+   }
+   else {
+    # return a message
+    return "The VBoxWebSrv task is already running"
+   }
+  }
+  catch {
+   Write-Verbose 'Exception starting the VirtualBox Web Service'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  }
+ } # Process
+ End {
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+ Function Stop-VirtualBoxWebSrv {
+ <#
+ .SYNOPSIS
+ Stops the VirtualBox Web Service
+ .DESCRIPTION
+ Stops the VirtualBox Web Service using schtask.exe.
+ .EXAMPLE
+ PS C:\> Stop-VirtualBoxWebSrv
+ Stops the VirtualBox Web Service it is running
+ .NOTES
+ NAME        :  Stop-VirtualBoxWebSrv
+ VERSION     :  1.0
+ LAST UPDATED:  1/4/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ Start-VirtualBoxWebSrv
+ Restart-VirtualBoxWebSrv
+ Update-VirtualBoxWebSrv
+ .INPUTS
+ None
+ .OUTPUTS
+ None
+ #>
+ [cmdletbinding(DefaultParameterSetName="UserPass")]
+ Param() # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ } # Begin
+ Process {
+  # login to web service
+  Write-Verbose 'Ending the VirtualBox Web Service'
+  try {
+   # tell vboxwebsrv to end the current session
+   & cmd /c schtasks.exe /end /tn `"$($global:vboxwebsrvtask.Path)$($global:vboxwebsrvtask.Name)`" | Write-Verbose
+  } # end try
+  catch {
+   Write-Verbose 'Exception ending the VirtualBox Web Service'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # end catch
+ } # Process
+ End {
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+ Function Restart-VirtualBoxWebSrv {
+ <#
+ .SYNOPSIS
+ Restarts the VirtualBox Web Service
+ .DESCRIPTION
+ Stops then starts the VirtualBox Web Service using schtask.exe.
+ .EXAMPLE
+ PS C:\> Restart-VirtualBoxWebSrv
+ Restarts the VirtualBox Web Service if it is running
+ .NOTES
+ NAME        :  Restart-VirtualBoxWebSrv
+ VERSION     :  1.0
+ LAST UPDATED:  1/4/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ Start-VirtualBoxWebSrv
+ Stop-VirtualBoxWebSrv
+ Update-VirtualBoxWebSrv
+ .INPUTS
+ None
+ .OUTPUTS
+ None
+ #>
+ [cmdletbinding()]
+ Param() # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ } # Begin
+ Process {
+  # restart the web service task
+  Stop-VirtualBoxWebSrv
+  Start-VirtualBoxWebSrv
+ } # Process
+ End {
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+ Function Update-VirtualBoxWebSrv {
+ <#
+ .SYNOPSIS
+ Gets the updated status of the VirtualBox Web Service
+ .DESCRIPTION
+ Gets the updated status of the VirtualBox Web Service using schtask.exe.
+ .EXAMPLE
+ PS C:\> Update-VirtualBoxWebSrv
+ Returns the updated status of the VirtualBox Web Service
+ .NOTES
+ NAME        :  Update-VirtualBoxWebSrv
+ VERSION     :  1.0
+ LAST UPDATED:  1/4/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ Start-VirtualBoxWebSrv
+ Stop-VirtualBoxWebSrv
+ Restart-VirtualBoxWebSrv
+ .INPUTS
+ None
+ .OUTPUTS
+ [VirtualBoxWebSrvTask]$vboxwebsrvtask
+ #>
+ [cmdletbinding()]
+ Param() # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ } # Begin
+ Process {
+  # refresh the web service task information
+  try {
+   Write-Verbose 'Updating $global:vboxwebsrvtask'
+   $tempjoin = $()
+   $tempobj = (& cmd /c schtasks.exe /query /fo csv | ConvertFrom-Csv | Where-Object {$_.TaskName -match 'VirtualBox API Web Service'}).TaskName.Split("\")
+   $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
+   for ($a=0;$a-lt$tempobj.Count;$a++) {
+    if ($a -lt $tempobj.Count-1) {
+     $tempjoin += $tempobj[$a].Insert($tempobj[$a].Length,'\')
+    }
+    else {
+     $vboxwebsrvtask.Name = $tempobj[$a]
+     $vboxwebsrvtask.Path = [string]::Join('\',$tempjoin)
+    }
+   }
+   $vboxwebsrvtask.Status = (& cmd /c schtasks.exe /query /fo csv | ConvertFrom-Csv | Where-Object {$_.TaskName -match 'VirtualBox API Web Service'}).Status
+  } # end try
+  catch {
+   Write-Verbose 'Exception updating the VirtualBox Web Service'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # end catch
+  if (!$vboxwebsrvtask) {Write-Host '[Error] Failed to update $vboxwebsrvtask' -ForegroundColor Red -BackgroundColor Black;return}
+  return $vboxwebsrvtask
+ } # Process
+ End {
+  Write-Verbose $vboxwebsrvtask
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+} # end if websrv
+elseif ($ModuleHost.ToLower() -eq 'com') {
+ Function Open-VirtualBoxVMConsole {
+ <#
+ .SYNOPSIS
+ Open a virtual machine console window
+ .DESCRIPTION
+ Opens a virtual machine console window and powers it on if needed. This command will only work when run from the host machine.
+ .PARAMETER Machine
+ At least one virtual machine object. Can be received via pipeline input.
+ .PARAMETER Name
+ The name of at least one virtual machine. Can be received via pipeline input by name.
+ .PARAMETER Guid
+ The GUID of at least one virtual machine. Can be received via pipeline input by name.
+ .EXAMPLE
+ PS C:\> Get-VirtualBoxVM -State Running | Open-VirtualBoxVMConsole
+ Opens a console window for all running virtual machines
+ .EXAMPLE
+ PS C:\> Open-VirtualBoxVMConsole -Name "2016"
+ Opens a console window for the "2016 Core" virtual machine
+ .EXAMPLE
+ PS C:\> Open-VirtualBoxVMConsole -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+ Opens a console window for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+ .NOTES
+ NAME        :  Open-VirtualBoxVMConsole
+ VERSION     :  1.0
+ LAST UPDATED:  1/24/2020
+ AUTHOR      :  Andrew Brehm
+ EDITOR      :  SmithersTheOracle
+ .LINK
+ None
+ .INPUTS
+ VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
+ String[]      :  Strings for virtual machine names
+ Guid[]        :  GUIDs for virtual machine GUIDs
+ .OUTPUTS
+ None
+ #>
+ [CmdletBinding()]
+ Param(
+ [Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+ HelpMessage="Enter one or more virtual machine object(s)",
+ ParameterSetName="Machine",Mandatory=$true,Position=0)]
+ [ValidateNotNullorEmpty()]
+   [VirtualBoxVM[]]$Machine,
+ [Parameter(ValueFromPipelineByPropertyName=$true,
+ HelpMessage="Enter one or more virtual machine name(s)",
+ ParameterSetName="Name",Mandatory=$true)]
+ [ValidateNotNullorEmpty()]
+   [string[]]$Name,
+ [Parameter(ValueFromPipelineByPropertyName=$true,
+ HelpMessage="Enter one or more virtual machine GUID(s)",
+ ParameterSetName="Guid",Mandatory=$true)]
+ [ValidateNotNullorEmpty()]
+   [guid[]]$Guid
+ ) # Param
+ Begin {
+  Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ } # Begin
+ Process {
+  Write-Verbose "Pipeline - Machine: `"$Machine`""
+  Write-Verbose "Pipeline - Name: `"$Name`""
+  Write-Verbose "Pipeline - Guid: `"$Guid`""
+  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+  if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+  # initialize $imachines array
+  $imachines = @()
+  if ($Machine) {
+   Write-Verbose "Getting VM inventory from Machine(s)"
+   $imachines = $Machine
+   $imachines = $imachines | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Machine)
+  elseif ($Name) {
+   foreach ($item in $Name) {
+    Write-Verbose "Getting VM inventory from Name(s)"
+    $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+   }
+   $imachines = $imachines | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Name)
+  elseif ($Guid) {
+   foreach ($item in $Guid) {
+    Write-Verbose "Getting VM inventory from GUID(s)"
+    $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+   }
+   $imachines = $imachines | Where-Object {$_ -ne $null}
+  }# get vm inventory (by $Guid)
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe") {
+     Write-Verbose "Launching console window for `"$($imachine.Name)`""
+     Start-Process -FilePath "$($env:VBOX_MSI_INSTALL_PATH)VBoxSDL.exe" -ArgumentList ("--startvm `"$($imachine.Name)`" --separate") -WindowStyle Hidden
+    } # end if VBoxSDL.exe exists
+    else {Write-Host "[Error] VBoxSDL.exe not found. Ensure VirtualBox is installed on this machine and try again.";return}
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+  else {Write-Verbose "[Warning] No matching virtual machines were found using specified parameters"}
+ } # Process
+ End {
+  Write-Verbose "Ending $($MyInvocation.MyCommand)"
+ } # End
+ } # end function
+} # end elseif com
 #########################################################################################
 # Entry
-if (!(Get-Process -ErrorAction Stop | Where-Object {$_.ProcessName -match 'VBoxWebSrv'})) {
- if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxWebSrv.exe") {
-  Start-VirtualBoxWebSrv
- }
- else {Write-Host "[Error] VBoxWebSrv not found." -ForegroundColor Red -BackgroundColor Black;return}
-} # end if VBoxWebSrv check
-# get the global reference to the virtualbox web service object
 Write-Verbose "Initializing VirtualBox environment"
-if (!$vbox -or $ivbox) {$vbox = Get-VirtualBox}
-# get the web service task
-Write-Verbose "Updating VirtualBox WebSrv status"
-$vboxwebsrvtask = Update-VirtualBoxWebSrv
+if ($ModuleHost.ToLower() -eq 'websrv') {
+ if (!(Get-Process 'VBoxWebSrv')) {
+  if (Test-Path "$($env:VBOX_MSI_INSTALL_PATH)VBoxWebSrv.exe") {
+   Start-VirtualBoxWebSrv
+  }
+  else {Write-Host "[Error] VBoxWebSrv not found." -ForegroundColor Red -BackgroundColor Black;return}
+ } # end if VBoxWebSrv check
+ # get the global reference to the virtualbox web service object
+ Write-Verbose 'Creating the VirtualBox Web Service object ($global:vbox)'
+ if (!$vbox) {$global:vbox = New-WebServiceProxy -Uri "$($env:VBOX_MSI_INSTALL_PATH)sdk\bindings\webservice\vboxwebService.wsdl" -Namespace "VirtualBox" -Class "VirtualBoxWebSrv"}
+ if ($WebSrvCredential) {Start-VirtualBoxSession -Protocol $WebSrvProtocol -Address $WebSrvAddress -Port $WebSrvPort -Credential $WebSrvCredential}
+ if ($ivbox) {
+  try {
+   # get guest OS type IDs
+   Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+   $global:guestostype = $vbox.IVirtualBox_getGuestOSTypes($ivbox)
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching guest OS type data'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  try {
+   # get system properties interface reference
+   Write-Verbose 'Fetching system properties object ($global:isystemproperties)'
+   $global:isystemproperties = $vbox.IVirtualBox_getSystemProperties($ivbox)
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching system properties'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  try {
+   Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+   $global:systempropertiessupported.Fetch()
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching supported system properties'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  try {
+   Write-Verbose 'Fetching supported medium formats ($global:mediumformats)'
+   $global:mediumformats.Fetch()
+   # get a human readable copy
+   Write-Verbose 'Fetching medium format PSO ($global:mediumformatspso)'
+   $global:mediumformatspso = $global:mediumformatspso.FetchObject($vbox.ISystemProperties_getMediumFormats($isystemproperties))
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching supported medium formats'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+ } # end if $ivbox
+ # get the web service task
+ Write-Verbose "Updating VirtualBox WebSrv status"
+ $vboxwebsrvtask = Update-VirtualBoxWebSrv
+} # end if websrv
+elseif ($ModuleHost.ToLower() -eq 'com') {
+ # create vbox app
+ Write-Verbose 'Creating the VirtualBox COM object ($global:vbox)'
+ $vbox = New-Object -ComObject "VirtualBox.VirtualBox"
+ if ($vbox.APIVersion.Replace('_','.') -lt 6.1) {Write-Host "[Warning] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$($vbox.APIVersion.Replace('_','.'))`"." -ForegroundColor Yellow -BackgroundColor Black;return}
+ try {
+  # get guest OS type IDs
+  Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+  $global:guestostype = $vbox.GuestOSTypes
+ } # Try
+ catch {
+  Write-Verbose 'Exception fetching guest OS type data'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ try {
+  Write-Verbose 'Fetching supported medium formats ($global:mediumformats)'
+  $global:mediumformats = Get-Content -Raw -Path "C:\Program Files\Oracle\VirtualBox\sdk\MediumFormat.json" | ConvertFrom-Json
+  # get a human readable copy
+  Write-Verbose 'Fetching medium format PSO ($global:mediumformatspso)'
+  $global:mediumformatspso = Get-Content -Raw -Path "C:\Program Files\Oracle\VirtualBox\sdk\MediumFormatPso.json" | ConvertFrom-Json
+ } # Try
+ catch {
+  Write-Verbose 'Exception fetching supported medium formats'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+} # end elseif com
 # define aliases
 New-Alias -Name gvbox -Value Get-VirtualBox
-New-Alias -Name savboxs -Value Start-VirtualBoxSession
-New-Alias -Name spvboxs -Value Stop-VirtualBoxSession
-New-Alias -Name savboxws -Value Start-VirtualBoxWebSrv
-New-Alias -Name spvboxws -Value Stop-VirtualBoxWebSrv
-New-Alias -Name rtvboxws -Value Restart-VirtualBoxWebSrv
-New-Alias -Name udvboxws -Value Update-VirtualBoxWebSrv
 New-Alias -Name gvboxvm -Value Get-VirtualBoxVM
 New-Alias -Name ssvboxvm -Value Suspend-VirtualBoxVM
 New-Alias -Name ruvboxvm -Value Resume-VirtualBoxVM
@@ -8160,7 +9892,6 @@ New-Alias -Name ipvboxvm -Value Import-VirtualBoxVM
 New-Alias -Name edvboxvm -Value Edit-VirtualBoxVM
 New-Alias -Name svboxvmgp -Value Set-VirtualBoxVMGuestProperty
 New-Alias -Name rvboxvmgp -Value Remove-VirtualBoxVMGuestProperty
-New-Alias -Name opvboxvmc -Value Open-VirtualBoxVMConsole
 New-Alias -Name evboxvmvrde -Value Enable-VirtualBoxVMVRDEServer
 New-Alias -Name dvboxvmvrde -Value Disable-VirtualBoxVMVRDEServer
 New-Alias -Name edvboxvmvrde -Value Edit-VirtualBoxVMVRDEServer
@@ -8175,5 +9906,16 @@ New-Alias -Name mtvboxd -Value Mount-VirtualBoxDisk
 New-Alias -Name dmvboxd -Value Dismount-VirtualBoxDisk
 New-Alias -Name sbvboxvmp -Value Submit-VirtualBoxVMProcess
 New-Alias -Name sbvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
+if ($ModuleHost.ToLower() -eq 'websrv') {
+ New-Alias -Name savboxs -Value Start-VirtualBoxSession
+ New-Alias -Name spvboxs -Value Stop-VirtualBoxSession
+ New-Alias -Name savboxws -Value Start-VirtualBoxWebSrv
+ New-Alias -Name spvboxws -Value Stop-VirtualBoxWebSrv
+ New-Alias -Name rtvboxws -Value Restart-VirtualBoxWebSrv
+ New-Alias -Name udvboxws -Value Update-VirtualBoxWebSrv
+} # end if websrv
+elseif ($ModuleHost.ToLower() -eq 'com') {
+ New-Alias -Name opvboxvmc -Value Open-VirtualBoxVMConsole
+} # end elseif com
 # export module members
-Export-ModuleMember -Alias * -Function * -Variable @('vbox','vboxwebsrvtask','vboxerror')
+Export-ModuleMember -Alias * -Function * -Variable @('vbox','vboxerror')
