@@ -132,7 +132,8 @@ class IProgress {
         else {return $null}
     }
 }
-Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description") -Force
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description","Progress") -Force}
 class IVrdeServer {
     [ValidateNotNullOrEmpty()]
     [string]$Id
@@ -261,7 +262,83 @@ class ISession {
     [string]$Id
     [System.__ComObject]$Session
 }
-Update-TypeData -TypeName ISession -DefaultDisplayPropertySet @("State","Type","Machine","Console") -Force
+Update-TypeData -TypeName ISession -DefaultDisplayPropertySet @("Id","Session") -Force
+class IStorageControllers {
+    [ValidateNotNullOrEmpty()]
+    [string]$Name
+    [string]$Id
+    [uint32]$MaxDevicesPerPortCount
+    [uint32]$MinPortCount
+    [uint32]$MaxPortCount
+    [uint32]$Instance
+    [uint32]$PortCount
+    [string]$Bus
+    [string]$ControllerType
+    [bool]$UseHostIOCache
+    [bool]$Bootable
+    [System.__ComObject]$ComObject
+    [IStorageControllers[]]Fetch ([string]$IMachine) {
+        $Variable = [IStorageControllers]::new()
+        [string[]]$istoragecontrollers = $global:vbox.IMachine_getStorageControllers($IMachine)
+        foreach ($istoragecontroller in $istoragecontrollers) {
+            $Variable.Id = $istoragecontroller
+            $Variable.Name = $global:vbox.IStorageController_getName($istoragecontroller)
+            $Variable.MaxDevicesPerPortCount = $global:vbox.IStorageController_getMaxDevicesPerPortCount($istoragecontroller)
+            $Variable.MinPortCount = $global:vbox.IStorageController_getMinPortCount($istoragecontroller)
+            $Variable.MaxPortCount = $global:vbox.IStorageController_getMaxPortCount($istoragecontroller)
+            $Variable.Instance = $global:vbox.IStorageController_getInstance($istoragecontroller)
+            $Variable.PortCount = $global:vbox.IStorageController_getPortCount($istoragecontroller)
+            $Variable.Bus = $global:vbox.IStorageController_getBus($istoragecontroller)
+            $Variable.ControllerType = $global:vbox.IStorageController_getControllerType($istoragecontroller)
+            $Variable.UseHostIOCache = $global:vbox.IStorageController_getUseHostIOCache($istoragecontroller)
+            $Variable.Bootable = $global:vbox.IStorageController_getBootable($istoragecontroller)
+            [IStorageControllers[]]$ret += [IStorageControllers]@{Id=$Variable.Id;Name=$Variable.Name;MaxDevicesPerPortCount=$Variable.MaxDevicesPerPortCount;MinPortCount=$Variable.MinPortCount;MaxPortCount=$Variable.MaxPortCount;Instance=$Variable.Instance;PortCount=$Variable.PortCount;Bus=$Variable.Bus;ControllerType=$Variable.ControllerType;UseHostIOCache=$Variable.UseHostIOCache;Bootable=$Variable.Bootable}
+        }
+        return $ret
+    }
+}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IStorageControllers -DefaultDisplayPropertySet @("Name","Bus","ControllerType","Bootable") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IStorageControllers -DefaultDisplayPropertySet @("Name","Bus","ControllerType","Bootable","ComObject") -Force}
+class IMediumAttachments {
+    [VirtualBoxVHD]$IMedium = [VirtualBoxVHD]::new()
+    [string]$Controller
+    [uint32]$Port
+    [uint32]$Device
+    [string]$Type
+    [bool]$Passthrough
+    [bool]$TemporaryEject
+    [bool]$IsEjected
+    [bool]$NonRotational
+    [bool]$Discard
+    [bool]$HotPluggable
+    [string]$BandwidthGroup
+    [string]$MachineId
+    [string]$MediumId
+    [System.__ComObject]$ComObject
+    [IMediumAttachments[]]Fetch ([string]$IMachine) {
+        $Variable = [IMediumAttachments]::new()
+        $medatts = $global:vbox.IMachine_getMediumAttachments($IMachine)
+        foreach ($medatt in $medatts){
+			$Variable.MachineId = $medatt.machine
+			$Variable.MediumId = $medatt.medium
+			$Variable.Controller = $medatt.controller
+			$Variable.Port = $medatt.port
+			$Variable.Device = $medatt.device
+			$Variable.Type = $medatt.type
+			$Variable.Passthrough = $medatt.passthrough
+			$Variable.TemporaryEject = $medatt.temporaryEject
+			$Variable.IsEjected = $medatt.isEjected
+			$Variable.NonRotational = $medatt.nonRotational
+			$Variable.Discard = $medatt.discard
+			$Variable.HotPluggable = $medatt.hotPluggable
+			$Variable.BandwidthGroup = $medatt.bandwidthGroup
+            [IMediumAttachments[]]$ret += [IMediumAttachments]@{MachineId=$Variable.MachineId;MediumId=$Variable.MediumId;Controller=$Variable.Controller;Port=$Variable.Port;Device=$Variable.Device;Type=$Variable.Type;Passthrough=$Variable.Passthrough;TemporaryEject=$Variable.TemporaryEject;IsEjected=$Variable.IsEjected;NonRotational=$Variable.NonRotational;Discard=$Variable.Discard;HotPluggable=$Variable.HotPluggable;BandwidthGroup=$Variable.BandwidthGroup}
+        }
+        return $ret
+    }
+}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type","ComObject") -Force}
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
@@ -282,12 +359,14 @@ class VirtualBoxVM {
     [IProgress]$IProgress = [IProgress]::new()
     [string]$IConsoleGuest
     [string]$IGuestSession
-    [string[]]$IStorageControllers
+    [IStorageControllers[]]$IStorageControllers = [IStorageControllers]::new()
     [IVrdeServer]$IVrdeServer = [IVrdeServer]::new()
     [array]$GuestProperties
+    [IMediumAttachments[]]$IMediumAttachments = [IMediumAttachments]::new()
     [System.__ComObject]$ComObject
 }
-Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS","ComObject") -Force}
 class VirtualBoxVHD {
     [string]$Name
     [guid]$Guid
@@ -318,7 +397,8 @@ class VirtualBoxVHD {
         return $C
     }
 }
-Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","VMIds","VMNames") -Force
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","VMIds","VMNames") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","VMIds","VMNames","ComObject") -Force}
 class VirtualBoxWebSrvTask {
     [string]$Name
     [string]$Path
@@ -446,42 +526,6 @@ class IVirtualSystemDescription {
     }
 }
 Update-TypeData -TypeName IVirtualSystemDescription -DefaultDisplayPropertySet @("Types","OVFValues","VBoxValues") -Force
-class IStorageController {
-    [ValidateNotNullOrEmpty()]
-    [string]$Name
-    [ValidateNotNullOrEmpty()]
-    [string]$Id
-    [uint32]$MaxDevicesPerPortCount
-    [uint32]$MinPortCount
-    [uint32]$MaxPortCount
-    [uint32]$Instance
-    [uint32]$PortCount
-    [string]$Bus
-    [string]$ControllerType
-    [bool]$UseHostIOCache
-    [bool]$Bootable;
-    [array]Fetch ($IMachine) {
-        [string[]]$istoragecontrollers = $global:vbox.IMachine_getStorageControllers($IMachine)
-        $ret = @()
-        foreach ($istoragecontroller in $istoragecontrollers) {
-            $outId = $istoragecontroller
-            $outName = $global:vbox.IStorageController_getName($istoragecontroller)
-            $outMaxDevicesPerPortCount = $global:vbox.IStorageController_getMaxDevicesPerPortCount($istoragecontroller)
-            $outMinPortCount = $global:vbox.IStorageController_getMinPortCount($istoragecontroller)
-            $outMaxPortCount = $global:vbox.IStorageController_getMaxPortCount($istoragecontroller)
-            $outInstance = $global:vbox.IStorageController_getInstance($istoragecontroller)
-            $outPortCount = $global:vbox.IStorageController_getPortCount($istoragecontroller)
-            $outBus = $global:vbox.IStorageController_getBus($istoragecontroller)
-            $outControllerType = $global:vbox.IStorageController_getControllerType($istoragecontroller)
-            $outUseHostIOCache = $global:vbox.IStorageController_getUseHostIOCache($istoragecontroller)
-            $outBootable = $global:vbox.IStorageController_getBootable($istoragecontroller)
-            [array]$ret += [IStorageController]@{Id=$outId;Name=$outName;MaxDevicesPerPortCount=$outMaxDevicesPerPortCount;MinPortCount=$outMinPortCount;MaxPortCount=$outMaxPortCount;Instance=$outInstance;PortCount=$outPortCount;Bus=$outBus;ControllerType=$outControllerType;UseHostIOCache=$outUseHostIOCache;Bootable=$outBootable}
-        }
-        $ret = $ret | Where-Object {$ret -ne $null}
-        return [array]$ret
-    }
-}
-Update-TypeData -TypeName IStorageController -DefaultDisplayPropertySet @("Name","Bus","ControllerType","Bootable") -Force
 class SystemPropertiesSupported {
     [string[]]$ParavirtProviders
     [string[]]$ClipboardModes
@@ -1380,7 +1424,6 @@ Begin {
  if (!$Name) {$All = $true}
 } # Begin
 Process {
- #$obj = New-Object VirtualBoxVM
  Write-Verbose "Getting virtual machine inventory"
  # initialize array object to hold virtual machine values
  $vminventory = @()
@@ -1389,6 +1432,8 @@ Process {
    # get virtual machine inventory
    foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
      $guestprops = New-Object GuestProperties
+     $storagecontrollers = New-Object IStorageControllers
+     $mediumattachments = New-Object IMediumAttachments
      $tempobj = New-Object VirtualBoxVM
      $tempobj.Name = $global:vbox.IMachine_getName($vmid)
      $tempobj.Description = $global:vbox.IMachine_getDescription($vmid)
@@ -1400,27 +1445,43 @@ Process {
      $tempobj.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($vmid)
      $tempobj.IVrdeServer = $tempobj.IVrdeServer.Fetch($tempobj.Id)
      $tempobj.GuestProperties = $guestprops.Enumerate($tempobj.Id, $ModuleHost)
-     # decode state
-     Switch ($tempobj.State) {
-      1 {$tempobj.State = "PoweredOff"}
-      2 {$tempobj.State = "Saved"}
-      3 {$tempobj.State = "Teleported"}
-      4 {$tempobj.State = "Aborted"}
-      5 {$tempobj.State = "Running"}
-      6 {$tempobj.State = "Paused"}
-      7 {$tempobj.State = "Stuck"}
-      8 {$tempobj.State = "Snapshotting"}
-      9 {$tempobj.State = "Starting"}
-      10 {$tempobj.State = "Stopping"}
-      11 {$tempobj.State = "Restoring"}
-      12 {$tempobj.State = "TeleportingPausedVM"}
-      13 {$tempobj.State = "TeleportingIn"}
-      14 {$tempobj.State = "FaultTolerantSync"}
-      15 {$tempobj.State = "DeletingSnapshotOnline"}
-      16 {$tempobj.State = "DeletingSnapshot"}
-      17 {$tempobj.State = "SettingUp"}
-      Default {$tempobj.State = $tempobj.State}
-     }
+     $tempobj.IStorageControllers = $storagecontrollers.Fetch($tempobj.Id)
+     $tempobj.IMediumAttachments = $mediumattachments.Fetch($tempobj.Id)
+     foreach ($mediumattachment in $tempobj.IMediumAttachments) {
+      foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
+       if ($imediumid -eq $mediumattachment.MediumId) {
+        Write-Verbose "Getting attached disk: $($imediumid)"
+        $mediumattachment.IMedium.Name = $global:vbox.IMedium_getName($imediumid)
+        $mediumattachment.IMedium.GUID = $global:vbox.IMedium_getId($imediumid)
+        $mediumattachment.IMedium.Description = $global:vbox.IMedium_getDescription($imediumid)
+        $mediumattachment.IMedium.Format = $global:vbox.IMedium_getFormat($imediumid)
+        $mediumattachment.IMedium.Size = $global:vbox.IMedium_getSize($imediumid)
+        $mediumattachment.IMedium.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+        $mediumattachment.IMedium.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
+        foreach ($machineid in $mediumattachment.IMedium.VMIds) {
+         foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+          if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
+           $mediumattachment.IMedium.VMNames += $global:vbox.IMachine_getName($imachine)
+          } # end if ($global:vbox.IMachine_getId($imachine)) -eq $machineid
+          $mediumattachment.IMedium.VMNames = $mediumattachment.IMedium.VMNames | Where-Object {$_ -ne $null}
+         } # foreach $imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))
+        } # foreach $machineid in $mediumattachment.IMedium.VMIds
+        $mediumattachment.IMedium.State = $global:vbox.IMedium_getState($imediumid)
+        $mediumattachment.IMedium.Variant = $global:vbox.IMedium_getVariant($imediumid)
+        $mediumattachment.IMedium.Location = $global:vbox.IMedium_getLocation($imediumid)
+        $mediumattachment.IMedium.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+        $mediumattachment.IMedium.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+        $mediumattachment.IMedium.Type = $global:vbox.IMedium_getType($imediumid)
+        $mediumattachment.IMedium.Parent = $global:vbox.IMedium_getParent($imediumid)
+        $mediumattachment.IMedium.Children = $global:vbox.IMedium_getChildren($imediumid)
+        $mediumattachment.IMedium.Id = $imediumid
+        $mediumattachment.IMedium.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+        $mediumattachment.IMedium.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+        $mediumattachment.IMedium.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+       } # end if $imediumid -eq $mediumattachment.MediumId
+      } # end foreach loop disk inventory
+     } # foreach $mediumattachment in $tempobj.IMediumAttachments
+     $tempobj.IMediumAttachments = $tempobj.IMediumAttachments | Where-Object {$_.IMedium.Id -ne $null}
      Write-Verbose "Found $($tempobj.Name) and adding to inventory"
      $vminventory += $tempobj
    } # end foreach loop inventory
@@ -1430,8 +1491,8 @@ Process {
     foreach ($vm in $vminventory) {
      Write-Verbose "Matching $($vm.Name) to $($Name)"
      if ($vm.Name -match $Name) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
      }
     }
    } # end if $Name and not *
@@ -1440,8 +1501,8 @@ Process {
     foreach ($vm in $vminventory) {
      Write-Verbose "Matching $($vm.Guid) to $($Guid)"
      if ($vm.Guid -match $Guid) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
      }
     }
    } # end if $Guid
@@ -1449,13 +1510,13 @@ Process {
     if ($State) {
      Write-Verbose "Filtering all virtual machines by state: $State"
      foreach ($vm in $vminventory) {
-      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}}
+      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
      }
     }
     else {
      Write-Verbose "Filtering all virtual machines"
      foreach ($vm in $vminventory) {
-      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties}
+      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}
      }
     }
    } # end if All
@@ -1478,8 +1539,6 @@ Process {
      $tempobj.GuestOS = $vm.OSTypeID
      $tempobj.MemoryMb = $vm.MemorySize
      $tempobj.Guid = $vm.ID
-     #$session = New-Object -ComObject VirtualBox.Session
-     #$tempobj.ISession = [ISession]@{State=$session.State;Type=$session.Type;Machine=$session.Machine;Console=$session.Console}
      $tempobj.ISession.Session = New-Object -ComObject VirtualBox.Session
      $tempobj.IVrdeServer = [IVrdeServer]@{Enabled=$vm.VRDEServer.Enabled;AuthType=$vm.VRDEServer.AuthType;AuthTimeout=$vm.VRDEServer.AuthTimeout;AllowMultiConnection=$vm.VRDEServer.AllowMultiConnection;ReuseSingleConnection=$vm.VRDEServer.ReuseSingleConnection;VrdeExtPack=$vm.VRDEServer.VRDEExtPack;AuthLibrary=$vm.VRDEServer.AuthLibrary;VrdeProperties=$vm.VRDEServer.VRDEProperties}
      $tempobj.IVrdeServer.TcpPort = $vm.VRDEServer.GetVRDEProperty('TCP/Ports')
@@ -1501,6 +1560,41 @@ Process {
      $tempobj.IVrdeServer.SecurityCaCertificate = $vm.VRDEServer.GetVRDEProperty('Security/CACertificate')
      $tempobj.IVrdeServer.AudioRateCorrectionMode = $vm.VRDEServer.GetVRDEProperty('Audio/RateCorrectionMode')
      $tempobj.IVrdeServer.AudioLogPath = $vm.VRDEServer.GetVRDEProperty('Audio/LogPath')
+     foreach ($sc in $vm.StorageControllers) {[IStorageControllers[]]$tempobj.IStorageControllers += [IStorageControllers]@{Name=$sc.Name;MaxDevicesPerPortCount=$sc.MaxDevicesPerPortCount;MinPortCount=$sc.MinPortCount;MaxPortCount=$sc.MaxPortCount;Instance=$sc.Instance;PortCount=$sc.PortCount;Bus=$sc.Bus;ControllerType=$sc.ControllerType;UseHostIOCache=$sc.UseHostIOCache;Bootable=$sc.Bootable;ComObject=$sc}}
+     foreach ($ma in $vm.MediumAttachments) {[IMediumAttachments[]]$tempobj.IMediumAttachments += [IMediumAttachments]@{Controller=$ma.Controller;Port=$ma.Port;Device=$ma.Device;Type=$ma.Type;Passthrough=$ma.Passthrough;TemporaryEject=$ma.TemporaryEject;IsEjected=$ma.IsEjected;NonRotational=$ma.NonRotational;Discard=$ma.Discard;HotPluggable=$ma.HotPluggable;BandwidthGroup=$ma.BandwidthGroup;ComObject=$ma}}
+     $tempobj.IStorageControllers = $tempobj.IStorageControllers | Where-Object {$_.Name -ne $null}
+     $tempobj.IMediumAttachments = $tempobj.IMediumAttachments | Where-Object {$_.Controller -ne $null}
+     foreach ($mediumattachment in $tempobj.IMediumAttachments) {
+      Write-Verbose "Getting attached disk: $($mediumattachment.ComObject.Medium.Name)"
+      if ($mediumattachment.ComObject.Medium.Id) {
+       $mediumattachment.IMedium.Name = $mediumattachment.ComObject.Medium.Name
+       $mediumattachment.IMedium.Guid = $mediumattachment.ComObject.Medium.Id
+       $mediumattachment.IMedium.Description = $mediumattachment.ComObject.Medium.Description
+       $mediumattachment.IMedium.Format = $mediumattachment.ComObject.Medium.Format
+       $mediumattachment.IMedium.Size = $mediumattachment.ComObject.Medium.Size
+       $mediumattachment.IMedium.LogicalSize = $mediumattachment.ComObject.Medium.LogicalSize
+       $mediumattachment.IMedium.VMIds = $mediumattachment.ComObject.Medium.MachineIds
+       foreach ($machineid in $mediumattachment.IMedium.VMIds) {
+        foreach ($imachine in $global:vbox.Machines) {
+         if ($imachine.Id -eq $machineid) {
+          $mediumattachment.IMedium.VMNames += $imachine.Name
+         } # end if $imachine.Id -eq $machineid
+         $mediumattachment.IMedium.VMNames = $mediumattachment.IMedium.VMNames | Where-Object {$_ -ne $null}
+        } # foreach $imachine in $global:vbox.Machines
+       } # foreach $machineid in $mediumattachment.IMedium.VMIds
+       $mediumattachment.IMedium.State = $mediumattachment.ComObject.Medium.State
+       $mediumattachment.IMedium.Variant = $mediumattachment.ComObject.Medium.Variant
+       $mediumattachment.IMedium.Location = $mediumattachment.ComObject.Medium.Location
+       $mediumattachment.IMedium.HostDrive = $mediumattachment.ComObject.Medium.HostDrive
+       $mediumattachment.IMedium.MediumFormat = $mediumattachment.ComObject.Medium.MediumFormat
+       $mediumattachment.IMedium.Type = $mediumattachment.ComObject.Medium.Type
+       $mediumattachment.IMedium.Parent = $mediumattachment.ComObject.Medium.Parent
+       $mediumattachment.IMedium.Children = $mediumattachment.ComObject.Medium.Children
+       $mediumattachment.IMedium.ReadOnly = $mediumattachment.ComObject.Medium.ReadOnly
+       $mediumattachment.IMedium.AutoReset = $mediumattachment.ComObject.Medium.AutoReset
+       $mediumattachment.IMedium.LastAccessError = $mediumattachment.ComObject.Medium.LastAccessError
+      } # end if $mediumattachment.ComObject.Medium.Id
+     } # foreach $mediumattachment in $tempobj.IMediumAttachments
      $tempobj.GuestProperties = $guestprops.Enumerate($vm, $ModuleHost)
      $tempobj.ComObject = $vm
      # decode state
@@ -1533,8 +1627,8 @@ Process {
     foreach ($vm in $vminventory) {
      Write-Verbose "Matching $($vm.Name) to $($Name)"
      if ($vm.Name -match $Name) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
      }
     }
    } # end if $Name and not *
@@ -1543,8 +1637,8 @@ Process {
     foreach ($vm in $vminventory) {
      Write-Verbose "Matching $($vm.Guid) to $($Guid)"
      if ($vm.Guid -match $Guid) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
+      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
      }
     }
    } # end if $Guid
@@ -1552,13 +1646,13 @@ Process {
     if ($State) {
      Write-Verbose "Filtering all virtual machines by state: $State"
      foreach ($vm in $vminventory) {
-      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}}
+      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
      }
     }
     else {
      Write-Verbose "Filtering all virtual machines"
      foreach ($vm in $vminventory) {
-      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;ComObject=$vm.ComObject}
+      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}
      }
     }
    } # end if All
@@ -7626,9 +7720,6 @@ Process {
  $disks = @()
  $obj = @()
  try {
-  # get entire virtual machine inventory for matching
-  Write-Verbose "Getting virtual machine inventory"
-  $imachines = Get-VirtualBoxVM -SkipCheck
   # get virtual machine disk inventory
   Write-Verbose "Getting virtual disk inventory"
   if ($ModuleHost.ToLower() -eq 'websrv') {
@@ -7643,9 +7734,9 @@ Process {
     $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
     $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
     foreach ($machineid in $disk.VMIds) {
-     foreach ($imachine in $imachines) {
-      if ($imachine.Guid -eq $machineid) {
-       $disk.VMNames += $imachine.Name
+     foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+      if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
+       $disk.VMNames += $global:vbox.IMachine_getName($imachine)
       } # end if $imachine.Guid -eq $machineid
       $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
      } # foreach $imachine in $imachines
@@ -7677,8 +7768,8 @@ Process {
     $disk.LogicalSize = $imedium.LogicalSize
     $disk.VMIds = $imedium.MachineIds
     foreach ($machineid in $disk.VMIds) {
-     foreach ($imachine in $imachines) {
-      if ($imachine.Guid -eq $machineid) {
+     foreach ($imachine in $global:vbox.Machines) {
+      if ($imachine.Id -eq $machineid) {
        $disk.VMNames += $imachine.Name
       } # end if $imachine.Guid -eq $machineid
       $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
@@ -8380,16 +8471,16 @@ Process {
      foreach ($imachine in $imachines) {
       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
       if ($ModuleHost.ToLower() -eq 'websrv') {
-       $istoragecontrollers = New-Object IStorageController
-       $istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
-       foreach ($istoragecontroller in $istoragecontrollers) {
+       #$istoragecontrollers = New-Object IStorageController
+       #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+       foreach ($istoragecontroller in $imachine.IStorageControllers) {
         if ($istoragecontroller.Name -eq $Controller) {
          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
          $controllerfound = $true
         } # end if $istoragecontroller.Name -eq $Controller
         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       } # foreach $istoragecontroller in $istoragecontrollers
+       } # foreach $istoragecontroller in $imachine.IStorageControllers
        Write-Verbose "Getting write lock on machine $($imachine.Name)"
        $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
        # create a new machine object
