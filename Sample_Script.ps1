@@ -23,6 +23,6 @@ Start-VirtualBoxSession -Credential $creds -Verbose
 # get all VM information from the VirtualBox inventory
 Get-VirtualBoxVM -Verbose | Select-Object *
 # get all virtual disk information from the VirtualBox inventory
-Get-VirtualBoxDisks -Verbose | Select-Object *
+Get-VirtualBoxDisk -Verbose | Select-Object *
 # pause the script and wait for user to press the Enter key before exiting
 Pause
