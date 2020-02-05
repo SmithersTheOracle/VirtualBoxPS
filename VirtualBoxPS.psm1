@@ -2238,7 +2238,7 @@ Process {
      if (-not $Encrypted) {
       # start the vm in $Type mode
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-      $imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($tmachine.ISession.Session, $tType.ToLower(), [string[]]@($null))
+      $imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())
       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
       do {
        # get the current machine state
@@ -3536,7 +3536,7 @@ Process {
          Write-Verbose "Controller: $($imediumattachment.Controller)"
          Write-Verbose "ControllerPort: $($imediumattachment.Port)"
          Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
-         Dismount-VirtualBoxDisk -Name $imediumattachment.Medium.Name -MachineName $imachine.Name -Controller $imediumattachment.Controller -ControllerPort $imediumattachment.Port -ControllerSlot $imediumattachment.Device
+         Dismount-VirtualBoxDisk -Guid $imediumattachment.Medium.Id -MachineGuid $imachine.Guid
         }
        }
       }
@@ -3585,7 +3585,7 @@ Process {
          Write-Verbose "Controller: $($imediumattachment.Controller)"
          Write-Verbose "ControllerPort: $($imediumattachment.Port)"
          Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
-         Dismount-VirtualBoxDisk -Name $imediumattachment.Medium.Name -MachineName $imachine.Name -Controller $imediumattachment.Controller -ControllerPort $imediumattachment.Port -ControllerSlot $imediumattachment.Device
+         Dismount-VirtualBoxDisk -Guid $imediumattachment.Medium.Id -MachineGuid $imachine.Guid
         }
         if ($ProgressBar) {Remove-VirtualBoxDisk -Name $imedium.Name -DeleteFromHost -ProgressBar -Confirm:$false -SkipCheck}
         else {Remove-VirtualBoxDisk -Name $imedium.Name -DeleteFromHost -Confirm:$false -SkipCheck}
@@ -7332,7 +7332,7 @@ Process {
      $iappliance = $global:vbox.CreateAppliance()
      # populate the appliance with the requested virtual machine's settings
      Write-Verbose "Getting the IVirtualSystemDescriptions object reference(s) found by interpereter"
-     [string[]]$ivirtualsystemdescriptions = $imachine.ComObject.ExportTo($iappliance, $FilePath)
+     $ivirtualsystemdescriptions = $imachine.ComObject.ExportTo($iappliance, $FilePath)
      $appliancedescriptions = New-Object IVirtualSystemDescription
      # get an array of iappliance config values to modify before export
      foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
@@ -7522,7 +7522,14 @@ Process {
        ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).VBoxValues = $BootingFirmware
        ($appliancedescriptions | Where-Object {$_.Types -eq 'BootingFirmware'}).Options = $true
       }
-      $ivirtualsystemdescription.SetFinalValues($appliancedescriptions.Options, $appliancedescriptions.VBoxValues, $appliancedescriptions.ExtraConfigValues)
+      Write-Verbose "Converting options to integers"
+      foreach ($option in $appliancedescriptions.Options) {[int[]]$finalOptions += $option}
+      Write-Verbose "Converting values to strings"
+      foreach ($value in $appliancedescriptions.VBoxValues) {[string[]]$finalValues += $value}
+      Write-Verbose "Converting extra config values to strings"
+      foreach ($extraconfigvalue in $appliancedescriptions.ExtraConfigValues) {[string[]]$finalExtraConfigValues += $extraconfigvalue}
+      Write-Verbose "Applying final settings to appliance"
+      $ivirtualsystemdescription.SetFinalValues($finalOptions, $finalValues, $finalExtraConfigValues)
      } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
      # export the machine to disk
      Write-Verbose "Writing OVF to disk"
@@ -7552,12 +7559,12 @@ Process {
     if ($imachine.IPercent) {$imachine.IPercent = $null}
    } # end foreach $imachine in $imachines
   } # end if $imachines
-  if ($ivirtualsystemdescriptions) {
+  if ($ivirtualsystemdescriptions -and $ModuleHost.ToLower() -eq 'websrv') {
    foreach ($ivirtualsystemdescription in $ivirtualsystemdescriptions) {
     $global:vbox.IManagedObjectRef_release($ivirtualsystemdescription)
    }
   }
-  if ($iappliance) {
+  if ($iappliance -and $ModuleHost.ToLower() -eq 'websrv') {
    $global:vbox.IManagedObjectRef_release($iappliance)
   }
   $ivirtualsystemdescriptions = $null
@@ -7995,7 +8002,7 @@ Process {
   if ($existingdisks) {
    foreach ($existingdisk in $existingdisks) {
     Write-Verbose $existingdisk.Name
-    if ($existingdisk.Name -match $Ext) {
+    if ($existingdisk.Name -eq "$Name.$Ext") {
      Write-Host "[Error] Hard disk $Name.$Ext already exists. Select another name or format and try again." -ForegroundColor Red -BackgroundColor Black
      return
     }
@@ -8390,10 +8397,15 @@ HelpMessage="Enter one or more virtual disk GUID(s)",
 ParameterSetName="HardDisk")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
-[Parameter(Mandatory=$true,HelpMessage="Enter the name of the virtual machine to mount the disk to",
-ParameterSetName="HardDisk")]
+[Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [string]$Machine,
+[Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disk from")]
 [ValidateNotNullorEmpty()]
   [string]$MachineName,
+[Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineGuid,
 [Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to mount the disk to",
 ParameterSetName="HardDisk")]
 [ValidateNotNullorEmpty()]
@@ -8428,11 +8440,14 @@ Process {
  Write-Verbose "Pipeline - Name: `"$Name`""
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Machine: `"$Machine`""
  Write-Verbose "Machine Name: `"$MachineName`""
+ Write-Verbose "Machine Guid: `"$MachineGuid`""
  Write-Verbose "Controller Name: `"$Controller`""
  Write-Verbose "Controller Port: `"$ControllerPort`""
  Write-Verbose "Controller Slot: `"$ControllerSlot`""
  if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ if (!($Machine -or $MachineName -or $MachineGuid)) {Write-Host "[Error] You must supply at least one machine object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
   # initialize $imachines array
   $imediums = @()
@@ -8440,21 +8455,21 @@ Process {
    Write-Verbose "Getting disk inventory from Disk(s) object"
    $imediums = $Disk
    $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Machine)
+  } # get disk inventory (by $Disk)
   elseif ($Name) {
    foreach ($item in $Name) {
     Write-Verbose "Getting disk inventory from Name(s)"
     $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
    }
    $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Name)
+  } # get disk inventory (by $Name)
   elseif ($Guid) {
    foreach ($item in $Guid) {
     Write-Verbose "Getting disk inventory from GUID(s)"
     $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
    }
    $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Guid)
+  } # get vm inventory (by $Guid)
   if ($imediums) {
    Write-Verbose "[Info] Found disks"
    try {
@@ -8467,67 +8482,82 @@ Process {
        if (Get-VirtualBoxDisk -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disk $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
       } # foreach $vmname in $imedium.VMNames
      } # end if $imedium.VMNames
-     $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
-     foreach ($imachine in $imachines) {
-      if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
-      if ($ModuleHost.ToLower() -eq 'websrv') {
-       #$istoragecontrollers = New-Object IStorageController
-       #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
-       foreach ($istoragecontroller in $imachine.IStorageControllers) {
-        if ($istoragecontroller.Name -eq $Controller) {
-         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         $controllerfound = $true
-        } # end if $istoragecontroller.Name -eq $Controller
-        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       } # foreach $istoragecontroller in $imachine.IStorageControllers
-       Write-Verbose "Getting write lock on machine $($imachine.Name)"
-       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
-       # create a new machine object
-       $mmachine = New-Object VirtualBoxVM
-       # get the mutable machine object
-       Write-Verbose "Getting the mutable machine object"
-       $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
-       $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-       # attach the disk
-       Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-       $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
-       # save new settings
-       Write-Verbose "Saving new settings"
-       $global:vbox.IMachine_saveSettings($mmachine.Id)
-       # unlock machine session
-       Write-Verbose "Unlocking machine session"
-       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-      } # end if websrv
-      elseif ($ModuleHost.ToLower() -eq 'com') {
-       $istoragecontrollers = $imachine.ComObject.StorageControllers
-       foreach ($istoragecontroller in $istoragecontrollers) {
-        if ($istoragecontroller.Name -eq $Controller) {
-         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         $controllerfound = $true
-        } # end if $istoragecontroller.Name -eq $Controller
-        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       } # foreach $istoragecontroller in $istoragecontrollers
-       Write-Verbose "Getting write lock on machine $($imachine.Name)"
-       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
-       # create a new machine object
-       $mmachine = New-Object VirtualBoxVM
-       # get the mutable machine object
-       Write-Verbose "Getting the mutable machine object"
-       $mmachine.ComObject = $imachine.ISession.Session.Machine
-       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
-       # attach the disk
-       Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-       $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.ComObject)
-       # save new settings
-       Write-Verbose "Saving new settings"
-       $mmachine.ComObject.SaveSettings()
-       # unlock machine session
-       Write-Verbose "Unlocking machine session"
-       $imachine.ISession.Session.UnlockMachine()
-      } # end elseif com
-     } # foreach $imachine in $imachines
+     if ($Machine) {
+      $imachines = $Machine
+     } # get vm inventory (by $Machine)
+     elseif ($MachineName) {
+      $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+     } # get vm inventory (by $MachineName)
+     elseif ($MachineGuid) {
+      $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+     } # get vm inventory (by $MachineGuid)
+     if ($imachines) {
+      foreach ($imachine in $imachines) {
+       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       if ($ModuleHost.ToLower() -eq 'websrv') {
+        #$istoragecontrollers = New-Object IStorageController
+        #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+        foreach ($istoragecontroller in $imachine.IStorageControllers) {
+         if ($istoragecontroller.Name -eq $Controller) {
+          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+          $controllerfound = $true
+         } # end if $istoragecontroller.Name -eq $Controller
+         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        } # foreach $istoragecontroller in $imachine.IStorageControllers
+        Write-Verbose "Getting write lock on machine $($imachine.Name)"
+        $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+        # create a new machine object
+        $mmachine = New-Object VirtualBoxVM
+        # get the mutable machine object
+        Write-Verbose "Getting the mutable machine object"
+        $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+        $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+        # attach the disk
+        Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+        $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
+        # save new settings
+        Write-Verbose "Saving new settings"
+        $global:vbox.IMachine_saveSettings($mmachine.Id)
+        # unlock machine session
+        Write-Verbose "Unlocking machine session"
+        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+       } # end if websrv
+       elseif ($ModuleHost.ToLower() -eq 'com') {
+        $istoragecontrollers = $imachine.ComObject.StorageControllers
+        foreach ($istoragecontroller in $istoragecontrollers) {
+         if ($istoragecontroller.Name -eq $Controller) {
+          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+          $controllerfound = $true
+         } # end if $istoragecontroller.Name -eq $Controller
+         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        } # foreach $istoragecontroller in $istoragecontrollers
+        Write-Verbose "Getting write lock on machine $($imachine.Name)"
+        $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+        # create a new machine object
+        $mmachine = New-Object VirtualBoxVM
+        # get the mutable machine object
+        Write-Verbose "Getting the mutable machine object"
+        $mmachine.ComObject = $imachine.ISession.Session.Machine
+        $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+        # wait for the disk to become available
+        Write-Verbose "Waiting for the disk to become available"
+        do {
+        } until ($imedium.ComObject.State -eq 1)
+        # attach the disk
+        Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+        $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.ComObject)
+        # save new settings
+        Write-Verbose "Saving new settings"
+        $mmachine.ComObject.SaveSettings()
+        # unlock machine session
+        Write-Verbose "Unlocking machine session"
+        $imachine.ISession.Session.UnlockMachine()
+       } # end elseif com
+      } # foreach $imachine in $imachines
+     } # end if $imachines
+     else {Write-Host "[Error] No machines found using specified filters." -ForegroundColor Red -BackgroundColor Black;return}
     } # foreach $imedium in $imediums
    } # Try
    catch {
@@ -8646,6 +8676,15 @@ HelpMessage="Enter one or more virtual disk GUID(s)",
 ParameterSetName="HardDisk")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
+[Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [string]$Machine,
+[Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineGuid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
@@ -8699,57 +8738,70 @@ Process {
      if ($imedium.VMIds) {
       foreach ($vmids in $imedium.VMIds) {
        Write-Verbose "Disk attached to VM: $vmname"
-       $imachines = Get-VirtualBoxVM -Guid $vmids -SkipCheck
-       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
-        if ($ModuleHost.ToLower() -eq 'websrv') {
-         foreach ($imachine in $imachines) {
-          Write-Verbose "Getting medium attachment information"
-          $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
-          Write-Verbose "Getting write lock on machine $($imachine.Name)"
-          $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
-          # create a new machine object
-          $mmachine = New-Object VirtualBoxVM
-          # get the mutable machine object
-          Write-Verbose "Getting the mutable machine object"
-          $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
-          $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-          Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
-          $global:vbox.IMachine_detachDevice($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device)
-          # save new settings
-          Write-Verbose "Saving new settings"
-          $global:vbox.IMachine_saveSettings($mmachine.Id)
-          # unlock machine session
-          Write-Verbose "Unlocking machine session"
-          $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-         }
-        } # end if websrv
-        elseif ($ModuleHost.ToLower() -eq 'com') {
-         foreach ($imachine in $imachines) {
-          Write-Verbose "Getting medium attachment information"
-          $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
-          Write-Verbose "Getting write lock on machine $($imachine.Name)"
-          $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
-          # create a new machine object
-          $mmachine = New-Object VirtualBoxVM
-          # get the mutable machine object
-          Write-Verbose "Getting the mutable machine object"
-          $mmachine.ComObject = $imachine.ISession.Session.Machine
-          $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
-          Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
-          Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
-          Write-Verbose "Port: `"$($imediumattachment.Port)`""
-          Write-Verbose "Device: `"$($imediumattachment.Device)`""
-          $mmachine.ComObject.DetachDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)
-          # save new settings
-          Write-Verbose "Saving new settings"
-          $mmachine.ComObject.SaveSettings()
-          # unlock machine session
-          Write-Verbose "Unlocking machine session"
-          $imachine.ISession.Session.UnlockMachine()
-         } # foreach $imachine in $imachines
-        } # end elseif com
-       } # end if $PSCmdlet.ShouldProcess(
+       if ($Machine) {
+        $imachines = $Machine
+       } # get vm inventory (by $Machine)
+       elseif ($MachineName) {
+        $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+       } # get vm inventory (by $MachineName)
+       elseif ($MachineGuid) {
+        $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+       } # get vm inventory (by $MachineGuid)
+       elseif ($Machine -or $MachineName -or $MachineGuid -and !$imachines) {
+        Write-Verbose "[Warning] No machines found using provided filters. Matching all machines."
+        $imachines = Get-VirtualBoxVM -SkipCheck
+       } # get vm inventory (fallback)
+       if (!$imachines) {$imachines = Get-VirtualBoxVM -SkipCheck}
+       if ($imachines) {
+        foreach ($imachine in $imachines) {
+         if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black}
+         if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
+          if ($ModuleHost.ToLower() -eq 'websrv') {
+           Write-Verbose "Getting medium attachment information"
+           $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
+           Write-Verbose "Getting write lock on machine $($imachine.Name)"
+           $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+           # create a new machine object
+           $mmachine = New-Object VirtualBoxVM
+           # get the mutable machine object
+           Write-Verbose "Getting the mutable machine object"
+           $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+           $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+           Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+           $global:vbox.IMachine_detachDevice($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device)
+           # save new settings
+           Write-Verbose "Saving new settings"
+           $global:vbox.IMachine_saveSettings($mmachine.Id)
+           # unlock machine session
+           Write-Verbose "Unlocking machine session"
+           $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+          } # end if websrv
+          elseif ($ModuleHost.ToLower() -eq 'com') {
+           Write-Verbose "Getting medium attachment information"
+           $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
+           Write-Verbose "Getting write lock on machine $($imachine.Name)"
+           $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+           # create a new machine object
+           $mmachine = New-Object VirtualBoxVM
+           # get the mutable machine object
+           Write-Verbose "Getting the mutable machine object"
+           $mmachine.ComObject = $imachine.ISession.Session.Machine
+           $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+           Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+           Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+           Write-Verbose "Port: `"$($imediumattachment.Port)`""
+           Write-Verbose "Device: `"$($imediumattachment.Device)`""
+           $mmachine.ComObject.DetachDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)
+           # save new settings
+           Write-Verbose "Saving new settings"
+           $mmachine.ComObject.SaveSettings()
+           # unlock machine session
+           Write-Verbose "Unlocking machine session"
+           $imachine.ISession.Session.UnlockMachine()
+          } # end elseif com
+         } # end if $PSCmdlet.ShouldProcess(
+        } # foreach $imachine in $imachines
+       } # end if $imachines
       } # foreach $vmname in $imedium.VMNames
      } # end if $imedium.VMNames
     } # foreach $imedium in $imediums
@@ -9093,7 +9145,8 @@ Process {
      $iguestsessionstatus = $imachine.ISession.Session.Console.Guest.Sessions.WaitFor(1, 10000)
      Write-Verbose "Guest console status: $($iguestsessionstatus)"
      Write-Verbose "Guest console status: $($iguestsessionstatus.GetType())"
-     Write-Verbose "Guest console status: $($global:guestsessionwaitforflag.ToStr($iguestsessionstatus))"
+     if ($iguestsessionstatus.GetType().Name -eq 'Int32') {Write-Verbose "Guest console status: $($global:guestsessionwaitforflag.ToStr($iguestsessionstatus))"}
+     elseif ($iguestsessionstatus.GetType().Name -eq 'Object[]') {Write-Verbose "Guest console status: $($global:guestsessionwaitforflag.ToStr($iguestsessionstatus.GetUpperBound(0)))"}
      # create the process in the guest machine and send it a list of arguments
      Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
      if ($imachine.ISession.Session.Console.Guest.Sessions.FsObjExists($PathToExecutable, 1) -eq 1) {
@@ -9188,7 +9241,7 @@ Process {
  catch {
   Write-Verbose 'Exception running process in guest machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
