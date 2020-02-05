@@ -18,10 +18,8 @@
 # 
 ##################################################>
 
-# get credentials to login to the VirtualBox Web Service
-$creds = Get-Credential -Message 'Enter credentials used to launch the VirtualBox web servive' -UserName $env:USERNAME
 # import the VirtualBoxPS module
-Import-Module VirtualBoxPS -ArgumentList WebSrv,$creds -Verbose -Force -NoClobber
+Import-Module VirtualBoxPS -ArgumentList COM -Verbose -Force -NoClobber
 # create a new VM named OtherTest64 with an OsTypeId of Other_64 and CpuCount of 2
 New-VirtualBoxVM -Name OtherTest64 -OsTypeId Other_64 -CpuCount 2 -Verbose
 # enable the VRDE server for the OtherTest64 VM
