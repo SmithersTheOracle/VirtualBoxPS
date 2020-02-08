@@ -986,6 +986,25 @@ class ProcessCreateFlag {
         }
         else {return $null}
     }
+    [int]ToIntCom ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'                    {$ToInt = 0} # No flag set
+                'WaitForProcessStartOnly' {$ToInt = 1} # Only use the specified timeout value to wait for starting the guest process - the guest process itself then uses an infinite timeout.
+                'IgnoreOrphanedProcesses' {$ToInt = 2} # Do not report an error when executed processes are still alive when VBoxService or the guest OS is shutting down.
+                'Hidden'                  {$ToInt = 4} # Do not show the started process according to the guest OS guidelines.
+                'Profile'                 {$ToInt = 8} # Utilize the user’s profile data when exeuting a process. Only available for Windows guests at the moment.
+                'WaitForStdOut'           {$ToInt = 16} # The guest process waits until all data from stdout is read out.
+                'WaitForStdErr'           {$ToInt = 32} # The guest process waits until all data from stderr is read out.
+                'ExpandArguments'         {$ToInt = 64} # Expands environment variables in process arguments. ***Note: This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                'UnquotedArguments'       {$ToInt = 128} # Work around for Windows and OS/2 applications not following normal argument quoting and escaping rules. The arguments are passed to the application without any extra quoting, just a single space between each. ***Note: Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                Default                   {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
     [string]ToStr ([int]$FromInt) {
         if ($FromInt){
             $ToStr = $null
@@ -997,8 +1016,27 @@ class ProcessCreateFlag {
                 4       {$ToStr = 'Profile'} # Utilize the user’s profile data when exeuting a process. Only available for Windows guests at the moment.
                 5       {$ToStr = 'WaitForStdOut'} # The guest process waits until all data from stdout is read out.
                 6       {$ToStr = 'WaitForStdErr'} # The guest process waits until all data from stderr is read out.
-                6       {$ToStr = 'ExpandArguments'} # Expands environment variables in process arguments. ***Note: This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
-                6       {$ToStr = 'UnquotedArguments'} # Work around for Windows and OS/2 applications not following normal argument quoting and escaping rules. The arguments are passed to the application without any extra quoting, just a single space between each. ***Note: Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                7       {$ToStr = 'ExpandArguments'} # Expands environment variables in process arguments. ***Note: This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                8       {$ToStr = 'UnquotedArguments'} # Work around for Windows and OS/2 applications not following normal argument quoting and escaping rules. The arguments are passed to the application without any extra quoting, just a single space between each. ***Note: Present since VirtualBox 4.3.28 and 5.0 beta 3.
+                Default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+    [string]ToStrCom ([int]$FromInt) {
+        if ($FromInt){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No flag set
+                1       {$ToStr = 'WaitForProcessStartOnly'} # Only use the specified timeout value to wait for starting the guest process - the guest process itself then uses an infinite timeout.
+                2       {$ToStr = 'IgnoreOrphanedProcesses'} # Do not report an error when executed processes are still alive when VBoxService or the guest OS is shutting down.
+                4       {$ToStr = 'Hidden'} # Do not show the started process according to the guest OS guidelines.
+                8       {$ToStr = 'Profile'} # Utilize the user’s profile data when exeuting a process. Only available for Windows guests at the moment.
+                16      {$ToStr = 'WaitForStdOut'} # The guest process waits until all data from stdout is read out.
+                32      {$ToStr = 'WaitForStdErr'} # The guest process waits until all data from stderr is read out.
+                64      {$ToStr = 'ExpandArguments'} # Expands environment variables in process arguments. ***Note: This is not yet implemented and is currently silently ignored. We will document the protocolVersion number for this feature once it appears, so don’t use it till then.
+                128     {$ToStr = 'UnquotedArguments'} # Work around for Windows and OS/2 applications not following normal argument quoting and escaping rules. The arguments are passed to the application without any extra quoting, just a single space between each. ***Note: Present since VirtualBox 4.3.28 and 5.0 beta 3.
                 Default {$ToStr = 'None'} # Default to None.
             }
             return [string]$ToStr
@@ -2095,7 +2133,7 @@ HelpMessage="Enter one or more virtual machine GUID(s)")]
 HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
 [Parameter(ParameterSetName='Encrypted',Mandatory=$false,
 HelpMessage="Enter the requested start type (Headless or Gui)",Position=1)]
-[ValidateSet("Headless","Gui")]
+[ValidateSet("Headless","Gui","Sdl")]
   [string]$Type = 'Gui',
 [Parameter(ParameterSetName='Encrypted',Mandatory=$true,
 HelpMessage="Use this switch if VM disk(s) are encrypted")]
@@ -2156,24 +2194,25 @@ Process {
      if (-not $Encrypted) {
       # start the vm in $Type mode
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-      $imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, $Type.ToLower(), $null)
+      if ($Type -match 'Gui' -or $Type -match 'Sdl') {Write-Host "[Error] Starting VM in GUI or SDL mode is not available for the Web Service. Try again using the -Type Headless parameter and value." -ForegroundColor Red -BackgroundColor Black;return}
+      elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, $Type.ToLower(), $null)}
       # collect iprogress data
       Write-Verbose "Fetching IProgress data"
-      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
+      if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
       do {
        # get the current machine state
        $machinestate = $global:vbox.IMachine_getState($imachine.Id)
        # update iprogress data
-       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
+       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
       } until ($machinestate -eq 'Running') # continue once the vm is running
      } # end if not Encrypted
      elseif ($Encrypted) {
       # start the vm in $Type mode
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-      if ($Type -match 'Gui') {Write-Host "[Warning] Starting VM in GUI mode is not available for the Web Service. VM will be started in Headless mode." -ForegroundColor Yellow}
+      if ($Type -match 'Gui' -or $Type -match 'Sdl') {Write-Host "[Error] Starting VM in GUI or SDL mode is not available for the Web Service. Try again using the -Type Headless parameter and value." -ForegroundColor Red -BackgroundColor Black;return}
       elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, 'headless', $null)}
       # collect iprogress data
       Write-Verbose "Fetching IProgress data"
@@ -2189,10 +2228,6 @@ Process {
        if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
       } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
       Write-Verbose "VM $($imachine.Name) paused"
-      if ($Type -match 'Gui') {
-       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
-      }
       # create new session object for iconsole
       Write-Verbose "Getting IConsole Session object for VM $($imachine.Name)"
       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
@@ -2238,21 +2273,22 @@ Process {
      if (-not $Encrypted) {
       # start the vm in $Type mode
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-      $imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())
-      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      if ($Type -match 'Sdl') {Show-VirtualBoxVM -Machine $imachine}
+      elseif ($Type -notmatch 'Sdl') {$imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())}
+      if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
       do {
        # get the current machine state
        $machinestate = $imachine.ComObject.State
        # update iprogress data
-       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-       if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
       } until ($machinestate -eq 5) # continue once the vm is running
      } # end if not Encrypted
      elseif ($Encrypted) {
       # start the vm in $Type mode
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
-      if ($Type -match 'Gui') {Open-VirtualBoxVMConsole -Machine $imachine}
-      elseif ($Type -match 'Headless') {$imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())}
+      if ($Type -match 'Sdl') {Show-VirtualBoxVM -Machine $imachine}
+      elseif ($Type -notmatch 'Sdl') {$imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())}
       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
       Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
       do {
@@ -2263,7 +2299,7 @@ Process {
        if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
       } until ($machinestate -eq 5) # continue once the vm pauses for password
       Write-Verbose "VM $($imachine.Name) paused"
-      if ($Type -match 'Gui') {
+      if ($Type -match 'Sdl') {
        Write-Verbose "Getting shared lock on machine $($imachine.Name)"
        $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
       }
@@ -9095,7 +9131,7 @@ Process {
          if ($readstdout) {
           # write stdout to pipeline
           Write-Verbose "Writing StdOut to pipeline"
-          Write-Host $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join ''))) -NoNewline
+          Write-Output (([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join ''))).TrimStart("`r`n")).TrimEnd("`r`n")
          } # end if $readstdout
         } # end if $StdOut
         # write stderr to the host as error text if it contains anything
@@ -9105,7 +9141,7 @@ Process {
          if ($readstderr) {
           # write stderr to pipeline
           Write-Verbose "Writing StdErr to host"
-          Write-Host $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))) -ForegroundColor Red -BackgroundColor Black
+          Write-Host (([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))).TrimStart("`r`n")).TrimEnd("`r`n") -ForegroundColor Red -BackgroundColor Black
          } # end if $readstderr
         } # end if $StdErr
         $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
@@ -9150,10 +9186,10 @@ Process {
      # create the process in the guest machine and send it a list of arguments
      Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
      if ($imachine.ISession.Session.Console.Guest.Sessions.FsObjExists($PathToExecutable, 1) -eq 1) {
-      if ($StdOut -and $StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('WaitForStdOut'), $global:processcreateflag.ToInt('WaitForStdErr')), $Timeout)}
-      elseif ($StdOut) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('WaitForStdOut')), $Timeout)}
-      elseif ($StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('WaitForStdErr')), $Timeout)}
-      else {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToInt('Hidden')), $Timeout)}
+      if ($StdOut -and $StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('WaitForStdOut'), $global:processcreateflag.ToIntCom('WaitForStdErr')), $Timeout)}
+      elseif ($StdOut) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('WaitForStdOut')), $Timeout)}
+      elseif ($StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('WaitForStdErr')), $Timeout)}
+      else {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('Hidden')), $Timeout)}
      }
      else {Write-Host "[Error] Executable specified ($PathToExecutable) does not exist on the guest. Check the path and try again." -ForegroundColor Red -BackgroundColor Black;return}
      if (!$NoWait) {
@@ -9188,34 +9224,35 @@ Process {
         $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitForArray([int[]]@($global:processwaitforflag.ToULong('StdOut'), $global:processwaitforflag.ToULong('StdErr'), $global:processwaitforflag.ToULong('Terminate')), 200)
         if ($StdOut) {
          # read guest process stdout
+         Write-Verbose "Read overloads: $($imachine.ISession.Session.Console.Guest.Sessions.Processes.Read)"
          [byte[]]$readstdout = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdOut'), (64 * 1024), 0)
          # the next two lines should be removed after debugging $readstdout
-         Write-Verbose "[DEBUG] StdOut: `"$($readstdout -join '')`""
+         Write-Verbose "[DEBUG] StdOut: `"$($readstdout)`""
          Write-Verbose "[DEBUG] StdOut type: `"$($readstdout.GetType())`""
          if ($readstdout) {
           # write stdout to pipeline
           Write-Verbose "Writing StdOut to pipeline"
-          Write-Output $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join '')))
+          Write-Output (([System.Text.Encoding]::ASCII.GetString($readstdout)).TrimStart("`r`n")).TrimEnd("`r`n")
          } # end if $readstdout
         } # end if $StdOut
         # write stderr to the host as error text if it contains anything
         if ($StdErr) {
          # read guest process stderr
-         [char[]]$readstderr = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdErr'), (64 * 1024), 0)
+         [byte[]]$readstderr = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdErr'), (64 * 1024), 0)
          if ($readstderr) {
           # write stderr to pipeline
           Write-Verbose "Writing StdErr to host"
-          Write-Host $([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))) -ForegroundColor Red -BackgroundColor Black
+          Write-Host (([System.Text.Encoding]::Unicode.GetString($readstderr)).TrimStart("`r`n")).TrimEnd("`r`n") -ForegroundColor Red -BackgroundColor Black
          } # end if $readstderr
         } # end if $StdErr
         $iprocessstatus = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Status
         # note the process status to look for abnormal return
-        if ($iprocessstatus -notmatch '100') {
-         if ($iprocessstatus -eq 'TerminatedNormally') {Write-Verbose 'Process terminated normally'}
+        if ($iprocessstatus.ToString() -notmatch '100') {
+         if ($iprocessstatus.ToString() -match '500') {Write-Verbose 'Process terminated normally'}
          else {Write-Verbose "Process status: $($iprocessstatus)"}
         } # end if $iprocessstatus -notmatch 'Start'
         if ($processwaitresult -eq 5) {Write-Verbose "Process timed out"}
-       } until ($iprocessstatus.toString() -match '500' -or $processwaitresult -eq 5)
+       } until ($iprocessstatus -gt 200 -or $processwaitresult -eq 5 -or $processwaitresult -eq 2)
       } # Try
       catch {
        Write-Verbose 'Exception while running process in guest machine'
@@ -9564,6 +9601,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
       # get a human readable copy
       Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
       $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
+      Write-Verbose 'Done fetching medium format PSO ($global:systempropertiessupported)'
      } # Try
      catch {
       Write-Verbose 'Exception fetching supported medium formats'
@@ -9834,12 +9872,12 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
  } # end function
 } # end if websrv
 elseif ($ModuleHost.ToLower() -eq 'com') {
- Function Open-VirtualBoxVMConsole {
+ Function Show-VirtualBoxVM {
  <#
  .SYNOPSIS
- Open a virtual machine console window
+ Display a virtual machine console window
  .DESCRIPTION
- Opens a virtual machine console window and powers it on if needed. This command will only work when run from the host machine.
+ Displays a virtual machine console window and powers it on if needed.
  .PARAMETER Machine
  At least one virtual machine object. Can be received via pipeline input.
  .PARAMETER Name
@@ -9847,16 +9885,16 @@ elseif ($ModuleHost.ToLower() -eq 'com') {
  .PARAMETER Guid
  The GUID of at least one virtual machine. Can be received via pipeline input by name.
  .EXAMPLE
- PS C:\> Get-VirtualBoxVM -State Running | Open-VirtualBoxVMConsole
- Opens a console window for all running virtual machines
+ PS C:\> Get-VirtualBoxVM -State Running | Show-VirtualBoxVM
+ Display a console window for all running virtual machines
  .EXAMPLE
- PS C:\> Open-VirtualBoxVMConsole -Name "2016"
- Opens a console window for the "2016 Core" virtual machine
+ PS C:\> Show-VirtualBoxVM -Name "2016"
+ Display a console window for the "2016 Core" virtual machine
  .EXAMPLE
- PS C:\> Open-VirtualBoxVMConsole -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
- Opens a console window for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+ PS C:\> Show-VirtualBoxVM -Guid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
+ Display a console window for the virtual machine with GUID 7353caa6-8cb6-4066-aec9-6c6a69a001b6
  .NOTES
- NAME        :  Open-VirtualBoxVMConsole
+ NAME        :  Show-VirtualBoxVM
  VERSION     :  1.0
  LAST UPDATED:  1/24/2020
  AUTHOR      :  Andrew Brehm
@@ -10059,7 +10097,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
  New-Alias -Name udvboxws -Value Update-VirtualBoxWebSrv
 } # end if websrv
 elseif ($ModuleHost.ToLower() -eq 'com') {
- New-Alias -Name opvboxvmc -Value Open-VirtualBoxVMConsole
+ New-Alias -Name shvboxvm -Value Show-VirtualBoxVM
 } # end elseif com
 # export module members
 Export-ModuleMember -Alias * -Function * -Variable @('vbox','vboxerror')
