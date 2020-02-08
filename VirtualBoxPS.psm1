@@ -9131,7 +9131,7 @@ Process {
          if ($readstdout) {
           # write stdout to pipeline
           Write-Verbose "Writing StdOut to pipeline"
-          Write-Output (([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join ''))).TrimStart("`r`n")).TrimEnd("`r`n")
+          Write-Output ([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstdout -join ''))).TrimEnd("`r`n")
          } # end if $readstdout
         } # end if $StdOut
         # write stderr to the host as error text if it contains anything
@@ -9140,8 +9140,11 @@ Process {
          [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), (64 * 1024), 0)
          if ($readstderr) {
           # write stderr to pipeline
-          Write-Verbose "Writing StdErr to host"
-          Write-Host (([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))).TrimStart("`r`n")).TrimEnd("`r`n") -ForegroundColor Red -BackgroundColor Black
+          Write-Verbose "Writing StdErr to pipeline"
+          $origFgC = [System.Console]::ForegroundColor
+          [System.Console]::ForegroundColor = 'Red'
+          Write-Output ([Text.Encoding]::Utf8.GetString([Convert]::FromBase64String($readstderr -join ''))).TrimEnd("`r`n")
+          [System.Console]::ForegroundColor = $origFgC
          } # end if $readstderr
         } # end if $StdErr
         $iprocessstatus = $global:vbox.IProcess_getStatus($iguestprocess)
@@ -9224,15 +9227,11 @@ Process {
         $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitForArray([int[]]@($global:processwaitforflag.ToULong('StdOut'), $global:processwaitforflag.ToULong('StdErr'), $global:processwaitforflag.ToULong('Terminate')), 200)
         if ($StdOut) {
          # read guest process stdout
-         Write-Verbose "Read overloads: $($imachine.ISession.Session.Console.Guest.Sessions.Processes.Read)"
          [byte[]]$readstdout = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdOut'), (64 * 1024), 0)
-         # the next two lines should be removed after debugging $readstdout
-         Write-Verbose "[DEBUG] StdOut: `"$($readstdout)`""
-         Write-Verbose "[DEBUG] StdOut type: `"$($readstdout.GetType())`""
          if ($readstdout) {
           # write stdout to pipeline
           Write-Verbose "Writing StdOut to pipeline"
-          Write-Output (([System.Text.Encoding]::ASCII.GetString($readstdout)).TrimStart("`r`n")).TrimEnd("`r`n")
+          Write-Output ([System.Text.Encoding]::ASCII.GetString($readstdout)).TrimEnd("`r`n")
          } # end if $readstdout
         } # end if $StdOut
         # write stderr to the host as error text if it contains anything
@@ -9241,8 +9240,11 @@ Process {
          [byte[]]$readstderr = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdErr'), (64 * 1024), 0)
          if ($readstderr) {
           # write stderr to pipeline
-          Write-Verbose "Writing StdErr to host"
-          Write-Host (([System.Text.Encoding]::Unicode.GetString($readstderr)).TrimStart("`r`n")).TrimEnd("`r`n") -ForegroundColor Red -BackgroundColor Black
+          Write-Verbose "Writing StdErr to pipeline"
+          $origFgC = [System.Console]::ForegroundColor
+          [System.Console]::ForegroundColor = 'Red'
+          Write-Output ([System.Text.Encoding]::ASCII.GetString($readstderr)).TrimEnd("`r`n")
+          [System.Console]::ForegroundColor = $origFgC
          } # end if $readstderr
         } # end if $StdErr
         $iprocessstatus = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Status
