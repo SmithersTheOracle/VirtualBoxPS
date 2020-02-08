@@ -69,7 +69,7 @@ These commands are only imported when using the web service:
 
 These commands are only imported when using the COM:
 	
-	Open-VirtualBoxVMConsole
+	Show-VirtualBoxVM
     
 ### **CUSTOM OBJECTS**
 The Get-VirtualBoxVM is used to get virtual machine objects and most other functions in the module will take pipelined input from this function. Get-VirtualBoxVM writes an array of custom objects to the pipeline with commonly used properties.
@@ -83,7 +83,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -NoWait switch.
     
 ### **VERSION**
-	0.5.2.33
+	0.5.5.36
 	February 8, 2020
     
 ### **SEE ALSO**
@@ -103,9 +103,9 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Remove-VirtualBoxVM
 	Import-VirtualBoxVM
 	Edit-VirtualBoxVM
+	Show-VirtualBoxVM
 	Set-VirtualBoxVMGuestProperty
 	Remove-VirtualBoxVMGuestProperty
-	Open-VirtualBoxVMConsole
 	Enable-VirtualBoxVMVRDEServer
 	Disable-VirtualBoxVMVRDEServer
 	Edit-VirtualBoxVMVRDEServer
@@ -118,5 +118,8 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	Remove-VirtualBoxDisk
 	Mount-VirtualBoxDisk
 	Dismount-VirtualBoxDisk
+	Get-VirtualBoxDisc
+	Import-VirtualBoxDisc
+	Remove-VirtualBoxDisc
 	Submit-VirtualBoxVMProcess
 	Submit-VirtualBoxVMPowerShellScript
