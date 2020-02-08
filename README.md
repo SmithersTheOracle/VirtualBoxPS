@@ -75,7 +75,6 @@ These commands are only imported when using the COM:
 The Get-VirtualBoxVM is used to get virtual machine objects and most other functions in the module will take pipelined input from this function. Get-VirtualBoxVM writes an array of custom objects to the pipeline with commonly used properties.
 
 ### **KNOWN ISSUES**
-* Submit-VirtualBoxVMProcess isn't recieving anything from stdout or stderr when using the COM object. (Works for web service now - thanks to Magnus Madsen for this)
 * Some of the custom parameters for Import-VirtualBoxOVF and Export-VirtualBoxOVF do not work properly
 	>Continuing to bug test against SDKRef
 
@@ -85,7 +84,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
     
 ### **VERSION**
 	0.5.1.33
-	February 3, 2020
+	February 8, 2020
     
 ### **SEE ALSO**
 	Get-VirtualBox
