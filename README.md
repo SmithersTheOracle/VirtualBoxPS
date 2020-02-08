@@ -83,7 +83,7 @@ The Get-VirtualBoxVM is used to get virtual machine objects and most other funct
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -NoWait switch.
     
 ### **VERSION**
-	0.5.1.33
+	0.5.2.33
 	February 8, 2020
     
 ### **SEE ALSO**
