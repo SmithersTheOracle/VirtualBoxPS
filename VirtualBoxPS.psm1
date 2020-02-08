@@ -374,8 +374,8 @@ class VirtualBoxVHD {
     [string]$Format
     [string]$Size
     [string]$LogicalSize
-    [string[]]$VMIds
-    [string[]]$VMNames
+    [string[]]$MachineGuid
+    [string[]]$MachineName
     [string]$State
     [string[]]$Variant
     [string]$Location
@@ -392,13 +392,13 @@ class VirtualBoxVHD {
     [System.__ComObject]$ComObject
     static [array]op_Addition($A,$B) {
         [array]$C = $null
-        $C += [VirtualBoxVHD]@{Name=$A.Name;Description=$A.Description;Format=$A.Format;Size=$A.Size;LogicalSize=$A.LogicalSize;VMIds=$A.VMIds;VMNames=$A.VMNames;State=$A.State;Variant=$A.Variant;Location=$A.Location;HostDrive=$A.HostDrive;MediumFormat=$A.MediumFormat;Type=$A.Type;Parent=$A.Parent;Children=$A.Children;Id=$A.Id;ReadOnly=$A.ReadOnly;AutoReset=$A.AutoReset;LastAccessError=$A.LastAccessError}
-        $C += [VirtualBoxVHD]@{Name=$B.Name;Description=$B.Description;Format=$B.Format;Size=$B.Size;LogicalSize=$B.LogicalSize;VMIds=$B.VMIds;VMNames=$B.VMNames;State=$B.State;Variant=$B.Variant;Location=$B.Location;HostDrive=$B.HostDrive;MediumFormat=$B.MediumFormat;Type=$B.Type;Parent=$B.Parent;Children=$B.Children;Id=$B.Id;ReadOnly=$B.ReadOnly;AutoReset=$B.AutoReset;LastAccessError=$B.LastAccessError}
+        $C += [VirtualBoxVHD]@{Name=$A.Name;Description=$A.Description;Format=$A.Format;Size=$A.Size;LogicalSize=$A.LogicalSize;MachineGuid=$A.MachineGuid;MachineName=$A.MachineName;State=$A.State;Variant=$A.Variant;Location=$A.Location;HostDrive=$A.HostDrive;MediumFormat=$A.MediumFormat;Type=$A.Type;Parent=$A.Parent;Children=$A.Children;Id=$A.Id;ReadOnly=$A.ReadOnly;AutoReset=$A.AutoReset;LastAccessError=$A.LastAccessError}
+        $C += [VirtualBoxVHD]@{Name=$B.Name;Description=$B.Description;Format=$B.Format;Size=$B.Size;LogicalSize=$B.LogicalSize;MachineGuid=$B.MachineGuid;MachineName=$B.MachineName;State=$B.State;Variant=$B.Variant;Location=$B.Location;HostDrive=$B.HostDrive;MediumFormat=$B.MediumFormat;Type=$B.Type;Parent=$B.Parent;Children=$B.Children;Id=$B.Id;ReadOnly=$B.ReadOnly;AutoReset=$B.AutoReset;LastAccessError=$B.LastAccessError}
         return $C
     }
 }
-if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","VMIds","VMNames") -Force}
-if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","VMIds","VMNames","ComObject") -Force}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","MachineGuid","MachineName") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","MachineGuid","MachineName","ComObject") -Force}
 class VirtualBoxWebSrvTask {
     [string]$Name
     [string]$Path
@@ -1415,7 +1415,7 @@ GuestOS     : Debian
 Get suspended virtual machines
 .NOTES
 NAME        :  Update-VirtualBoxWebSrv
-VERSION     :  1.1
+VERSION     :  1.2
 LAST UPDATED:  1/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
@@ -1495,15 +1495,15 @@ Process {
         $mediumattachment.IMedium.Format = $global:vbox.IMedium_getFormat($imediumid)
         $mediumattachment.IMedium.Size = $global:vbox.IMedium_getSize($imediumid)
         $mediumattachment.IMedium.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
-        $mediumattachment.IMedium.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
-        foreach ($machineid in $mediumattachment.IMedium.VMIds) {
+        $mediumattachment.IMedium.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
+        foreach ($machineid in $mediumattachment.IMedium.MachineGuid) {
          foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
           if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
-           $mediumattachment.IMedium.VMNames += $global:vbox.IMachine_getName($imachine)
+           $mediumattachment.IMedium.MachineName += $global:vbox.IMachine_getName($imachine)
           } # end if ($global:vbox.IMachine_getId($imachine)) -eq $machineid
-          $mediumattachment.IMedium.VMNames = $mediumattachment.IMedium.VMNames | Where-Object {$_ -ne $null}
+          $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
          } # foreach $imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))
-        } # foreach $machineid in $mediumattachment.IMedium.VMIds
+        } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
         $mediumattachment.IMedium.State = $global:vbox.IMedium_getState($imediumid)
         $mediumattachment.IMedium.Variant = $global:vbox.IMedium_getVariant($imediumid)
         $mediumattachment.IMedium.Location = $global:vbox.IMedium_getLocation($imediumid)
@@ -1564,7 +1564,7 @@ Process {
     # write virtual machines object to the pipeline as an array
     Write-Output ([System.Array]$obj)
    } # end if $obj
-   else {Write-Verbose "[Warning] No virtual machines found using specified parameters"}
+   else {Write-Verbose "[Warning] No matching virtual machines found using specified parameters"}
   } # end if websrv
   elseif ($ModuleHost.ToLower() -eq 'com') {
    # get virtual machine inventory
@@ -1611,15 +1611,15 @@ Process {
        $mediumattachment.IMedium.Format = $mediumattachment.ComObject.Medium.Format
        $mediumattachment.IMedium.Size = $mediumattachment.ComObject.Medium.Size
        $mediumattachment.IMedium.LogicalSize = $mediumattachment.ComObject.Medium.LogicalSize
-       $mediumattachment.IMedium.VMIds = $mediumattachment.ComObject.Medium.MachineIds
-       foreach ($machineid in $mediumattachment.IMedium.VMIds) {
+       $mediumattachment.IMedium.MachineGuid = $mediumattachment.ComObject.Medium.MachineIds
+       foreach ($machineid in $mediumattachment.IMedium.MachineGuid) {
         foreach ($imachine in $global:vbox.Machines) {
          if ($imachine.Id -eq $machineid) {
-          $mediumattachment.IMedium.VMNames += $imachine.Name
+          $mediumattachment.IMedium.MachineName += $imachine.Name
          } # end if $imachine.Id -eq $machineid
-         $mediumattachment.IMedium.VMNames = $mediumattachment.IMedium.VMNames | Where-Object {$_ -ne $null}
+         $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
         } # foreach $imachine in $global:vbox.Machines
-       } # foreach $machineid in $mediumattachment.IMedium.VMIds
+       } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
        $mediumattachment.IMedium.State = $mediumattachment.ComObject.Medium.State
        $mediumattachment.IMedium.Variant = $mediumattachment.ComObject.Medium.Variant
        $mediumattachment.IMedium.Location = $mediumattachment.ComObject.Medium.Location
@@ -1700,7 +1700,7 @@ Process {
     # write virtual machines object to the pipeline as an array
     Write-Output ([System.Array]$obj)
    } # end if $obj
-   else {Write-Verbose "[Warning] No virtual machines found using specified parameters"}
+   else {Write-Verbose "[Warning] No matching virtual machines found using specified parameters"}
   } # end elseif com
  } # Try
  catch {
@@ -3288,8 +3288,8 @@ Process {
       $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
       $image = [drawing.image]::FromFile($Icon)
       $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
-      $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
-      $imachine.ComObject.Icon($octet)
+      [byte[]]$bytes = Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte
+      $imachine.ComObject.Icon($bytes)
       Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
      }
      if ($Description) {$imachine.ComObject.Description = $Description}
@@ -4538,15 +4538,14 @@ Process {
       if ($Icon -or $Icon -eq '') {
        if ($Icon -eq '') {$mmachine.ComObject.Icon = $null}
        else {
-        Write-Output "[Warning] Setting VM icon with COM is currently broken."
         # convert to png
         if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
         Add-Type -AssemblyName system.drawing
         $imageFormat = "System.Drawing.Imaging.ImageFormat" -as [type]
         $image = [drawing.image]::FromFile($Icon)
         $image.Save("$env:TEMP\VirtualBoxPS\icon.png", $imageFormat::Png)
-        $octet = [convert]::ToBase64String((Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte))
-        $mmachine.ComObject.Icon = $octet
+        [byte[]]$bytes = Get-Content "$env:TEMP\VirtualBoxPS\icon.png" -Encoding Byte
+        $mmachine.ComObject.Icon = $bytes
         Remove-Item -Path "$env:TEMP\VirtualBoxPS\icon.png" -Confirm:$false -Force
        }
       }
@@ -5981,7 +5980,7 @@ PS C:\> Import-VirtualBoxOVF -FileName "C:\OVF Files\Win10\Win10.ovf" -Name "My 
 Imports the Win10.ovf file as a new virtual machine named "My Win10 OVF VM" with the OS ID overridden to 64bit Windows10
 .NOTES
 NAME        :  Import-VirtualBoxOVF
-VERSION     :  1.0
+VERSION     :  0.9
 LAST UPDATED:  1/18/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
@@ -6228,8 +6227,8 @@ Process {
    # interpret the iappliance
    Write-Verbose "Interpreting the OVF/OVA settings"
    $global:vbox.IAppliance_interpret($iappliance)
-   # get warnings
-   Write-Verbose "Getting any warnings in reading the OVf/OVA settings file and displaying to Verbose output"
+   # get warnings and display to verbose output
+   Write-Verbose "Getting any warnings in reading the OVf/OVA settings file"
    [string[]]$warnings = $global:vbox.IAppliance_getWarnings($iappliance)
    foreach ($warning in $warnings) {
     Write-Verbose $warning
@@ -6471,8 +6470,8 @@ Process {
    # interpret the iappliance
    Write-Verbose "Interpreting the OVF/OVA settings"
    $iappliance.Interpret()
-   # get warnings
-   Write-Verbose "Getting any warnings in reading the OVf/OVA settings file and displaying to Verbose output"
+   # get warnings and display to verbose output
+   Write-Verbose "Getting any warnings in reading the OVf/OVA settings file"
    [string[]]$warnings = $iappliance.GetWarnings()
    foreach ($warning in $warnings) {
     Write-Verbose $warning
@@ -6874,7 +6873,7 @@ PS C:\> Export-VirtualBoxOVF -Name "My Win10 OVF VM" -FileName "C:\OVF Files\My 
 Exports the "My Win10 OVF VM" virtual machine and all other required files, including attached CD/DVD images to "C:\OVF Files\My Win10 OVF VM\" and creates a manifest file
 .NOTES
 NAME        :  Export-VirtualBoxOVF
-VERSION     :  1.0
+VERSION     :  0.9
 LAST UPDATED:  1/18/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
@@ -7616,7 +7615,13 @@ Function Get-VirtualBoxDisk {
 .SYNOPSIS
 Get VirtualBox disk information
 .DESCRIPTION
-Retrieve VirtualBox disks by machine object, machine name, machine GUID, or all.
+Retrieve VirtualBox disks by name, format, GUID, machine object, machine name, machine GUID, or all.
+.PARAMETER Name
+At least one virtual disk name.
+.PARAMETER Format
+At least one virtual disk format.
+.PARAMETER Guid
+At least one virtual disk GUID.
 .PARAMETER Machine
 At least one virtual machine object. Can be received via pipeline input.
 .PARAMETER MachineName
@@ -7626,6 +7631,18 @@ The GUID of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
+PS C:\> Get-VirtualBoxDisk -Name 2016
+
+Name        : 2016 Core.vhd
+Description :
+Format      : VHD
+Size        : 7291584512
+LogicalSize : 53687091200
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+MachineName : {2016 Core}
+
+Get virtual disk by name
+.EXAMPLE
 PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxDisk
 
 Name        : 2016 Core.vhd
@@ -7633,10 +7650,10 @@ Description :
 Format      : VHD
 Size        : 7291584512
 LogicalSize : 53687091200
-VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
-VMNames     : {2016 Core}
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+MachineName : {2016 Core}
 
-Gets virtual machine by machine object from pipeline input
+Get virtual disk by machine object from pipeline input
 .EXAMPLE
 PS C:\> Get-VirtualBoxDisk -MachineName 2016
 
@@ -7645,10 +7662,10 @@ Description :
 Format      : VHD
 Size        : 7291584512
 LogicalSize : 53687091200
-VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
-VMNames     : {2016 Core}
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+MachineName : {2016 Core}
 
-Gets virtual machine by Name
+Get virtual disk by machine name
 .EXAMPLE
 PS C:\> Get-VirtualBoxDisk -MachineGuid 7353caa6-8cb6-4066-aec9-6c6a69a001b6
 
@@ -7657,10 +7674,10 @@ Description :
 Format      : VHD
 Size        : 7291584512
 LogicalSize : 53687091200
-VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
-VMNames     : {2016 Core}
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+MachineName : {2016 Core}
 
-Gets virtual machine by GUID
+Get virtual disk by machine GUID
 .EXAMPLE
 PS C:\> Get-VirtualBoxDisk
 
@@ -7669,48 +7686,51 @@ Description :
 Format      : VMDK
 Size        : 1242759168
 LogicalSize : 2147483648
-VMIds       : {c9d4dc35-3967-4009-993d-1c23ab4ff22b}
-VMNames     : {GNS3 IOU VM_1.3}
+MachineGuid : {c9d4dc35-3967-4009-993d-1c23ab4ff22b}
+MachineName : {GNS3 IOU VM_1.3}
 
 Name        : turnkey-lamp-disk1.vdi
 Description :
 Format      : vdi
 Size        : 4026531840
 LogicalSize : 21474836480
-VMIds       : {a237e4f5-da5a-4fca-b2a6-80f9aea91a9b}
-VMNames     : {WebSite}
+MachineGuid : {a237e4f5-da5a-4fca-b2a6-80f9aea91a9b}
+MachineName : {WebSite}
 
 Name        : 2016 Core.vhd
 Description :
 Format      : VHD
 Size        : 7291584512
 LogicalSize : 53687091200
-VMIds       : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
-VMNames     : {2016 Core}
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6}
+MachineName : {2016 Core}
 
 Name        : Win10.vhd
 Description :
 Format      : VHD
 Size        : 15747268096
 LogicalSize : 53687091200
-VMIds       : {15a4c311-3b89-4936-89c7-11d3340ced7a}
-VMNames     : {Win10}
+MachineGuid : {15a4c311-3b89-4936-89c7-11d3340ced7a}
+MachineName : {Win10}
 
-Gets all virtual machine disks
+Get all virtual machine disks in the VirtualBox inventory
 .NOTES
 NAME        :  Get-VirtualBoxDisk
-VERSION     :  1.1
+VERSION     :  1.3
 LAST UPDATED:  1/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
 New-VirtualBoxDisk
 .INPUTS
+String[]      :  Strings for virtual disk names
+String[]      :  Strings for virtual disk formats
+Guid[]        :  GUIDs for virtual disk GUIDs
 VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
 String[]      :  Strings for virtual machine names
 Guid[]        :  GUIDs for virtual machine GUIDs
 .OUTPUTS
-System.Array[]
+VirtualBoxVHD[]
 #>
 [cmdletbinding(DefaultParameterSetName="Machine")]
 Param(
@@ -7775,15 +7795,15 @@ Process {
     $disk.Format = $global:vbox.IMedium_getFormat($imediumid)
     $disk.Size = $global:vbox.IMedium_getSize($imediumid)
     $disk.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
-    $disk.VMIds = $global:vbox.IMedium_getMachineIds($imediumid)
-    foreach ($machineid in $disk.VMIds) {
+    $disk.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
+    foreach ($machineid in $disk.MachineGuid) {
      foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
       if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
-       $disk.VMNames += $global:vbox.IMachine_getName($imachine)
+       $disk.MachineName += $global:vbox.IMachine_getName($imachine)
       } # end if $imachine.Guid -eq $machineid
-      $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
+      $disk.MachineName = $disk.MachineName | Where-Object {$_ -ne $null}
      } # foreach $imachine in $imachines
-    } # foreach $machineid in $disk.VMIds
+    } # foreach $machineid in $disk.MachineGuid
     $disk.State = $global:vbox.IMedium_getState($imediumid)
     $disk.Variant = $global:vbox.IMedium_getVariant($imediumid)
     $disk.Location = $global:vbox.IMedium_getLocation($imediumid)
@@ -7796,7 +7816,7 @@ Process {
     $disk.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
     $disk.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
     $disk.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
-    [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}
+    [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}
    } # end foreach loop inventory
   } # end if websrv
   elseif ($ModuleHost.ToLower() -eq 'com') {
@@ -7809,15 +7829,15 @@ Process {
     $disk.Format = $imedium.Format
     $disk.Size = $imedium.Size
     $disk.LogicalSize = $imedium.LogicalSize
-    $disk.VMIds = $imedium.MachineIds
-    foreach ($machineid in $disk.VMIds) {
+    $disk.MachineGuid = $imedium.MachineIds
+    foreach ($machineid in $disk.MachineGuid) {
      foreach ($imachine in $global:vbox.Machines) {
       if ($imachine.Id -eq $machineid) {
-       $disk.VMNames += $imachine.Name
+       $disk.MachineName += $imachine.Name
       } # end if $imachine.Guid -eq $machineid
-      $disk.VMNames = $disk.VMNames | Where-Object {$_ -ne $null}
+      $disk.MachineName = $disk.MachineName | Where-Object {$_ -ne $null}
      } # foreach $imachine in $imachines
-    } # foreach $machineid in $disk.VMIds
+    } # foreach $machineid in $disk.MachineGuid
     $disk.State = $imedium.State
     $disk.Variant = $imedium.Variant
     $disk.Location = $imedium.Location
@@ -7830,7 +7850,7 @@ Process {
     $disk.ReadOnly = $imedium.ReadOnly
     $disk.AutoReset = $imedium.AutoReset
     $disk.LastAccessError = $imedium.LastAccessError
-    [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}
+    [VirtualBoxVHD[]]$disks += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}
    } # end foreach loop inventory
   } # end elseif com
  } # Try
@@ -7847,7 +7867,7 @@ Process {
      $matched = $false
      Write-Verbose "Matching $($disk.Name) to $item"
      if ($disk.Name -match $item) {Write-Verbose "Matched $($disk.Name) to $item";$matched = $true}
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $Name
   } # end if $Name
@@ -7858,7 +7878,7 @@ Process {
      $matched = $false
      Write-Verbose "Matching $($disk.Format) to $item"
      if ($disk.Format -match $item) {Write-Verbose "Matched $($disk.Format) to $item";$matched = $true}
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $Format
    $obj = $obj | Where-Object {$_ -ne $null}
@@ -7870,12 +7890,12 @@ Process {
      $matched = $false
      Write-Verbose "Matching $($disk.Guid) to $item"
      if ($disk.Guid -match $item) {Write-Verbose "Matched $($disk.Guid) to $item";$matched = $true}
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $Guid
   } # end if $Guid
   # no filter
-  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}}
+  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}}
   Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  }
  elseif ($PSCmdlet.ParameterSetName -eq "Machine") {
@@ -7884,11 +7904,11 @@ Process {
    foreach ($item in $Machine) {
     foreach ($disk in $disks) {
      $matched = $false
-     foreach ($vmname in $disk.VMNames) {
+     foreach ($vmname in $disk.MachineName) {
       Write-Verbose "Matching $vmname to $($item.Name)"
       if ($vmname -match $item.Name) {Write-Verbose "Matched $vmname to $($item.Name)";$matched = $true}
-     } # foreach $vmname in $disk.VMNames
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+     } # foreach $vmname in $disk.MachineName
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $Machine
   } # end if $Machine
@@ -7897,11 +7917,11 @@ Process {
    foreach ($item in $MachineName) {
     foreach ($disk in $disks) {
      $matched = $false
-     foreach ($vmname in $disk.VMNames) {
+     foreach ($vmname in $disk.MachineName) {
       Write-Verbose "Matching $vmname to $item"
       if ($vmname -match $item) {Write-Verbose "Matched $vmname to $item";$matched = $true}
-     } # foreach $vmname in $disk.VMNames
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+     } # foreach $vmname in $disk.MachineName
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $MachineName
   } # end elseif $MachineName
@@ -7910,16 +7930,16 @@ Process {
    foreach ($item in $MachineGuid) {
     foreach ($disk in $disks) {
      $matched = $false
-     foreach ($vmguid in $disk.VMIds) {
+     foreach ($vmguid in $disk.MachineGuid) {
       Write-Verbose "Matching $vmguid to $item"
       if ($vmguid -eq $item) {Write-Verbose "Matched $vmguid to $item";$matched = $true}
-     } # foreach $vmguid in $disk.VMIds
-     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
+     } # foreach $vmguid in $disk.MachineGuid
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}
     } # foreach $disk in $disks
    } # foreach $item in $MachineGuid
   } # end elseif $MachineGuid
   # no filter
-  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;VMIds=$disk.VMIds;VMNames=$disk.VMNames;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;}}}
+  else {foreach ($disk in $disks) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disk.Name;Guid=$disk.Guid;Description=$disk.Description;Format=$disk.Format;Size=$disk.Size;LogicalSize=$disk.LogicalSize;MachineGuid=$disk.MachineGuid;MachineName=$disk.MachineName;State=$disk.State;Variant=$disk.Variant;Location=$disk.Location;HostDrive=$disk.HostDrive;MediumFormat=$disk.MediumFormat;Type=$disk.Type;Parent=$disk.Parent;Children=$disk.Children;Id=$disk.Id;ReadOnly=$disk.ReadOnly;AutoReset=$disk.AutoReset;LastAccessError=$disk.LastAccessError;ComObject=$disk.ComObject}}}
   Write-Verbose "Found $(($obj | Measure-Object).count) disk(s)"
  }
  if ($obj) {
@@ -7927,7 +7947,7 @@ Process {
   Write-Output ([System.Array]$obj)
  } # end if $obj
  else {
-  Write-Verbose "[Warning] No virtual disks found."
+  Write-Verbose "[Warning] No matching virtual disks found."
  } # end else
 } # Process
 End {
@@ -7979,33 +7999,33 @@ String        :  String for virtual disk variant flag
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="HardDisk")]
+[cmdletbinding()]
 Param(
 [Parameter(HelpMessage="Enter the virtual disk name",
-ParameterSetName="HardDisk",Mandatory=$true,Position=0)]
+Mandatory=$true,Position=0)]
 [ValidateNotNullorEmpty()]
   [string]$Name,
 [Parameter(HelpMessage="Enter the virtual disk format",
-ParameterSetName="HardDisk",Mandatory=$true,Position=1)]
+Mandatory=$true,Position=1)]
 [ValidateNotNullorEmpty()]
 [ValidateSet('VMDK','VDI','VHD','Parallels','DMG','QED','QCOW','VHDX','CUE','VBoxIsoMaker','RAW','iSCSI')]
   [string]$Format,
 [Parameter(HelpMessage="Enter the virtual disk location",
-ParameterSetName="HardDisk",Mandatory=$true,Position=2)]
+Mandatory=$true,Position=2)]
   [string]$Location,
 [Parameter(HelpMessage="Enter the virtual disk location",
-ParameterSetName="HardDisk",Mandatory=$true,Position=3)]
+Mandatory=$true,Position=3)]
 [ValidateSet('ReadOnly','ReadWrite')]
   [string]$AccessMode,
 [Parameter(HelpMessage="Enter the logical size of the virtual disk in bytes",
-ParameterSetName="HardDisk",Mandatory=$true,Position=4)]
+Mandatory=$true,Position=4)]
   [uint64]$LogicalSize,
 [Parameter(HelpMessage="Enter the virtual disk variant type",
-ParameterSetName="HardDisk",Mandatory=$true,Position=5)]
+Mandatory=$true,Position=5)]
 [ValidateSet('Standard','VmdkSplit2G','VmdkRawDisk','VmdkStreamOptimized','VmdkESX','VdiZeroExpand')]
   [string]$VariantType,
 [Parameter(HelpMessage="Enter the virtual disk variant flag",
-ParameterSetName="HardDisk",Mandatory=$false,Position=5)]
+Mandatory=$false,Position=5)]
 [ValidateSet('Fixed','Diff','Formatted','NoCreateDir')]
   [string]$VariantFlag,
 [Parameter(HelpMessage="Use this switch to display a progress bar")]
@@ -8033,72 +8053,70 @@ Process {
   Write-Verbose "Creating $($Location) directory"
   New-Item -ItemType Directory -Path $Location -Force -Confirm:$false | Write-Verbose
  }
- if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
-  $existingdisks = Get-VirtualBoxDisk -Name $Name -SkipCheck
-  if ($existingdisks) {
-   foreach ($existingdisk in $existingdisks) {
-    Write-Verbose $existingdisk.Name
-    if ($existingdisk.Name -eq "$Name.$Ext") {
-     Write-Host "[Error] Hard disk $Name.$Ext already exists. Select another name or format and try again." -ForegroundColor Red -BackgroundColor Black
-     return
-    }
+ $existingdisks = Get-VirtualBoxDisk -Name $Name -SkipCheck
+ if ($existingdisks) {
+  foreach ($existingdisk in $existingdisks) {
+   Write-Verbose $existingdisk.Name
+   if ($existingdisk.Name -eq "$Name.$Ext") {
+    Write-Host "[Error] Hard disk $Name.$Ext already exists. Select another name or format and try again." -ForegroundColor Red -BackgroundColor Black
+    return
    }
   }
-  try {
-   Write-Verbose "Creating virtual disk object"
-   $imedium = New-Object VirtualBoxVHD
-   if ($ModuleHost.ToLower() -eq 'websrv') {
-    Write-Verbose "Creating medium"
-    Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
-    Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
-    Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
-    $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
-    Write-Verbose "Creating base storage"
-    Write-Verbose "LogicalSize: `"$($LogicalSize)`""
-    Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
-    Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
-    $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
-    # collect iprogress data
-    Write-Verbose "Fetching IProgress data"
-    $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
+ }
+ try {
+  Write-Verbose "Creating virtual disk object"
+  $imedium = New-Object VirtualBoxVHD
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   Write-Verbose "Creating medium"
+   Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
+   Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
+   Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
+   $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+   Write-Verbose "Creating base storage"
+   Write-Verbose "LogicalSize: `"$($LogicalSize)`""
+   Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
+   Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
+   $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+   # collect iprogress data
+   Write-Verbose "Fetching IProgress data"
+   $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
+   if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+   do {
+    $mediumstate = $global:vbox.IMedium_getState($imedium.Id)
+    # update iprogress data
+    $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-    do {
-     $mediumstate = $global:vbox.IMedium_getState($imedium.Id)
-     # update iprogress data
-     $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
-     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-     if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
-    } until ($imedium.IProgress.Percent -eq 100 -or $mediumstate -match 'NotCreated') # continue once the progress reached 100%
-    if ($mediumstate -match 'NotCreated') {Write-Host "[Error] Failed to create base storage" -ForegroundColor Red -BackgroundColor Black}
-   } # end if websrv
-   elseif ($ModuleHost.ToLower() -eq 'com') {
-    Write-Verbose "Creating medium"
-    Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
-    Write-Verbose "Format: `"$($Format)`""
-    Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
-    Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
-    $newdisk = $global:vbox.CreateMedium($Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
-    $imedium.ComObject = $newdisk
-    Write-Verbose "Creating base storage"
-    Write-Verbose "LogicalSize: `"$($LogicalSize)`""
-    Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
-    Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
-    $imedium.IProgress.Progress = $newdisk.CreateBaseStorage($LogicalSize, [int[]]@($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+    if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imedium.IProgress.Percent -eq 100 -or $mediumstate -match 'NotCreated') # continue once the progress reached 100%
+   if ($mediumstate -match 'NotCreated') {Write-Host "[Error] Failed to create base storage" -ForegroundColor Red -BackgroundColor Black}
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   Write-Verbose "Creating medium"
+   Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
+   Write-Verbose "Format: `"$($Format)`""
+   Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
+   Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
+   $newdisk = $global:vbox.CreateMedium($Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+   $imedium.ComObject = $newdisk
+   Write-Verbose "Creating base storage"
+   Write-Verbose "LogicalSize: `"$($LogicalSize)`""
+   Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
+   Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
+   $imedium.IProgress.Progress = $newdisk.CreateBaseStorage($LogicalSize, [int[]]@($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+   if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+   do {
+    # update iprogress data
     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
-    do {
-     # update iprogress data
-     if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
-     if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.Progress.OperationDescription)" -status "$($imedium.IProgress.Progress.OperationDescription): $($imedium.IProgress.Progress.OperationPercent)%" -percentComplete ($imedium.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
-    } until ($imedium.IProgress.Progress.Percent -eq 100 -or $newdisk.State -eq 0) # continue once the progress reached 100%
-    if ($newdisk.State -eq 0) {Write-Host "[Error] Failed to create base storage" -ForegroundColor Red -BackgroundColor Black}
-   } # end elseif com
-  } # Try
-  catch {
-   Write-Verbose 'Exception creating virtual disk'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  } # Catch
- } # end if ParameterSetName -eq HardDisk
+    if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.Progress.OperationDescription)" -status "$($imedium.IProgress.Progress.OperationDescription): $($imedium.IProgress.Progress.OperationPercent)%" -percentComplete ($imedium.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+   } until ($imedium.IProgress.Progress.Percent -eq 100 -or $newdisk.State -eq 0) # continue once the progress reached 100%
+   if ($newdisk.State -eq 0) {Write-Host "[Error] Failed to create base storage" -ForegroundColor Red -BackgroundColor Black}
+  } # end elseif com
+ } # Try
+ catch {
+  Write-Verbose 'Exception creating virtual disk'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -8121,11 +8139,11 @@ A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Import-VirtualBoxDisk -FileName C:\Disks\TestDisk.vmdk -AccessMode ReadWrite
 
-Imports the "C:\Disks\TestDisk.vmdk" disk in Read/Write mode
+Import the "C:\Disks\TestDisk.vmdk" disk in Read/Write mode to the VirtualBox inventory
 .NOTES
 NAME        :  Import-VirtualBoxDisk
-VERSION     :  1.0
-LAST UPDATED:  1/20/2020
+VERSION     :  1.1
+LAST UPDATED:  2/8/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
@@ -8136,18 +8154,18 @@ String        :  String for virtual disk access mode
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="HardDisk")]
+[cmdletbinding()]
 Param(
 [Parameter(HelpMessage="Enter the full virtual disk path",
-ParameterSetName="HardDisk",Mandatory=$true,Position=2)]
+Mandatory=$true,Position=2)]
 [ValidateScript({Test-Path $_})]
   [string]$FileName,
 [Parameter(HelpMessage="Enter the virtual disk access type",
-ParameterSetName="HardDisk",Mandatory=$true,Position=3)]
+Mandatory=$true,Position=3)]
 [ValidateSet('ReadOnly','ReadWrite')]
   [string]$AccessMode,
 [Parameter(HelpMessage="Use this switch to request a new disk UUID be created",
-ParameterSetName="HardDisk",Mandatory=$false)]
+Mandatory=$false)]
   [switch]$ForceNewUuid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
@@ -8167,32 +8185,30 @@ Begin {
  $Ext = $Ext[$Ext.GetUpperBound(0)]
 } # Begin
 Process {
- if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
-  $existingdisks = Get-VirtualBoxDisk -Name $($FileName.Substring($FileName.LastIndexOf('\')+1)) -SkipCheck
-  if ($existingdisks) {
-   foreach ($existingdisk in $existingdisks) {
-    Write-Verbose $existingdisk.Name
-    if ($existingdisk.Name -eq ($FileName.Substring($FileName.LastIndexOf('\')+1))) {
-     Write-Host "[Error] Hard disk $($existingdisk.Name) already exists. Select another disk image and try again." -ForegroundColor Red -BackgroundColor Black
-     return
-    }
+ $existingdisks = Get-VirtualBoxDisk -Name $($FileName.Substring($FileName.LastIndexOf('\')+1)) -SkipCheck
+ if ($existingdisks) {
+  foreach ($existingdisk in $existingdisks) {
+   Write-Verbose $existingdisk.Name
+   if ($existingdisk.Name -eq ($FileName.Substring($FileName.LastIndexOf('\')+1))) {
+    Write-Host "[Error] Hard disk $($existingdisk.Name) already exists. Select another disk image and try again." -ForegroundColor Red -BackgroundColor Black
+    return
    }
   }
-  try {
-   $imedium = New-Object VirtualBoxVHD
-   if ($ModuleHost.ToLower() -eq 'websrv') {
-    $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('HardDisk'), $AccessMode, $(if ($ForceNewUuid) {$true} else {$false}))
-   } # end if websrv
-   elseif ($ModuleHost.ToLower() -eq 'com') {
-    $imedium.ComObject = $global:vbox.OpenMedium($FileName, $global:devicetype.ToULong('HardDisk'), $global:accessmode.ToULong($AccessMode), $(if ($ForceNewUuid) {1} else {0}))
-   } # end elseif com
-  } # Try
-  catch {
-   Write-Verbose 'Exception creating virtual disk'
-   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-  } # Catch
- } # end if ParameterSetName -eq HardDisk
+ }
+ try {
+  $imedium = New-Object VirtualBoxVHD
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('HardDisk'), $global:accessmode.ToULong($AccessMode), $(if ($ForceNewUuid) {$true} else {$false}))
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   $imedium.ComObject = $global:vbox.OpenMedium($FileName, $global:devicetype.ToULong('HardDisk'), $global:accessmode.ToULong($AccessMode), $(if ($ForceNewUuid) {1} else {0}))
+  } # end elseif com
+ } # Try
+ catch {
+  Write-Verbose 'Exception importing virtual disk'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -8217,7 +8233,7 @@ A switch to skip service update (for development use).
 .EXAMPLE
 PS C:\> Remove-VirtualBoxDisk -Name TestDisk.vmdk -DeleteFromHost -ProgressBar -Confirm:$false
 
-Removes the virtual disk named "TestDisk.vmdk" from the VirtualBox inventory, deletes it from disk, does not confirm the action, and display a progress bar
+Remove the virtual disk named "TestDisk.vmdk" from the VirtualBox inventory, delete it from host, do not confirm the action, and display a progress bar
 .NOTES
 NAME        :  Remove-VirtualBoxDisk
 VERSION     :  1.0
@@ -8227,27 +8243,25 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-VirtualBoxVHD[]:  VirtualBoxVHDs for Virtual disk objects
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disk objects
 String[]       :  Strings for virtual disk names
 GUID[]         :  GUIDS for virtual disk GUIDS
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="HardDisk",SupportsShouldProcess,ConfirmImpact='High')]
+[cmdletbinding(SupportsShouldProcess,ConfirmImpact='High')]
 Param(
 [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual disk object(s)",
-ParameterSetName="HardDisk",Position=0)]
+Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVHD[]]$Disk,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual disk name(s)",
-ParameterSetName="HardDisk")]
+HelpMessage="Enter one or more virtual disk name(s)")]
 [ValidateNotNullorEmpty()]
   [string[]]$Name,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual disk GUID(s)",
-ParameterSetName="HardDisk")]
+HelpMessage="Enter one or more virtual disk GUID(s)")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(HelpMessage="Use this switch to delete the virtual disk from the host")]
@@ -8280,92 +8294,90 @@ Process {
  Write-Verbose "Controller Port: `"$ControllerPort`""
  Write-Verbose "Controller Slot: `"$ControllerSlot`""
  if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
- if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
-  # initialize $imachines array
-  $imediums = @()
-  if ($Disk) {
-   Write-Verbose "Getting disk inventory from Disk(s) object"
-   $imediums = $Disk
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Machine)
-  elseif ($Name) {
-   foreach ($item in $Name) {
-    Write-Verbose "Getting disk inventory from Name(s)"
-    $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
-   }
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Name)
-  elseif ($Guid) {
-   foreach ($item in $Guid) {
-    Write-Verbose "Getting disk inventory from GUID(s)"
-    $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
-   }
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Guid)
-  if ($imediums) {
-   Write-Verbose "[Info] Found disks"
-   try {
-    foreach ($imedium in $imediums) {
-     Write-Verbose "Found disk: $($imedium.Name)"
-     if ($imedium.VMNames) {
-      foreach ($vmname in $imedium.VMNames) {
-      Write-Verbose "Disk attached to VM: $vmname"
-       Write-Host "[Error] The disk $($imedium.Name) is still mounted to machine $vmname. Dismount the disk from the machine and try again." -ForegroundColor Red -BackgroundColor Black;return
-      } # foreach $vmname in $imedium.VMNames
-     } # end if $imedium.VMNames
-     if ($DeleteFromHost) {
-      if ($PSCmdlet.ShouldProcess("$($imedium.Name)" , "Delete storage medium from host ")) {
-       if ($ModuleHost.ToLower() -eq 'websrv') {
-        # delete disk from host
-        Write-Verbose "Removing disk $($imedium.Name)"
-        $imedium.IProgress.Id = $global:vbox.IMedium_deleteStorage($imedium.Id)
-        # collect iprogress data
-        Write-Verbose "Fetching IProgress data"
-        $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
-        if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-        do {
-         # update iprogress data
-         $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
-         if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
-         if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
-        } until ($imedium.IProgress.Percent -eq 100) # continue once the progress reaches 100%
-       } # end if websrv
-       elseif ($ModuleHost.ToLower() -eq 'com') {
-        # delete disk from host
-        Write-Verbose "Removing disk $($imedium.Name)"
-        $imedium.IProgress.Progress = $imedium.ComObject.DeleteStorage()
-        if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
-        do {
-         # update iprogress data
-         if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
-         if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.Progress.OperationDescription)" -status "$($imedium.IProgress.Progress.OperationDescription): $($imedium.IProgress.Progress.OperationPercent)%" -percentComplete ($imedium.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
-        } until ($imedium.IProgress.Progress.Percent -eq 100) # continue once the progress reaches 100%
-       } # end elseif com
-      } # end if $PSCmdlet.ShouldProcess(
-      else {Write-Verbose "Operation cancelled by user";return}
-     } # end if $DeleteFromHost
-     else {
-      # close the disk
-      Write-Verbose "Removing disk $($imedium.Name) from VirtualBox inventory"
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disk) {
+  Write-Verbose "Getting disk inventory from Disk(s) object"
+  $imediums = $Disk
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disk inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disk inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ if ($imediums) {
+  Write-Verbose "[Info] Found disks"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disk: $($imedium.Name)"
+    if ($imedium.MachineName) {
+     foreach ($vmname in $imedium.MachineName) {
+     Write-Verbose "Disk attached to VM: $vmname"
+      Write-Host "[Error] The disk $($imedium.Name) is still mounted to machine $vmname. Dismount the disk from the machine and try again." -ForegroundColor Red -BackgroundColor Black;return
+     } # foreach $vmname in $imedium.MachineName
+    } # end if $imedium.MachineName
+    if ($DeleteFromHost) {
+     if ($PSCmdlet.ShouldProcess("$($imedium.Name)" , "Delete storage medium from host ")) {
       if ($ModuleHost.ToLower() -eq 'websrv') {
-       $global:vbox.IMedium_close($imedium.Id)
+       # delete disk from host
+       Write-Verbose "Removing disk $($imedium.Name)"
+       $imedium.IProgress.Id = $global:vbox.IMedium_deleteStorage($imedium.Id)
+       # collect iprogress data
+       Write-Verbose "Fetching IProgress data"
+       $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
+       if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+       do {
+        # update iprogress data
+        $imedium.IProgress = $imedium.IProgress.Update($imedium.IProgress.Id)
+        if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Description): $($imedium.IProgress.Percent)%" -percentComplete ($imedium.IProgress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.TimeRemaining)}
+        if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.OperationDescription)" -status "$($imedium.IProgress.OperationDescription): $($imedium.IProgress.OperationPercent)%" -percentComplete ($imedium.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       } until ($imedium.IProgress.Percent -eq 100) # continue once the progress reaches 100%
       } # end if websrv
       elseif ($ModuleHost.ToLower() -eq 'com') {
-       $imedium.ComObject.Close()
+       # delete disk from host
+       Write-Verbose "Removing disk $($imedium.Name)"
+       $imedium.IProgress.Progress = $imedium.ComObject.DeleteStorage()
+       if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+       do {
+        # update iprogress data
+        if ($ProgressBar) {Write-Progress -Activity "Removing disk $($imedium.Name) from host" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
+        if ($ProgressBar) {Write-Progress -Activity "$($imedium.IProgress.Progress.OperationDescription)" -status "$($imedium.IProgress.Progress.OperationDescription): $($imedium.IProgress.Progress.OperationPercent)%" -percentComplete ($imedium.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       } until ($imedium.IProgress.Progress.Percent -eq 100) # continue once the progress reaches 100%
       } # end elseif com
-     }
-    } # foreach $imedium in $imediums
-   } # Try
-   catch {
-    Write-Verbose 'Exception removing virtual disk'
-    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-   } # Catch
-   finally {
-    # cleanup
-   } # Finally
-  } # end if $imediums
- } # end if ParameterSetName -eq HardDisk
+     } # end if $PSCmdlet.ShouldProcess(
+     else {Write-Verbose "Operation cancelled by user";return}
+    } # end if $DeleteFromHost
+    else {
+     # close the disk
+     Write-Verbose "Removing disk $($imedium.Name) from VirtualBox inventory"
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      $global:vbox.IMedium_close($imedium.Id)
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      $imedium.ComObject.Close()
+     } # end elseif com
+    }
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception removing virtual disk'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # cleanup
+  } # Finally
+ } # end if $imediums
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -8406,7 +8418,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-VirtualBoxVHD[]:  VirtualBoxVHDs for Virtual disk objects
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disk objects
 String[]       :  Strings for virtual disk names
 GUID[]         :  GUIDS for virtual disk GUIDS
 String         :  String for virtual machine name
@@ -8416,21 +8428,19 @@ Int            :  Integer for controller slot
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="HardDisk",SupportsShouldProcess,ConfirmImpact='High')]
+[cmdletbinding()]
 Param(
 [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual disk object(s)",
-ParameterSetName="HardDisk",Position=0)]
+Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVHD[]]$Disk,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual disk name(s)",
-ParameterSetName="HardDisk")]
+HelpMessage="Enter one or more virtual disk name(s)")]
 [ValidateNotNullorEmpty()]
   [string[]]$Name,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual disk GUID(s)",
-ParameterSetName="HardDisk")]
+HelpMessage="Enter one or more virtual disk GUID(s)")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
@@ -8484,173 +8494,171 @@ Process {
  Write-Verbose "Controller Slot: `"$ControllerSlot`""
  if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
  if (!($Machine -or $MachineName -or $MachineGuid)) {Write-Host "[Error] You must supply at least one machine object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
- if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
-  # initialize $imachines array
-  $imediums = @()
-  if ($Disk) {
-   Write-Verbose "Getting disk inventory from Disk(s) object"
-   $imediums = $Disk
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  } # get disk inventory (by $Disk)
-  elseif ($Name) {
-   foreach ($item in $Name) {
-    Write-Verbose "Getting disk inventory from Name(s)"
-    $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
-   }
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  } # get disk inventory (by $Name)
-  elseif ($Guid) {
-   foreach ($item in $Guid) {
-    Write-Verbose "Getting disk inventory from GUID(s)"
-    $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
-   }
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  } # get vm inventory (by $Guid)
-  if ($imediums) {
-   Write-Verbose "[Info] Found disks"
-   try {
-    foreach ($imedium in $imediums) {
-     Write-Verbose "Found disk: $($imedium.Name)"
-     if ($imedium.VMNames) {
-      # make sure it's not already attached to the requested vm
-      foreach ($vmname in $imedium.VMNames) {
-       Write-Verbose "Disk attached to VM: $vmname"
-       if (Get-VirtualBoxDisk -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disk $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
-      } # foreach $vmname in $imedium.VMNames
-     } # end if $imedium.VMNames
-     if ($Machine) {
-      $imachines = $Machine
-     } # get vm inventory (by $Machine)
-     elseif ($MachineName) {
-      $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
-     } # get vm inventory (by $MachineName)
-     elseif ($MachineGuid) {
-      $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
-     } # get vm inventory (by $MachineGuid)
-     if ($imachines) {
-      foreach ($imachine in $imachines) {
-       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       if ($ModuleHost.ToLower() -eq 'websrv') {
-        #$istoragecontrollers = New-Object IStorageController
-        #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
-        foreach ($istoragecontroller in $imachine.IStorageControllers) {
-         if ($istoragecontroller.Name -eq $Controller) {
-          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-          $controllerfound = $true
-         } # end if $istoragecontroller.Name -eq $Controller
-         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-        } # foreach $istoragecontroller in $imachine.IStorageControllers
-        Write-Verbose "Getting write lock on machine $($imachine.Name)"
-        $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
-        # create a new machine object
-        $mmachine = New-Object VirtualBoxVM
-        # get the mutable machine object
-        Write-Verbose "Getting the mutable machine object"
-        $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
-        $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-        # attach the disk
-        Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-        $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
-        # save new settings
-        Write-Verbose "Saving new settings"
-        $global:vbox.IMachine_saveSettings($mmachine.Id)
-        # unlock machine session
-        Write-Verbose "Unlocking machine session"
-        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-       } # end if websrv
-       elseif ($ModuleHost.ToLower() -eq 'com') {
-        $istoragecontrollers = $imachine.ComObject.StorageControllers
-        foreach ($istoragecontroller in $istoragecontrollers) {
-         if ($istoragecontroller.Name -eq $Controller) {
-          if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-          if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-          $controllerfound = $true
-         } # end if $istoragecontroller.Name -eq $Controller
-         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-        } # foreach $istoragecontroller in $istoragecontrollers
-        Write-Verbose "Getting write lock on machine $($imachine.Name)"
-        $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
-        # create a new machine object
-        $mmachine = New-Object VirtualBoxVM
-        # get the mutable machine object
-        Write-Verbose "Getting the mutable machine object"
-        $mmachine.ComObject = $imachine.ISession.Session.Machine
-        $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
-        # wait for the disk to become available
-        Write-Verbose "Waiting for the disk to become available"
-        do {
-        } until ($imedium.ComObject.State -eq 1)
-        # attach the disk
-        Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-        $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.ComObject)
-        # save new settings
-        Write-Verbose "Saving new settings"
-        $mmachine.ComObject.SaveSettings()
-        # unlock machine session
-        Write-Verbose "Unlocking machine session"
-        $imachine.ISession.Session.UnlockMachine()
-       } # end elseif com
-      } # foreach $imachine in $imachines
-     } # end if $imachines
-     else {Write-Host "[Error] No machines found using specified filters." -ForegroundColor Red -BackgroundColor Black;return}
-    } # foreach $imedium in $imediums
-   } # Try
-   catch {
-    Write-Verbose 'Exception mounting virtual disk'
-    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-   } # Catch
-   finally {
-    # release mutable machine objects if they exist
-    if ($mmachine) {
-     if ($mmachine.ISession.Id) {
-      # release mutable session object
-      Write-Verbose "Releasing mutable session object"
-      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
-     }
-     if ($mmachine.ISession.Session) {
-      if ($mmachine.ISession.Session.State -gt 1) {
-       $mmachine.ISession.Session.UnlockMachine()
-      } # end if $mmachine.ISession.Session locked
-     } # end if $mmachine.ISession.Session
-     if ($mmachine.Id) {
-      # release mutable object
-      Write-Verbose "Releasing mutable object"
-      $global:vbox.IManagedObjectRef_release($mmachine.Id)
-     }
-    }
-    # obligatory session unlock
-    Write-Verbose 'Cleaning up machine sessions'
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disk) {
+  Write-Verbose "Getting disk inventory from Disk(s) object"
+  $imediums = $Disk
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get disk inventory (by $Disk)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disk inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get disk inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disk inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get vm inventory (by $Guid)
+ if ($imediums) {
+  Write-Verbose "[Info] Found disks"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disk: $($imedium.Name)"
+    if ($imedium.MachineName) {
+     # make sure it's not already attached to the requested vm
+     foreach ($vmname in $imedium.MachineName) {
+      Write-Verbose "Disk attached to VM: $vmname"
+      if (Get-VirtualBoxDisk -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disk $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
+     } # foreach $vmname in $imedium.MachineName
+    } # end if $imedium.MachineName
+    if ($Machine) {
+     $imachines = $Machine
+    } # get vm inventory (by $Machine)
+    elseif ($MachineName) {
+     $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+    } # get vm inventory (by $MachineName)
+    elseif ($MachineGuid) {
+     $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+    } # get vm inventory (by $MachineGuid)
     if ($imachines) {
      foreach ($imachine in $imachines) {
-      if ($imachine.ISession.Id) {
-       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
-        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-       } # end if session state not unlocked
-      } # end if $imachine.ISession.Id
-      if ($imachine.ISession.Session) {
-       if ($imachine.ISession.Session.State -gt 1) {
-        $imachine.ISession.Session.UnlockMachine()
-       } # end if $imachine.ISession.Session locked
-      } # end if $imachine.ISession.Session
-      if ($imachine.IConsole) {
-       # release the iconsole session
-       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
-       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
-      } # end if $imachine.IConsole
-      #$imachine.ISession.Id = $null
-      $imachine.IConsole = $null
-      if ($imachine.IPercent) {$imachine.IPercent = $null}
-      $imachine.MSession = $null
-      $imachine.MConsole = $null
-      $imachine.MMachine = $null
-     } # end foreach $imachine in $imachines
+      if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
+      if ($ModuleHost.ToLower() -eq 'websrv') {
+       #$istoragecontrollers = New-Object IStorageController
+       #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+       foreach ($istoragecontroller in $imachine.IStorageControllers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $imachine.IStorageControllers
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+       $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+       # attach the disk
+       Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+       $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $global:vbox.IMachine_saveSettings($mmachine.Id)
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if websrv
+      elseif ($ModuleHost.ToLower() -eq 'com') {
+       $istoragecontrollers = $imachine.ComObject.StorageControllers
+       foreach ($istoragecontroller in $istoragecontrollers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $istoragecontrollers
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.ComObject = $imachine.ISession.Session.Machine
+       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+       # wait for the disk to become available
+       Write-Verbose "Waiting for the disk to become available"
+       do {
+       } until ($imedium.ComObject.State -eq 1)
+       # attach the disk
+       Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
+       $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.ComObject)
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $mmachine.ComObject.SaveSettings()
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $imachine.ISession.Session.UnlockMachine()
+      } # end elseif com
+     } # foreach $imachine in $imachines
     } # end if $imachines
-   } # Finally
-  } # end if $imediums
- } # end if ParameterSetName -eq HardDisk
+    else {Write-Host "[Error] No machines found using specified filters." -ForegroundColor Red -BackgroundColor Black;return}
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception mounting virtual disk'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # release mutable machine objects if they exist
+   if ($mmachine) {
+    if ($mmachine.ISession.Id) {
+     # release mutable session object
+     Write-Verbose "Releasing mutable session object"
+     $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+    }
+    if ($mmachine.ISession.Session) {
+     if ($mmachine.ISession.Session.State -gt 1) {
+      $mmachine.ISession.Session.UnlockMachine()
+     } # end if $mmachine.ISession.Session locked
+    } # end if $mmachine.ISession.Session
+    if ($mmachine.Id) {
+     # release mutable object
+     Write-Verbose "Releasing mutable object"
+     $global:vbox.IManagedObjectRef_release($mmachine.Id)
+    }
+   }
+   # obligatory session unlock
+   Write-Verbose 'Cleaning up machine sessions'
+   if ($imachines) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.ISession.Id) {
+      if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if session state not unlocked
+     } # end if $imachine.ISession.Id
+     if ($imachine.ISession.Session) {
+      if ($imachine.ISession.Session.State -gt 1) {
+       $imachine.ISession.Session.UnlockMachine()
+      } # end if $imachine.ISession.Session locked
+     } # end if $imachine.ISession.Session
+     if ($imachine.IConsole) {
+      # release the iconsole session
+      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+     } # end if $imachine.IConsole
+     #$imachine.ISession.Id = $null
+     $imachine.IConsole = $null
+     if ($imachine.IPercent) {$imachine.IPercent = $null}
+     $imachine.MSession = $null
+     $imachine.MConsole = $null
+     $imachine.MMachine = $null
+    } # end foreach $imachine in $imachines
+   } # end if $imachines
+  } # Finally
+ } # end if $imediums
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -8685,7 +8693,7 @@ EDITOR      :  SmithersTheOracle
 .LINK
 Get-VirtualBoxDisk
 .INPUTS
-VirtualBoxVHD[]:  VirtualBoxVHDs for Virtual disk objects
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disk objects
 String[]       :  Strings for virtual disk names
 GUID[]         :  GUIDS for virtual disk GUIDS
 String         :  String for virtual machine name
@@ -8695,21 +8703,19 @@ Int            :  Integer for controller slot
 .OUTPUTS
 None
 #>
-[cmdletbinding(DefaultParameterSetName="HardDisk",SupportsShouldProcess,ConfirmImpact='High')]
+[cmdletbinding(SupportsShouldProcess,ConfirmImpact='High')]
 Param(
 [Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
 HelpMessage="Enter one or more virtual disk object(s)",
-ParameterSetName="HardDisk",Position=0)]
+Position=0)]
 [ValidateNotNullorEmpty()]
   [VirtualBoxVHD[]]$Disk,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual disk name(s)",
-ParameterSetName="HardDisk")]
+HelpMessage="Enter one or more virtual disk name(s)")]
 [ValidateNotNullorEmpty()]
   [string[]]$Name,
 [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
-HelpMessage="Enter one or more virtual disk GUID(s)",
-ParameterSetName="HardDisk")]
+HelpMessage="Enter one or more virtual disk GUID(s)")]
 [ValidateNotNullorEmpty()]
   [guid[]]$Guid,
 [Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
@@ -8771,8 +8777,8 @@ Process {
    try {
     foreach ($imedium in $imediums) {
      Write-Verbose "Found disk: $($imedium.Name)"
-     if ($imedium.VMIds) {
-      foreach ($vmids in $imedium.VMIds) {
+     if ($imedium.MachineGuid) {
+      foreach ($vmids in $imedium.MachineGuid) {
        Write-Verbose "Disk attached to VM: $vmname"
        if ($Machine) {
         $imachines = $Machine
@@ -8838,8 +8844,8 @@ Process {
          } # end if $PSCmdlet.ShouldProcess(
         } # foreach $imachine in $imachines
        } # end if $imachines
-      } # foreach $vmname in $imedium.VMNames
-     } # end if $imedium.VMNames
+      } # foreach $vmname in $imedium.MachineGuid
+     } # end if $imedium.MachineGuid
     } # foreach $imedium in $imediums
    } # Try
    catch {
@@ -8902,6 +8908,543 @@ End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
+Function Get-VirtualBoxDisc {
+<#
+.SYNOPSIS
+Get VirtualBox disc information
+.DESCRIPTION
+Retrieve VirtualBox discs by name, GUID, machine object, machine name, machine GUID, or all.
+.PARAMETER Name
+At least one virtual disc name.
+.PARAMETER Guid
+At least one virtual disc GUID.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER MachineName
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER MachineGuid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisc -Name vboxguestadd
+
+Name        : VBoxGuestAdditions.iso
+Description :
+Format      : RAW
+Size        : 59516928
+LogicalSize : 59516928
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6, 15a4c311-3b89-4936-89c7-11d3340ced7a}
+MachineName : {2016 Core, Win10}
+
+Get virtual disc by Name
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxDisc
+
+Name        : VBoxGuestAdditions.iso
+Description :
+Format      : RAW
+Size        : 59516928
+LogicalSize : 59516928
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6, 15a4c311-3b89-4936-89c7-11d3340ced7a}
+MachineName : {2016 Core, Win10}
+
+Get virtual disc by machine object from pipeline input
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisc -MachineName 2016
+
+Name        : VBoxGuestAdditions.iso
+Description :
+Format      : RAW
+Size        : 59516928
+LogicalSize : 59516928
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6, 15a4c311-3b89-4936-89c7-11d3340ced7a}
+MachineName : {2016 Core, Win10}
+
+Get virtual disc by machine name
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisc -MachineGuid c9d4dc35-3967-4009-993d-1c23ab4ff22b
+
+Name        : Hiren's.BootCD.15.2.iso
+Description :
+Format      : RAW
+Size        : 623890432
+LogicalSize : 623890432
+MachineGuid : {c9d4dc35-3967-4009-993d-1c23ab4ff22b}
+MachineName : {GNS3 IOU VM_1.3}
+
+Get virtual disc by machine GUID
+.EXAMPLE
+PS C:\> Get-VirtualBoxDisc
+
+Name        : VBoxGuestAdditions.iso
+Description :
+Format      : RAW
+Size        : 59516928
+LogicalSize : 59516928
+MachineGuid : {7353caa6-8cb6-4066-aec9-6c6a69a001b6, 15a4c311-3b89-4936-89c7-11d3340ced7a}
+MachineName : {2016 Core, Win10}
+
+Name        : Hiren's.BootCD.15.2.iso
+Description :
+Format      : RAW
+Size        : 623890432
+LogicalSize : 623890432
+MachineGuid : {c9d4dc35-3967-4009-993d-1c23ab4ff22b}
+MachineName : {GNS3 IOU VM_1.3}
+
+Get all virtual discs in the VirtualBox inventory
+.NOTES
+NAME        :  Get-VirtualBoxDisc
+VERSION     :  1.0
+LAST UPDATED:  2/8/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+New-VirtualBoxDisc
+.INPUTS
+String[]      :  Strings for virtual disc names
+Guid[]        :  VirtualBoxVMs for virtual machine objects
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+VirtualBoxVHD[]
+#>
+[cmdletbinding(DefaultParameterSetName="Machine")]
+Param(
+[Parameter(HelpMessage="Enter one or more disc name(s)",
+ParameterSetName="Disc",Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(HelpMessage="Enter one or more disc GUID(s)",
+ParameterSetName="Disc",Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+ParameterSetName="Machine",Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM[]]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+ParameterSetName="Machine",Mandatory=$false,Position=0)]
+  [string[]]$MachineName,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+ParameterSetName="Machine",Mandatory=$false,Position=0)]
+  [guid[]]$MachineGuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - MachineName: `"$MachineName`""
+ Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ $discs = @()
+ $obj = @()
+ try {
+  # get virtual machine disc inventory
+  Write-Verbose "Getting virtual disc inventory"
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   foreach ($imediumid in $global:vbox.IVirtualBox_getDVDImages($global:ivbox)) {
+    Write-Verbose "Getting disc: $($imediumid)"
+    $disc = New-Object VirtualBoxVHD
+    $disc.Name = $global:vbox.IMedium_getName($imediumid)
+    $disc.GUID = $global:vbox.IMedium_getId($imediumid)
+    $disc.Description = $global:vbox.IMedium_getDescription($imediumid)
+    $disc.Format = $global:vbox.IMedium_getFormat($imediumid)
+    $disc.Size = $global:vbox.IMedium_getSize($imediumid)
+    $disc.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+    $disc.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
+    foreach ($machineid in $disc.MachineGuid) {
+     foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+      if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
+       $disc.MachineName += $global:vbox.IMachine_getName($imachine)
+      } # end if $imachine.Guid -eq $machineid
+      $disc.MachineName = $disc.MachineName | Where-Object {$_ -ne $null}
+     } # foreach $imachine in $imachines
+    } # foreach $machineid in $disc.MachineGuid
+    $disc.State = $global:vbox.IMedium_getState($imediumid)
+    $disc.Variant = $global:vbox.IMedium_getVariant($imediumid)
+    $disc.Location = $global:vbox.IMedium_getLocation($imediumid)
+    $disc.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+    $disc.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+    $disc.Type = $global:vbox.IMedium_getType($imediumid)
+    $disc.Parent = $global:vbox.IMedium_getParent($imediumid)
+    $disc.Children = $global:vbox.IMedium_getChildren($imediumid)
+    $disc.Id = $imediumid
+    $disc.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+    $disc.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+    $disc.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+    [VirtualBoxVHD[]]$discs += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;}
+   } # end foreach loop inventory
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   foreach ($imedium in $vbox.DVDImages) {
+    Write-Verbose "Getting disc: $($imedium.Id)"
+    $disc = New-Object VirtualBoxVHD
+    $disc.Name = $imedium.Name
+    $disc.Guid = $imedium.Id
+    $disc.Description = $imedium.Description
+    $disc.Format = $imedium.Format
+    $disc.Size = $imedium.Size
+    $disc.LogicalSize = $imedium.LogicalSize
+    $disc.MachineGuid = $imedium.MachineIds
+    foreach ($machineid in $disc.MachineGuid) {
+     foreach ($imachine in $global:vbox.Machines) {
+      if ($imachine.Id -eq $machineid) {
+       $disc.MachineName += $imachine.Name
+      } # end if $imachine.Guid -eq $machineid
+      $disc.MachineName = $disc.MachineName | Where-Object {$_ -ne $null}
+     } # foreach $imachine in $imachines
+    } # foreach $machineid in $disc.MachineGuid
+    $disc.State = $imedium.State
+    $disc.Variant = $imedium.Variant
+    $disc.Location = $imedium.Location
+    $disc.HostDrive = $imedium.HostDrive
+    $disc.MediumFormat = $imedium.MediumFormat.Name
+    $disc.Type = $imedium.Type
+    if ($imedium.Parent) {$disc.Parent = $imedium.Parent.Name}
+    if ($imedium.Children) {$disc.Children = $imedium.Children.Name}
+    $disc.ComObject = $imedium
+    $disc.ReadOnly = $imedium.ReadOnly
+    $disc.AutoReset = $imedium.AutoReset
+    $disc.LastAccessError = $imedium.LastAccessError
+    [VirtualBoxVHD[]]$discs += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}
+   } # end foreach loop inventory
+  } # end elseif com
+ } # Try
+ catch {
+  Write-Verbose 'Exception retrieving virtual disc information'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ if ($PSCmdlet.ParameterSetName -eq "Disc") {
+  # filter by disc name
+  if ($Name -and $Name -ne '*') {
+   foreach ($item in $Name) {
+    foreach ($disc in $discs) {
+     $matched = $false
+     Write-Verbose "Matching $($disc.Name) to $item"
+     if ($disc.Name -match $item) {Write-Verbose "Matched $($disc.Name) to $item";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}
+    } # foreach $disc in $discs
+   } # foreach $item in $Name
+  } # end if $Name
+  # filter by disc format
+  elseif ($Format -and $Format -ne '*') {
+   foreach ($item in $Format) {
+    foreach ($disc in $discs) {
+     $matched = $false
+     Write-Verbose "Matching $($disc.Format) to $item"
+     if ($disc.Format -match $item) {Write-Verbose "Matched $($disc.Format) to $item";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}
+    } # foreach $disc in $discs
+   } # foreach $item in $Format
+   $obj = $obj | Where-Object {$_ -ne $null}
+  } # end if $Format
+  # filter by disc guid
+  elseif ($Guid) {
+   foreach ($item in $Guid) {
+    foreach ($disc in $discs) {
+     $matched = $false
+     Write-Verbose "Matching $($disc.Guid) to $item"
+     if ($disc.Guid -match $item) {Write-Verbose "Matched $($disc.Guid) to $item";$matched = $true}
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}
+    } # foreach $disc in $discs
+   } # foreach $item in $Guid
+  } # end if $Guid
+  # no filter
+  else {foreach ($disc in $discs) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}}
+  Write-Verbose "Found $(($obj | Measure-Object).count) disc(s)"
+ }
+ elseif ($PSCmdlet.ParameterSetName -eq "Machine") {
+  # filter by machine object
+  if ($Machine) {
+   foreach ($item in $Machine) {
+    foreach ($disc in $discs) {
+     $matched = $false
+     foreach ($vmname in $disc.MachineName) {
+      Write-Verbose "Matching $vmname to $($item.Name)"
+      if ($vmname -match $item.Name) {Write-Verbose "Matched $vmname to $($item.Name)";$matched = $true}
+     } # foreach $vmname in $disc.MachineName
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}
+    } # foreach $disc in $discs
+   } # foreach $item in $Machine
+  } # end if $Machine
+  # filter by machine name
+  elseif ($MachineName) {
+   foreach ($item in $MachineName) {
+    foreach ($disc in $discs) {
+     $matched = $false
+     foreach ($vmname in $disc.MachineName) {
+      Write-Verbose "Matching $vmname to $item"
+      if ($vmname -match $item) {Write-Verbose "Matched $vmname to $item";$matched = $true}
+     } # foreach $vmname in $disc.MachineName
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}
+    } # foreach $disc in $discs
+   } # foreach $item in $MachineName
+  } # end elseif $MachineName
+  # filter by machine GUID
+  elseif ($MachineGuid) {
+   foreach ($item in $MachineGuid) {
+    foreach ($disc in $discs) {
+     $matched = $false
+     foreach ($vmguid in $disc.MachineGuid) {
+      Write-Verbose "Matching $vmguid to $item"
+      if ($vmguid -eq $item) {Write-Verbose "Matched $vmguid to $item";$matched = $true}
+     } # foreach $vmguid in $disc.MachineGuid
+     if ($matched -eq $true) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}
+    } # foreach $disc in $discs
+   } # foreach $item in $MachineGuid
+  } # end elseif $MachineGuid
+  # no filter
+  else {foreach ($disc in $discs) {[VirtualBoxVHD[]]$obj += [VirtualBoxVHD]@{Name=$disc.Name;Guid=$disc.Guid;Description=$disc.Description;Format=$disc.Format;Size=$disc.Size;LogicalSize=$disc.LogicalSize;MachineGuid=$disc.MachineGuid;MachineName=$disc.MachineName;State=$disc.State;Variant=$disc.Variant;Location=$disc.Location;HostDrive=$disc.HostDrive;MediumFormat=$disc.MediumFormat;Type=$disc.Type;Parent=$disc.Parent;Children=$disc.Children;Id=$disc.Id;ReadOnly=$disc.ReadOnly;AutoReset=$disc.AutoReset;LastAccessError=$disc.LastAccessError;ComObject=$disc.ComObject}}}
+  Write-Verbose "Found $(($obj | Measure-Object).count) disc(s)"
+ }
+ if ($obj) {
+  # write virtual machines object to the pipeline as an array
+  Write-Output ([System.Array]$obj)
+ } # end if $obj
+ else {
+  Write-Verbose "[Warning] No matching virtual discs found."
+ } # end else
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Import-VirtualBoxDisc {
+<#
+.SYNOPSIS
+Import VirtualBox disc
+.DESCRIPTION
+Imports VirtualBox discs. The command will fail if a virtual disc with the same name exists in the VirtualBox inventory.
+.PARAMETER FileName
+The full path to the virtual disc file.
+.PARAMETER ForceNewUuid
+A switch to request a new disc UUID be created.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Import-VirtualBoxDisc -FileName C:\Discs\TestDisc.iso
+
+Import the "C:\Discs\TestDisc.iso" disc to the VirtualBox inventory
+.NOTES
+NAME        :  Import-VirtualBoxDisc
+VERSION     :  1.0
+LAST UPDATED:  2/8/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisc
+.INPUTS
+String        :  String for virtual disc file path
+.OUTPUTS
+None
+#>
+[cmdletbinding()]
+Param(
+[Parameter(HelpMessage="Enter the full virtual disc path",
+Mandatory=$true,Position=2)]
+[ValidateScript({Test-Path $_})]
+  [string]$FileName,
+[Parameter(HelpMessage="Use this switch to request a new disc UUID be created",
+Mandatory=$false)]
+  [switch]$ForceNewUuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ $existingdiscs = Get-VirtualBoxDisc -Name $($FileName.Substring($FileName.LastIndexOf('\')+1)) -SkipCheck
+ if ($existingdiscs) {
+  foreach ($existingdisc in $existingdiscs) {
+   Write-Verbose $existingdisc.Name
+   if ($existingdisc.Name -eq ($FileName.Substring($FileName.LastIndexOf('\')+1))) {
+    Write-Host "[Error] Disc $($existingdisc.Name) already exists. Select another disc image and try again." -ForegroundColor Red -BackgroundColor Black
+    return
+   }
+  }
+ }
+ try {
+  $imedium = New-Object VirtualBoxVHD
+  if ($ModuleHost.ToLower() -eq 'websrv') {
+   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('DVD'), $global:accessmode.ToULong('ReadOnly'), $(if ($ForceNewUuid) {$true} else {$false}))
+  } # end if websrv
+  elseif ($ModuleHost.ToLower() -eq 'com') {
+   $imedium.ComObject = $global:vbox.OpenMedium($FileName, $global:devicetype.ToULong('DVD'), $global:accessmode.ToULong('ReadOnly'), $(if ($ForceNewUuid) {1} else {0}))
+  } # end elseif com
+ } # Try
+ catch {
+  Write-Verbose 'Exception importing virtual disc'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Remove-VirtualBoxDisc {
+<#
+.SYNOPSIS
+Remove VirtualBox disc
+.DESCRIPTION
+Removes VirtualBox discs. The command will fail if a virtual disc does not exist in the VirtualBox inventory or if the disc is mounted to a machine.
+.PARAMETER Disc
+At least one virtual disc object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Remove-VirtualBoxDisc -Name TestDisc.iso -ProgressBar -Confirm:$false
+
+Remove the virtual disc named "TestDisc.iso" from the VirtualBox inventory, do not confirm the action, and display a progress bar
+.NOTES
+NAME        :  Remove-VirtualBoxDisc
+VERSION     :  1.0
+LAST UPDATED:  2/8/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisc
+.INPUTS
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disc objects
+String[]       :  Strings for virtual disc names
+GUID[]         :  GUIDS for virtual disc GUIDS
+.OUTPUTS
+None
+#>
+[cmdletbinding()]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc object(s)",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD[]]$Disc,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc name(s)")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Use this switch to display a progress bar")]
+  [switch]$ProgressBar,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disc: `"$Disc`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Controller Name: `"$Controller`""
+ Write-Verbose "Controller Port: `"$ControllerPort`""
+ Write-Verbose "Controller Slot: `"$ControllerSlot`""
+ if (!($Disc -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disc object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disc) {
+  Write-Verbose "Getting disc inventory from Disc(s) object"
+  $imediums = $Disc
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disc inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisc -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disc inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisc -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ if ($imediums) {
+  Write-Verbose "[Info] Found discs"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disc: $($imedium.Name)"
+    if ($imedium.MachineName) {
+     foreach ($vmname in $imedium.MachineName) {
+     Write-Verbose "Disc attached to VM: $vmname"
+      Write-Host "[Error] The disc $($imedium.Name) is still mounted to machine $vmname. Dismount the disc from the machine and try again." -ForegroundColor Red -BackgroundColor Black;return
+     } # foreach $vmname in $imedium.MachineName
+    } # end if $imedium.MachineName
+    # close the disc
+    Write-Verbose "Removing disc $($imedium.Name) from VirtualBox inventory"
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     $global:vbox.IMedium_close($imedium.Id)
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     $imedium.ComObject.Close()
+    } # end elseif com
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception removing virtual disc'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # cleanup
+  } # Finally
+ } # end if $imediums
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
 Function Submit-VirtualBoxVMProcess {
 <#
 .SYNOPSIS
@@ -8938,7 +9481,7 @@ PS C:\> Get-VirtualBoxVM -State Running | Where-Object {$_.GuestOS -match 'windo
 Runs gpupdate.exe on all running virtual machines with a Windows guest OS
 .NOTES
 NAME        :  Submit-VirtualBoxVMProcess
-VERSION     :  1.1
+VERSION     :  1.2
 LAST UPDATED:  1/22/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
@@ -9360,7 +9903,7 @@ A switch to send StdOut to the pipeline.
 .PARAMETER StdErr
 A switch to display StdErr to the screen.
 .PARAMETER NoWait
-A switch to skip waiting for PowerShell completion. StdOut and StdErr switches will be ignored if this switch is used. Warning: this will launch the PowerShell and immediately exit. If PowerShell does not terminate successfully, you will need to do so manually from within the guest OS.
+A switch to skip waiting for PowerShell completion. StdOut and StdErr switches will be ignored if this switch is used. Warning: this will launch the PowerShell scriptblock and immediately exit. If PowerShell does not terminate successfully, you will need to do so manually from within the guest OS.
 .PARAMETER SkipCheck
 A switch to skip service update (for development use).
 .EXAMPLE
@@ -9548,7 +10091,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
    Write-Verbose 'Creating the VirtualBox Web Service session ($global:ivbox)'
    $global:ivbox = $global:vbox.IWebsessionManager_logon($Credential.GetNetworkCredential().UserName,$Credential.GetNetworkCredential().Password)
    $apiversion = ($vbox.IVirtualBox_getAPIVersion($ivbox)).Replace('_','.')
-   if ($apiversion -lt 6.1) {Write-Host "[Warning] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$apiversion`"." -ForegroundColor Yellow -BackgroundColor Black;return}
+   if ($apiversion -lt 6.1) {Write-Host "[Error] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$apiversion`"." -ForegroundColor Yellow -BackgroundColor Black;return}
    if ($global:ivbox) {
     if (!$global:guestostype -or $Force) {
      try {
@@ -10039,7 +10582,7 @@ elseif ($ModuleHost.ToLower() -eq 'com') {
  # create vbox app
  Write-Verbose 'Creating the VirtualBox COM object ($global:vbox)'
  $vbox = New-Object -ComObject "VirtualBox.VirtualBox"
- if ($vbox.APIVersion.Replace('_','.') -lt 6.1) {Write-Host "[Warning] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$($vbox.APIVersion.Replace('_','.'))`"." -ForegroundColor Yellow -BackgroundColor Black;return}
+ if ($vbox.APIVersion.Replace('_','.') -lt 6.1) {Write-Host "[Error] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$($vbox.APIVersion.Replace('_','.'))`"." -ForegroundColor Yellow -BackgroundColor Black;return}
  try {
   # get guest OS type IDs
   Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
@@ -10088,6 +10631,9 @@ New-Alias -Name ipvboxd -Value Import-VirtualBoxDisk
 New-Alias -Name rvboxd -Value Remove-VirtualBoxDisk
 New-Alias -Name mtvboxd -Value Mount-VirtualBoxDisk
 New-Alias -Name dmvboxd -Value Dismount-VirtualBoxDisk
+New-Alias -Name gvboxdvd -Value Get-VirtualBoxDisc
+New-Alias -Name ipvboxdvd -Value Import-VirtualBoxDisc
+New-Alias -Name rvboxdvd -Value Remove-VirtualBoxDisc
 New-Alias -Name sbvboxvmp -Value Submit-VirtualBoxVMProcess
 New-Alias -Name sbvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
 if ($ModuleHost.ToLower() -eq 'websrv') {
