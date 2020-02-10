@@ -47,7 +47,7 @@ Param(
 [Parameter(HelpMessage="Allows you to switch between using COM or WebSrv when importing the module",
 Mandatory=$false,Position=0)]
 [ValidateSet('Com','WebSrv')]
-    [string]$ModuleHost = 'WebSrv',
+    [string]$ModuleHost = 'Com',
 [Parameter(HelpMessage="Enter the credentials used to run the web service",
 Mandatory=$false,Position=1)]
     [pscredential]$WebSrvCredential,
@@ -132,8 +132,8 @@ class IProgress {
         else {return $null}
     }
 }
-if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description") -Force}
-if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IProgress -DefaultDisplayPropertySet @("GUID","Description","Progress") -Force}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IProgress -DefaultDisplayProperty GUID -DefaultDisplayPropertySet @("GUID","Description") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IProgress -DefaultDisplayProperty GUID -DefaultDisplayPropertySet @("GUID","Description","Progress") -Force}
 class IVrdeServer {
     [ValidateNotNullOrEmpty()]
     [string]$Id
@@ -297,8 +297,8 @@ class IStorageControllers {
         return $ret
     }
 }
-if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IStorageControllers -DefaultDisplayPropertySet @("Name","Bus","ControllerType","Bootable") -Force}
-if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IStorageControllers -DefaultDisplayPropertySet @("Name","Bus","ControllerType","Bootable","ComObject") -Force}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IStorageControllers -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("Name","Bus","ControllerType","UseHostIOCache","Bootable") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IStorageControllers -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("Name","Bus","ControllerType","UseHostIOCache","Bootable","ComObject") -Force}
 class IMediumAttachments {
     [VirtualBoxVHD]$IMedium = [VirtualBoxVHD]::new()
     [string]$Controller
@@ -337,8 +337,8 @@ class IMediumAttachments {
         return $ret
     }
 }
-if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type") -Force}
-if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type","ComObject") -Force}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayProperty Controller -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayProperty Controller -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type","ComObject") -Force}
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
@@ -365,8 +365,8 @@ class VirtualBoxVM {
     [IMediumAttachments[]]$IMediumAttachments = [IMediumAttachments]::new()
     [System.__ComObject]$ComObject
 }
-if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force}
-if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS","ComObject") -Force}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS","ComObject") -Force}
 class VirtualBoxVHD {
     [string]$Name
     [guid]$Guid
@@ -379,15 +379,15 @@ class VirtualBoxVHD {
     [string]$State
     [string[]]$Variant
     [string]$Location
-    [string]$HostDrive
+    [bool]$HostDrive
     [string]$MediumFormat
     [string]$Type
     [string]$Parent
     [string[]]$Children
     [string]$Id
     [IProgress]$IProgress = [IProgress]::new()
-    [string]$ReadOnly
-    [string]$AutoReset
+    [bool]$ReadOnly
+    [bool]$AutoReset
     [string]$LastAccessError
     [System.__ComObject]$ComObject
     static [array]op_Addition($A,$B) {
@@ -397,8 +397,8 @@ class VirtualBoxVHD {
         return $C
     }
 }
-if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","MachineGuid","MachineName") -Force}
-if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","MachineGuid","MachineName","ComObject") -Force}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","MachineGuid","MachineName") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName VirtualBoxVHD -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("Name","Description","Format","Size","LogicalSize","MachineGuid","MachineName","ComObject") -Force}
 class VirtualBoxWebSrvTask {
     [string]$Name
     [string]$Path
@@ -505,7 +505,7 @@ class IVirtualSystemDescription {
         $VirtualSystemDescription.GetDescription([ref]$tempOutTypes, [ref]$outRefs, [ref]$outOVFValues, [ref]$outVBoxValues, [ref]$outExtraConfigValues)
         [string[]]$outTypes = @()
         foreach ($outType in $tempOutTypes) {
-            $outTypes += $global:virtualsystemdescriptiontype.ToStr($outType)
+            $outTypes += [VirtualSystemDescriptionType]::new().ToStr($outType)
         }
         $outTypes = $outTypes | Where-Object {$_ -ne $null}
         for ($i=0;$i-lt($outTypes | Measure-Object).Count;$i++) {
@@ -513,12 +513,12 @@ class IVirtualSystemDescription {
         }
         $ret.TypeNames | Get-Unique | ForEach-Object -Process {
             if ($ret.Types -notcontains $_) {
-                $VirtualSystemDescription.AddDescription($global:virtualsystemdescriptiontype.ToInt($_), '', '')
+                $VirtualSystemDescription.AddDescription([VirtualSystemDescriptionType]::new().ToInt($_), '', '')
                 [array]$ret += [IVirtualSystemDescription]@{Types=$_;Refs='';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
             }
         }
         if ((($ret.Types | Where-Object {$_ -eq 'HardDiskControllerIDE'}) | Measure-Object).Count -eq 1) {
-            $VirtualSystemDescription.AddDescription($global:virtualsystemdescriptiontype.ToInt('HardDiskControllerIDE'), '', '')
+            $VirtualSystemDescription.AddDescription([VirtualSystemDescriptionType]::new().ToInt('HardDiskControllerIDE'), '', '')
             [array]$ret += [IVirtualSystemDescription]@{Types='HardDiskControllerIDE';Refs='6';OVFValues='';VBoxValues='';ExtraConfigValues='';Options=$false}
         }
         $ret = $ret | Where-Object {$_.Types -ne $null}
@@ -595,6 +595,41 @@ class SystemPropertiesSupported {
 		$this.MinGuestCPUCount = $global:vbox.ISystemProperties_getMinGuestCPUCount($global:isystemproperties)
 		$this.MaxGuestCPUCount = $global:vbox.ISystemProperties_getMaxGuestCPUCount($global:isystemproperties)
     }
+    FetchCom () {
+		foreach ($SupportedParavirtProvider in $global:vbox.SystemProperties.SupportedParavirtProviders) {$this.ParavirtProviders += [ParavirtProvider]::new().ToStr($SupportedParavirtProvider)}
+		foreach ($SupportedClipboardMode in $global:vbox.SystemProperties.SupportedClipboardModes) {$this.ClipboardModes += [ClipboardMode]::new().ToStr($SupportedClipboardMode)}
+		foreach ($SupportedDnDMode in $global:vbox.SystemProperties.SupportedDnDModes) {$this.DndModes += [DnDMode]::new().ToStr($SupportedDnDMode)}
+		foreach ($SupportedFirmwareType in $global:vbox.SystemProperties.SupportedFirmwareTypes) {$this.FirmwareTypes += [FirmwareType]::new().ToStr($SupportedFirmwareType)}
+		foreach ($SupportedPointingHIDType in $global:vbox.SystemProperties.SupportedPointingHIDTypes) {$this.PointingHidTypes += [PointingHIDType]::new().ToStr($SupportedPointingHIDType)}
+		foreach ($SupportedKeyboardHIDType in $global:vbox.SystemProperties.SupportedKeyboardHIDTypes) {$this.KeyboardHidTypes += [KeyboardHIDType]::new().ToStr($SupportedKeyboardHIDType)}
+		foreach ($SupportedVFSType in $global:vbox.SystemProperties.SupportedVFSTypes) {$this.VfsTypes += [VFSType]::new().ToStr($SupportedVFSType)}
+		foreach ($SupportedImportOption in $global:vbox.SystemProperties.SupportedImportOptions) {$this.ImportOptions += [ImportOptions]::new().ToStr($SupportedImportOption)}
+		foreach ($SupportedExportOption in $global:vbox.SystemProperties.SupportedExportOptions) {$this.ExportOptions += [ExportOptions]::new().ToStr($SupportedExportOption)}
+		foreach ($SupportedRecordingAudioCodec in $global:vbox.SystemProperties.SupportedRecordingAudioCodecs) {$this.RecordingAudioCodecs += [RecordingAudioCodec]::new().ToStr($SupportedRecordingAudioCodec)}
+		foreach ($SupportedRecordingVideoCodec in $global:vbox.SystemProperties.SupportedRecordingVideoCodecs) {$this.RecordingVideoCodecs += [RecordingVideoCodec]::new().ToStr($SupportedRecordingVideoCodec)}
+		foreach ($SupportedRecordingVSMethod in $global:vbox.SystemProperties.SupportedRecordingVSMethods) {$this.RecordingVsMethods += [RecordingVideoScalingMethod]::new().ToStr($SupportedRecordingVSMethod)}
+		foreach ($SupportedRecordingVRCMode in $global:vbox.SystemProperties.SupportedRecordingVRCModes) {$this.RecordingVrcModes += [RecordingVideoRateControlMode]::new().ToStr($SupportedRecordingVRCMode)}
+		foreach ($SupportedGraphicsControllerType in $global:vbox.SystemProperties.SupportedGraphicsControllerTypes) {$this.GraphicsControllerTypes += [GraphicsControllerType]::new().ToStr($SupportedGraphicsControllerType)}
+		foreach ($SupportedCloneOption in $global:vbox.SystemProperties.SupportedCloneOptions) {$this.CloneOptions += [CloneOptions]::new().ToStr($SupportedCloneOption)}
+		foreach ($SupportedAutostopType in $global:vbox.SystemProperties.SupportedAutostopTypes) {$this.AutostopTypes += [AutostopType]::new().ToStr($SupportedAutostopType)}
+		foreach ($SupportedVMProcPriority in $global:vbox.SystemProperties.SupportedVMProcPriorities) {$this.VmProcPriorities += [VMProcPriority]::new().ToStr($SupportedVMProcPriority)}
+		foreach ($SupportedNetworkAttachmentType in $global:vbox.SystemProperties.SupportedNetworkAttachmentTypes) {$this.NetworkAttachmentTypes += [NetworkAttachmentType]::new().ToStr($SupportedNetworkAttachmentType)}
+		foreach ($SupportedNetworkAdapterType in $global:vbox.SystemProperties.SupportedNetworkAdapterTypes) {$this.NetworkAdapterTypes += [NetworkAdapterType]::new().ToStr($SupportedNetworkAdapterType)}
+		foreach ($SupportedPortMode in $global:vbox.SystemProperties.SupportedPortModes) {$this.PortModes += [PortMode]::new().ToStr($SupportedPortMode)}
+		foreach ($SupportedUartType in $global:vbox.SystemProperties.SupportedUartTypes) {$this.UartTypes += [UartType]::new().ToStr($SupportedUartType)}
+		foreach ($SupportedUSBControllerType in $global:vbox.SystemProperties.SupportedUSBControllerTypes) {$this.UsbControllerTypes += [USBControllerType]::new().ToStr($SupportedUSBControllerType)}
+		foreach ($SupportedAudioDriverType in $global:vbox.SystemProperties.SupportedAudioDriverTypes) {$this.AudioDriverTypes += [AudioDriverType]::new().ToStr($SupportedAudioDriverType)}
+		foreach ($SupportedAudioControllerType in $global:vbox.SystemProperties.SupportedAudioControllerTypes) {$this.AudioControllerTypes += [AudioControllerType]::new().ToStr($SupportedAudioControllerType)}
+		foreach ($SupportedStorageBus in $global:vbox.SystemProperties.SupportedStorageBuses) {$this.StorageBuses += [StorageBus]::new().ToStr($SupportedStorageBus)}
+		foreach ($SupportedStorageControllerType in $global:vbox.SystemProperties.SupportedStorageControllerTypes) {$this.StorageControllerTypes += [StorageControllerType]::new().ToStr($SupportedStorageControllerType)}
+		foreach ($SupportedChipsetType in $global:vbox.SystemProperties.SupportedChipsetTypes) {$this.ChipsetTypes += [ChipsetType]::new().ToStr($SupportedChipsetType)}
+		$this.MinGuestRam = $global:vbox.SystemProperties.MinGuestRAM
+		$this.MaxGuestRam = $global:vbox.SystemProperties.MaxGuestRAM
+		$this.MinGuestVRam = $global:vbox.SystemProperties.MinGuestVRAM
+		$this.MaxGuestVRam = $global:vbox.SystemProperties.MaxGuestVRAM
+		$this.MinGuestCPUCount = $global:vbox.SystemProperties.MinGuestCPUCount
+		$this.MaxGuestCPUCount = $global:vbox.SystemProperties.MaxGuestCPUCount
+    }
 }
 class MediumVariantsSupported {
     [string[]]$Type = @('Standard','VmdkSplit2G','VmdkRawDisk','VmdkStreamOptimized','VmdkESX','VdiZeroExpand')
@@ -618,6 +653,7 @@ class VirtualBoxError {
         else {return $null}
     }
 } # probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
+if (!$__iThinkEnumsAreBetterButDontRealizeTheyAreAMessInPowerShellWhenReimportingModules) {
 class IVirtualBoxErrorInfo {
 # https://www.virtualbox.org/sdkref/group___virtual_box___c_o_m__result__codes.html
 # https://www.virtualbox.org/sdkref/interface_i_virtual_box_error_info.html
@@ -684,7 +720,7 @@ class DeviceType {
         else {return $null}
     }
     [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+        if ($FromLong -ne $null){
             $ToStr = $null
             Switch ($FromLong) {
                 0       {$ToStr = 'Null'} # Null value, may also mean "no device". ***Note: Not allowed for IConsole_getDeviceActivity()
@@ -716,7 +752,7 @@ class AccessMode {
         else {return $null}
     }
     [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+        if ($FromLong -ne $null){
             $ToStr = $null
             Switch ($FromLong) {
                 0       {$ToStr = 'ReadOnly'}
@@ -744,7 +780,7 @@ class CleanupMode {
         else {return $null}
     }
     [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+        if ($FromLong -ne $null){
             $ToStr = $null
             Switch ($FromLong) {
                 0       {$ToStr = 'UnregisterOnly'} # Unregister only the machine, but neither delete snapshots nor detach media.
@@ -774,7 +810,7 @@ class GuestSessionWaitForFlag {
         else {return $null}
     }
     [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+        if ($FromLong -ne $null){
             $ToStr = $null
             Switch ($FromLong) {
                 0       {$ToStr = 'None'} # No waiting flags specified. Do not use this.
@@ -789,7 +825,7 @@ class GuestSessionWaitForFlag {
     }
 } # Unsigned Long
 class MediumVariant {
-    [uint64]ToULong ([string]$FromStr) {
+    [int32]ToInt ([string]$FromStr) {
         if ($FromStr){
             $ToULong = $null
             Switch ($FromStr) {
@@ -805,14 +841,34 @@ class MediumVariant {
                 'NoCreateDir'         {$ToULong = 9} # Special flag which suppresses automatic creation of the subdirectory. Only used when passing the medium variant as an input parameter.
                 Default               {$ToULong = 0} # Default to 0.
             }
+            return [int]$ToULong
+        }
+        else {return $null}
+    }
+    [uint64]ToULongCom ([string]$FromStr) {
+        if ($FromStr){
+            $ToULong = $null
+            Switch ($FromStr) {
+                'Standard'            {$ToULong = 0} # No particular variant requested, results in using the backend default.
+                'VmdkSplit2G'         {$ToULong = 1} # VMDK image split in chunks of less than 2GByte.
+                'VmdkRawDisk'         {$ToULong = 2} # VMDK image representing a raw disk.
+                'VmdkStreamOptimized' {$ToULong = 4} # VMDK streamOptimized image. Special import/export format which is read-only/append-only.
+                'VmdkESX'             {$ToULong = 8} # VMDK format variant used on ESX products.
+                'VdiZeroExpand'       {$ToULong = 256} # Fill new blocks with zeroes while expanding image file.
+                'Fixed'               {$ToULong = 65536} # Fixed image. Only allowed for base images.
+                'Diff'                {$ToULong = 131072} # Differencing image. Only allowed for child images.
+                'Formatted'           {$ToULong = 536870912} # Special flag which requests formatting the disk image. Right now supported for floppy images only.
+                'NoCreateDir'         {$ToULong = 1073741824} # Special flag which suppresses automatic creation of the subdirectory. Only used when passing the medium variant as an input parameter.
+                Default               {$ToULong = 0} # Default to 0.
+            }
             return [uint64]$ToULong
         }
         else {return $null}
     }
-    [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+    [string]ToStr ([int32]$FromInt) {
+        if ($FromInt -ne $null){
             $ToStr = $null
-            Switch ($FromLong) {
+            Switch ($FromInt) {
                 0       {$ToStr = 'Standard'} # No particular variant requested, results in using the backend default.
                 1       {$ToStr = 'VmdkSplit2G'} # VMDK image split in chunks of less than 2GByte.
                 2       {$ToStr = 'VmdkRawDisk'} # VMDK image representing a raw disk.
@@ -823,13 +879,103 @@ class MediumVariant {
                 7       {$ToStr = 'Diff'} # Differencing image. Only allowed for child images.
                 8       {$ToStr = 'Formatted'} # Special flag which requests formatting the disk image. Right now supported for floppy images only.
                 9       {$ToStr = 'NoCreateDir'} # Special flag which suppresses automatic creation of the subdirectory. Only used when passing the medium variant as an input parameter.
-                Default {$ToStr = 'Standard'} # Default to Standard.
+                Default {$ToStr = 'Err_Unknown'} # Default to Err_Unknown.
             }
             return [string]$ToStr
         }
         else {return $null}
     }
-} # Unsigned Long
+    [string]ToStrCom ([uint64]$FromULong) {
+        if ($FromULong -ne $null){
+            $ToStr = $null
+            Switch ($FromULong) {
+                0          {$ToStr = 'Standard'} # No particular variant requested, results in using the backend default.
+                1          {$ToStr = 'VmdkSplit2G'} # VMDK image split in chunks of less than 2GByte.
+                2          {$ToStr = 'VmdkRawDisk'} # VMDK image representing a raw disk.
+                4          {$ToStr = 'VmdkStreamOptimized'} # VMDK streamOptimized image. Special import/export format which is read-only/append-only.
+                8          {$ToStr = 'VmdkESX'} # VMDK format variant used on ESX products.
+                256        {$ToStr = 'VdiZeroExpand'} # Fill new blocks with zeroes while expanding image file.
+                65536      {$ToStr = 'Fixed'} # Fixed image. Only allowed for base images.
+                131072     {$ToStr = 'Diff'} # Differencing image. Only allowed for child images.
+                536870912  {$ToStr = 'Formatted'} # Special flag which requests formatting the disk image. Right now supported for floppy images only.
+                1073741824 {$ToStr = 'NoCreateDir'} # Special flag which suppresses automatic creation of the subdirectory. Only used when passing the medium variant as an input parameter.
+                Default    {$ToStr = 'Err_Unknown'} # Default to Err_Unknown.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class MediumState {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'NotCreated'   {$ToInt = 0} # Associated medium storage does not exist (either was not created yet or was deleted).
+                'Created'      {$ToInt = 1} # Associated storage exists and accessible; this gets set if the accessibility check performed by IMedium::refreshState() was successful.
+                'LockedRead'   {$ToInt = 2} # Medium is locked for reading (see IMedium::lockRead()), no data modification is possible.
+                'LockedWrite'  {$ToInt = 3} # Medium is locked for writing (see IMedium::lockWrite()), no concurrent data reading or modification is possible.
+                'Inaccessible' {$ToInt = 4} # Medium accessibility check (see IMedium::refreshState()) has not yet been performed, or else, associated medium storage is not accessible. In the first case, IMedium::lastAccessError is empty, in the second case, it describes the error that occurred.
+                'Creating'     {$ToInt = 5} # Associated medium storage is being created.
+                'Deleting'     {$ToInt = 6} # Associated medium storage is being deleted.
+                Default        {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'NotCreated'} # Associated medium storage does not exist (either was not created yet or was deleted).
+                1       {$ToStr = 'Created'} # Associated storage exists and accessible; this gets set if the accessibility check performed by IMedium::refreshState() was successful.
+                2       {$ToStr = 'LockedRead'} # Medium is locked for reading (see IMedium::lockRead()), no data modification is possible.
+                3       {$ToStr = 'LockedWrite'} # Medium is locked for writing (see IMedium::lockWrite()), no concurrent data reading or modification is possible.
+                4       {$ToStr = 'Inaccessible'} # Medium accessibility check (see IMedium::refreshState()) has not yet been performed, or else, associated medium storage is not accessible. In the first case, IMedium::lastAccessError is empty, in the second case, it describes the error that occurred.
+                5       {$ToStr = 'Creating'} # Associated medium storage is being created.
+                6       {$ToStr = 'Deleting'} # Associated medium storage is being deleted.
+                Default {$ToStr = 'NotCreated'} # Default to NotCreated.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class MediumType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Normal'       {$ToInt = 0} # Normal medium (attached directly or indirectly, preserved when taking snapshots).
+                'Immutable'    {$ToInt = 1} # Immutable medium (attached indirectly, changes are wiped out the next time the virtual machine is started).
+                'Writethrough' {$ToInt = 2} # Write through medium (attached directly, ignored when taking snapshots).
+                'Shareable'    {$ToInt = 3} # Allow using this medium concurrently by several machines. **Note: Present since VirtualBox 3.2.0, and accepted since 3.2.8.
+                'Readonly'     {$ToInt = 4} # A readonly medium, which can of course be used by several machines. **Note: Present and accepted since VirtualBox 4.0.
+                'MultiAttach'  {$ToInt = 5} # A medium which is indirectly attached, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications. In some sense a variant of Immutable with unset AutoReset flag in each differencing medium. **Note: Present and accepted since VirtualBox 4.0.
+                Default        {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Normal'} # Normal medium (attached directly or indirectly, preserved when taking snapshots).
+                1       {$ToStr = 'Immutable'} # Immutable medium (attached indirectly, changes are wiped out the next time the virtual machine is started).
+                2       {$ToStr = 'Writethrough'} # Write through medium (attached directly, ignored when taking snapshots).
+                3       {$ToStr = 'Shareable'} # Allow using this medium concurrently by several machines. **Note: Present since VirtualBox 3.2.0, and accepted since 3.2.8.
+                4       {$ToStr = 'Readonly'} # A readonly medium, which can of course be used by several machines. **Note: Present and accepted since VirtualBox 4.0.
+                5       {$ToStr = 'MultiAttach'} # A medium which is indirectly attached, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications. In some sense a variant of Immutable with unset AutoReset flag in each differencing medium. **Note: Present and accepted since VirtualBox 4.0.
+                Default {$ToStr = 'Normal'} # Default to Normal.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
 class LockType {
     [int]ToInt ([string]$FromStr) {
         if ($FromStr){
@@ -846,7 +992,7 @@ class LockType {
         else {return $null}
     }
     [string]ToStr ([int]$FromInt) {
-        if ($FromInt){
+        if ($FromInt -ne $null){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'Null'} # Placeholder value, do not use when obtaining a lock.
@@ -875,13 +1021,13 @@ class AuthType {
         else {return $null}
     }
     [string]ToStr ([int]$FromInt) {
-        if ($FromInt){
+        if ($FromInt -ne $null){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'Null'} # Null value, also means “no authentication”.
                 1       {$ToStr = 'External'}
                 2       {$ToStr = 'Guest'}
-                Default {$ToStr = 'None'} # Default to Null.
+                Default {$ToStr = 'Null'} # Default to Null.
             }
             return [string]$ToStr
         }
@@ -926,6 +1072,36 @@ class ImportOptions {
         else {return $null}
     }
 } # Int[]
+class DnDMode {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Disabled'      {$ToInt = 0}
+                'HostToGuest'   {$ToInt = 1}
+                'GuestToHost'   {$ToInt = 2}
+                'Bidirectional' {$ToInt = 3}
+                Default         {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Disabled'}
+                1       {$ToStr = 'HostToGuest'}
+                2       {$ToStr = 'GuestToHost'}
+                3       {$ToStr = 'Bidirectional'}
+                default {$ToStr = 'Disabled'} # Default to Disabled.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
 class ExportOptions {
     [int[]]ToInt ([string[]]$FromStrs) {
         if ($FromStrs){
@@ -1006,7 +1182,7 @@ class ProcessCreateFlag {
         else {return $null}
     }
     [string]ToStr ([int]$FromInt) {
-        if ($FromInt){
+        if ($FromInt -ne $null){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'None'} # No flag set
@@ -1025,7 +1201,7 @@ class ProcessCreateFlag {
         else {return $null}
     }
     [string]ToStrCom ([int]$FromInt) {
-        if ($FromInt){
+        if ($FromInt -ne $null){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'None'} # No flag set
@@ -1062,7 +1238,7 @@ class ProcessWaitForFlag {
         else {return $null}
     }
     [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+        if ($FromLong -ne $null){
             $ToStr = $null
             Switch ($FromLong) {
                 0       {$ToStr = 'None'} # No waiting flags specified. Do not use this.
@@ -1079,29 +1255,29 @@ class ProcessWaitForFlag {
     }
 } # Unsigned Long
 class StorageBus {
-    [uint64]ToULong ([string]$FromStr) {
+    [int]ToInt ([string]$FromStr) {
         if ($FromStr){
-            $ToULong = $null
+            $ToInt = $null
             Switch ($FromStr) {
-                'Null'       {$ToULong = 0} # Null value. Never used by the API.
-                'IDE'        {$ToULong = 1}
-                'SATA'       {$ToULong = 2}
-                'SCSI'       {$ToULong = 3}
-                'Floppy'     {$ToULong = 4}
-                'SAS'        {$ToULong = 5}
-                'USB'        {$ToULong = 6}
-                'PCIe'       {$ToULong = 7}
-                'VirtioSCSI' {$ToULong = 8}
-                Default      {$ToULong = 0} # Default to 0.
+                'Null'       {$ToInt = 0} # Null value. Never used by the API.
+                'IDE'        {$ToInt = 1}
+                'SATA'       {$ToInt = 2}
+                'SCSI'       {$ToInt = 3}
+                'Floppy'     {$ToInt = 4}
+                'SAS'        {$ToInt = 5}
+                'USB'        {$ToInt = 6}
+                'PCIe'       {$ToInt = 7}
+                'VirtioSCSI' {$ToInt = 8}
+                Default      {$ToInt = 0} # Default to 0.
             }
-            return [uint64]$ToULong
+            return [int]$ToInt
         }
         else {return $null}
     }
-    [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
             $ToStr = $null
-            Switch ($FromLong) {
+            Switch ($FromInt) {
                 0       {$ToStr = 'Null'} # Null value. Never used by the API.
                 1       {$ToStr = 'IDE'}
                 2       {$ToStr = 'SATA'}
@@ -1117,7 +1293,53 @@ class StorageBus {
         }
         else {return $null}
     }
-} # Unsigned Long
+} # Int
+class StorageControllerType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'        {$ToInt = 0} # Null value. Never used by the API.
+                'LsiLogic'    {$ToInt = 1} # A SCSI controller of the LsiLogic variant.
+                'BusLogic'    {$ToInt = 2} # A SCSI controller of the BusLogic variant.
+                'IntelAhci'   {$ToInt = 3} # An Intel AHCI SATA controller; this is the only variant for SATA.
+                'PIIX3'       {$ToInt = 4} # An IDE controller of the PIIX3 variant.
+                'PIIX4'       {$ToInt = 5} # An IDE controller of the PIIX4 variant.
+                'ICH6'        {$ToInt = 6} # An IDE controller of the ICH6 variant.
+                'I82078'      {$ToInt = 7} # A floppy disk controller; this is the only variant for floppy drives.
+                'LsiLogicSas' {$ToInt = 8} # A variant of the LsiLogic controller using SAS.
+                'USB'         {$ToInt = 9} # Special USB based storage controller.
+                'NVMe'        {$ToInt = 10} # An NVMe storage controller.
+                'VirtioSCSI'  {$ToInt = 11} # Virtio SCSI storage controller.
+                Default       {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value. Never used by the API.
+                1       {$ToStr = 'LsiLogic'} # A SCSI controller of the LsiLogic variant.
+                2       {$ToStr = 'BusLogic'} # A SCSI controller of the BusLogic variant.
+                3       {$ToStr = 'IntelAhci'} # An Intel AHCI SATA controller; this is the only variant for SATA.
+                4       {$ToStr = 'PIIX3'} # An IDE controller of the PIIX3 variant.
+                5       {$ToStr = 'PIIX4'} # An IDE controller of the PIIX4 variant.
+                6       {$ToStr = 'ICH6'} # An IDE controller of the ICH6 variant.
+                7       {$ToStr = 'I82078'} # A floppy disk controller; this is the only variant for floppy drives.
+                8       {$ToStr = 'LsiLogicSas'} # A variant of the LsiLogic controller using SAS.
+                9       {$ToStr = 'USB'} # Special USB based storage controller.
+                10      {$ToStr = 'NVMe'} # An NVMe storage controller.
+                11      {$ToStr = 'VirtioSCSI'} # Virtio SCSI storage controller.
+                Default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
 class VBoxEventType {
     [int]ToInt ([string]$FromStr) {
         if ($FromStr){
@@ -1137,7 +1359,7 @@ class VBoxEventType {
         else {return $null}
     }
     [string]ToStr ([int]$FromInt) {
-        if ($FromInt){
+        if ($FromInt -ne $null){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'Invalid'} # must always be first - not sure what this means Oracle...
@@ -1169,7 +1391,7 @@ class Handle {
         else {return $null}
     }
     [string]ToStr ([uint64]$FromLong) {
-        if ($FromLong){
+        if ($FromLong -ne $null){
             $ToStr = $null
             Switch ($FromLong) {
                 0       {$ToStr = 'StdIn'} # 0 is usually stdin.
@@ -1243,7 +1465,7 @@ class VirtualSystemDescriptionType {
         else {return $null}
     }
     [string]ToStr ([int]$FromInt) {
-        if ($FromInt){
+        if ($FromInt -ne $null){
             $ToStr = $null
             Switch ($FromInt) {
                 0       {$ToStr = 'Ignore'}
@@ -1302,34 +1524,729 @@ class VirtualSystemDescriptionType {
         else {return $null}
     }
 } # Int
+class ParavirtProvider {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'    {$ToInt = 0} # No provider is used.
+                'Default' {$ToInt = 1} # A default provider is automatically chosen according to the guest OS type.
+                'Legacy'  {$ToInt = 2} # Used for VMs which didn’t used to have any provider settings. Usually interpreted as None for most VMs.
+                'Minimal' {$ToInt = 3} # A minimal set of features to expose to the paravirtualized guest.
+                'HyperV'  {$ToInt = 4} # Microsoft Hyper-V.
+                'KVM'     {$ToInt = 5} # Linux KVM.
+                Default   {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No provider is used.
+                1       {$ToStr = 'Default'} # A default provider is automatically chosen according to the guest OS type.
+                2       {$ToStr = 'Legacy'} # Used for VMs which didn’t used to have any provider settings. Usually interpreted as None for most VMs.
+                3       {$ToStr = 'Minimal'} # A minimal set of features to expose to the paravirtualized guest.
+                4       {$ToStr = 'HyperV'} # Microsoft Hyper-V.
+                5       {$ToStr = 'KVM'} # Linux KVM.
+                default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class ClipboardMode {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Disabled'      {$ToInt = 0}
+                'HostToGuest'   {$ToInt = 1}
+                'GuestToHost'   {$ToInt = 2}
+                'Bidirectional' {$ToInt = 3}
+                Default         {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Disabled'}
+                1       {$ToStr = 'HostToGuest'}
+                2       {$ToStr = 'GuestToHost'}
+                3       {$ToStr = 'Bidirectional'}
+                default {$ToStr = 'Disabled'} # Default to Disabled.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class FirmwareType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'BIOS'    {$ToInt = 0} # BIOS Firmware.
+                'EFI'     {$ToInt = 1} # EFI Firmware, bitness detected basing on OS type.
+                'EFI32'   {$ToInt = 2} # EFI firmware, 32-bit.
+                'EFI64'   {$ToInt = 3} # EFI firmware, 64-bit.
+                'EFIDUAL' {$ToInt = 4} # EFI firmware, combined 32 and 64-bit.
+                Default   {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'BIOS'} # BIOS Firmware.
+                1       {$ToStr = 'EFI'} # EFI Firmware, bitness detected basing on OS type.
+                2       {$ToStr = 'EFI32'} # EFI firmware, 32-bit.
+                3       {$ToStr = 'EFI64'} # EFI firmware, 64-bit.
+                4       {$ToStr = 'EFIDUAL'} # EFI firmware, combined 32 and 64-bit.
+                default {$ToStr = 'BIOS'} # Default to BIOS.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class PointingHIDType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'          {$ToInt = 0} # No mouse.
+                'PS2Mouse'      {$ToInt = 1} # PS/2 auxiliary device, a.k.a. mouse.
+                'USBMouse'      {$ToInt = 2} # USB mouse (relative pointer).
+                'USBTablet'     {$ToInt = 3} # USB tablet (absolute pointer). Also enables a relative USB mouse in addition.
+                'ComboMouse'    {$ToInt = 4} # Combined device, working as PS/2 or USB mouse, depending on guest behavior. Using this device can have negative performance implications.
+                'USBMultiTouch' {$ToInt = 5} # USB multi-touch device. Also enables the USB tablet and mouse devices.
+                Default         {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No mouse.
+                1       {$ToStr = 'PS2Mouse'} # PS/2 auxiliary device, a.k.a. mouse.
+                2       {$ToStr = 'USBMouse'} # USB mouse (relative pointer).
+                3       {$ToStr = 'USBTablet'} # USB tablet (absolute pointer). Also enables a relative USB mouse in addition.
+                4       {$ToStr = 'ComboMouse'} # Combined device, working as PS/2 or USB mouse, depending on guest behavior. Using this device can have negative performance implications.
+                5       {$ToStr = 'USBMultiTouch'} # USB multi-touch device. Also enables the USB tablet and mouse devices.
+                default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class KeyboardHIDType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'          {$ToInt = 0} # No keyboard.
+                'PS2Keyboard'   {$ToInt = 1} # PS/2 keyboard.
+                'USBKeyboard'   {$ToInt = 2} # USB keyboard.
+                'ComboKeyboard' {$ToInt = 3} # Combined device, working as PS/2 or USB keyboard, depending on guest behavior. Using of such device can have negative performance implications.
+                Default         {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No keyboard.
+                1       {$ToStr = 'PS2Keyboard'} # PS/2 keyboard.
+                2       {$ToStr = 'USBKeyboard'} # USB keyboard.
+                3       {$ToStr = 'ComboKeyboard'} # Combined device, working as PS/2 or USB keyboard, depending on guest behavior. Using of such device can have negative performance implications.
+                default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class VFSType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'File'   {$ToInt = 0}
+                'Cloud'  {$ToInt = 1}
+                'S3'     {$ToInt = 2}
+                'WebDav' {$ToInt = 3}
+                Default  {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'File'}
+                1       {$ToStr = 'Cloud'}
+                2       {$ToStr = 'S3'}
+                3       {$ToStr = 'WebDav'}
+                default {$ToStr = 'File'} # Default to File.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class RecordingAudioCodec {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'   {$ToInt = 0} # No codec set.
+                'WavPCM' {$ToInt = 1} # WAV format, linear PCM, uncompressed. Not implemented yet.
+                'Opus'   {$ToInt = 2} # Opus Audio.
+                Default  {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No codec set.
+                1       {$ToStr = 'WavPCM'} # WAV format, linear PCM, uncompressed. Not implemented yet.
+                2       {$ToStr = 'Opus'} # Opus Audio.
+                default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class RecordingVideoCodec {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'  {$ToInt = 0} # No codec set.
+                'VP8'   {$ToInt = 1} # VP8 codec.
+                'VP9'   {$ToInt = 2} # VP9 codec. Not implemented yet.
+                'AV1'   {$ToInt = 3} # AV1 codec. Not implemented yet.
+                Default {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No codec set.
+                1       {$ToStr = 'VP8'} # VP8 codec.
+                2       {$ToStr = 'VP9'} # VP9 codec. Not implemented yet.
+                3       {$ToStr = 'AV1'} # AV1 codec. Not implemented yet.
+                default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class RecordingVideoScalingMethod {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'None'            {$ToInt = 0} # No scaling performed.
+                'NearestNeighbor' {$ToInt = 1} # Performs scaling via nearest-neighbor interpolation. Not yet implemented.
+                'Bilinear'        {$ToInt = 2} # Performs scaling via bilinear interpolation. Not yet implemented.
+                'Bicubic'         {$ToInt = 3} # Performs scaling via bicubic interpolation. Not yet implemented.
+                Default           {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'None'} # No scaling performed.
+                1       {$ToStr = 'NearestNeighbor'} # Performs scaling via nearest-neighbor interpolation. Not yet implemented.
+                2       {$ToStr = 'Bilinear'} # Performs scaling via bilinear interpolation. Not yet implemented.
+                3       {$ToStr = 'Bicubic'} # Performs scaling via bicubic interpolation. Not yet implemented.
+                default {$ToStr = 'None'} # Default to None.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class RecordingVideoRateControlMode {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'CBR'   {$ToInt = 0} # Constant bit rate (CBR).
+                'VBR'   {$ToInt = 1} # Variable bit rate (VBR). Not yet implemented.
+                Default {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'CBR'} # Constant bit rate (CBR).
+                1       {$ToStr = 'VBR'} # Variable bit rate (VBR). Not yet implemented.
+                default {$ToStr = 'CBR'} # Default to CBR.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class GraphicsControllerType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'     {$ToInt = 0} # Reserved value, invalid.
+                'VBoxVGA'  {$ToInt = 1} # VirtualBox VGA device.
+                'VMSVGA'   {$ToInt = 2} # VMware SVGA II device.
+                'VBoxSVGA' {$ToInt = 3} # VirtualBox VGA device with VMware SVGA II extensions.
+                Default    {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Reserved value, invalid.
+                1       {$ToStr = 'VBoxVGA'} # VirtualBox VGA device.
+                2       {$ToStr = 'VMSVGA'} # VMware SVGA II device.
+                3       {$ToStr = 'VBoxSVGA'} # VirtualBox VGA device with VMware SVGA II extensions.
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class CloneOptions {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Link'          {$ToInt = 0} # Create a clone VM where all virtual disks are linked to the original VM.
+                'KeepAllMACs'   {$ToInt = 1} # Don’t generate new MAC addresses of the attached network adapters.
+                'KeepNATMACs'   {$ToInt = 2} # Don’t generate new MAC addresses of the attached network adapters when they are using NAT.
+                'KeepDiskNames' {$ToInt = 3} # Don’t change the disk names.
+                'KeepHwUUIDs'   {$ToInt = 4} # Don’t change UUID of the machine hardware.
+                Default         {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Link'} # Create a clone VM where all virtual disks are linked to the original VM.
+                1       {$ToStr = 'KeepAllMACs'} # Don’t generate new MAC addresses of the attached network adapters.
+                2       {$ToStr = 'KeepNATMACs'} # Don’t generate new MAC addresses of the attached network adapters when they are using NAT.
+                3       {$ToStr = 'KeepDiskNames'} # Don’t change the disk names.
+                4       {$ToStr = 'KeepHwUUIDs'} # Don’t change UUID of the machine hardware.
+                default {$ToStr = 'Link'} # Default to Link.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class AutostopType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Disabled'     {$ToInt = 0} # Stopping the VM during system shutdown is disabled.
+                'SaveState'    {$ToInt = 1} # The state of the VM will be saved when the system shuts down.
+                'PowerOff'     {$ToInt = 2} # The VM is powered off when the system shuts down.
+                'AcpiShutdown' {$ToInt = 3} # An ACPI shutdown event is generated.
+                Default        {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Disabled'} # Stopping the VM during system shutdown is disabled.
+                1       {$ToStr = 'SaveState'} # The state of the VM will be saved when the system shuts down.
+                2       {$ToStr = 'PowerOff'} # The VM is powered off when the system shuts down.
+                3       {$ToStr = 'AcpiShutdown'} # An ACPI shutdown event is generated.
+                default {$ToStr = 'Disabled'} # Default to Disabled.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class VMProcPriority {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Invalid' {$ToInt = 0} # Invalid priority, do not use.
+                'Default' {$ToInt = 1} # Default process priority determined by the OS.
+                'Flat'    {$ToInt = 2} # Assumes a scheduling policy which puts the process at the default priority and with all thread at the same priority.
+                'Low'     {$ToInt = 3} # Assumes a scheduling policy which puts the process mostly below the default priority of the host OS.
+                'Normal'  {$ToInt = 4} # Assume a scheduling policy which shares the CPU resources fairly with other processes running with the default priority of the host OS.
+                'High'    {$ToInt = 5} # Assumes a scheduling policy which puts the task above the default priority of the host OS. This policy might easily cause other tasks in the system to starve.
+                Default   {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Invalid'} # Invalid priority, do not use.
+                1       {$ToStr = 'Default'} # Default process priority determined by the OS.
+                2       {$ToStr = 'Flat'} # Assumes a scheduling policy which puts the process at the default priority and with all thread at the same priority.
+                3       {$ToStr = 'Low'} # Assumes a scheduling policy which puts the process mostly below the default priority of the host OS.
+                4       {$ToStr = 'Normal'} # Assume a scheduling policy which shares the CPU resources fairly with other processes running with the default priority of the host OS.
+                5       {$ToStr = 'High'} # Assumes a scheduling policy which puts the task above the default priority of the host OS. This policy might easily cause other tasks in the system to starve.
+                default {$ToStr = 'Invalid'} # Default to Invalid.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class NetworkAttachmentType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'       {$ToInt = 0} # Null value, also means “not attached”.
+                'NAT'        {$ToInt = 1}
+                'Bridged'    {$ToInt = 2}
+                'Internal'   {$ToInt = 3}
+                'HostOnly'   {$ToInt = 4}
+                'Generic'    {$ToInt = 5}
+                'NATNetwork' {$ToInt = 6}
+                'Cloud'      {$ToInt = 7}
+                Default      {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value, also means “not attached”.
+                1       {$ToStr = 'NAT'}
+                2       {$ToStr = 'Bridged'}
+                3       {$ToStr = 'Internal'}
+                4       {$ToStr = 'HostOnly'}
+                5       {$ToStr = 'Generic'}
+                6       {$ToStr = 'NATNetwork'}
+                7       {$ToStr = 'Cloud'}
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class NetworkAdapterType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'      {$ToInt = 0} # Null value (never used by the API).
+                'Am79C970A' {$ToInt = 1} # AMD PCNet-PCI II network card (Am79C970A).
+                'Am79C973'  {$ToInt = 2} # AMD PCNet-FAST III network card (Am79C973).
+                'I82540EM'  {$ToInt = 3} # Intel PRO/1000 MT Desktop network card (82540EM).
+                'I82543GC'  {$ToInt = 4} # Intel PRO/1000 T Server network card (82543GC).
+                'I82545EM'  {$ToInt = 5} # Intel PRO/1000 MT Server network card (82545EM).
+                'Virtio'    {$ToInt = 6} # Virtio network device.
+                'Am79C960'  {$ToInt = 7} # AMD PCnet-ISA/NE2100 network card (Am79C960).
+                Default     {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value (never used by the API).
+                1       {$ToStr = 'Am79C970A'} # AMD PCNet-PCI II network card (Am79C970A).
+                2       {$ToStr = 'Am79C973'} # AMD PCNet-FAST III network card (Am79C973).
+                3       {$ToStr = 'I82540EM'} # Intel PRO/1000 MT Desktop network card (82540EM).
+                4       {$ToStr = 'I82543GC'} # Intel PRO/1000 T Server network card (82543GC).
+                5       {$ToStr = 'I82545EM'} # Intel PRO/1000 MT Server network card (82545EM).
+                6       {$ToStr = 'Virtio'} # Virtio network device.
+                7       {$ToStr = 'Am79C960'} # AMD PCnet-ISA/NE2100 network card (Am79C960).
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class PortMode {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Disconnected' {$ToInt = 0} # Virtual device is not attached to any real host device.
+                'HostPipe'     {$ToInt = 1} # Virtual device is attached to a host pipe.
+                'HostDevice'   {$ToInt = 2} # Virtual device is attached to a host device.
+                'RawFile'      {$ToInt = 3} # Virtual device is attached to a raw file.
+                'TCP'          {$ToInt = 4} # Virtual device is attached to a TCP socket.
+                Default        {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Disconnected'} # Virtual device is not attached to any real host device.
+                1       {$ToStr = 'HostPipe'} # Virtual device is attached to a host pipe.
+                2       {$ToStr = 'HostDevice'} # Virtual device is attached to a host device.
+                3       {$ToStr = 'RawFile'} # Virtual device is attached to a raw file.
+                4       {$ToStr = 'TCP'} # Virtual device is attached to a TCP socket.
+                default {$ToStr = 'Disconnected'} # Default to Disconnected.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class UartType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'U16450'  {$ToInt = 0} # The most basic emulated UART which doesn’t support FIFO operation.
+                'U16550A' {$ToInt = 1} # The successor of the 16450 UART introducing a 16 byte FIFO to reduce operational overhead.
+                'U16750'  {$ToInt = 2} # This UART developed by Texas Instruments introduced a 64 byte FIFO and hardware flow control.
+                Default   {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'U16450'} # The most basic emulated UART which doesn’t support FIFO operation.
+                1       {$ToStr = 'U16550A'} # The successor of the 16450 UART introducing a 16 byte FIFO to reduce operational overhead.
+                2       {$ToStr = 'U16750'} # This UART developed by Texas Instruments introduced a 64 byte FIFO and hardware flow control.
+                default {$ToStr = 'U16450'} # Default to U16450.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class USBControllerType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'  {$ToInt = 0} # Null value. Never used by the API.
+                'OHCI'  {$ToInt = 1}
+                'EHCI'  {$ToInt = 2}
+                'XHCI'  {$ToInt = 3}
+                'Last'  {$ToInt = 4} # Last element (invalid). Used for parameter checks.
+                Default {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value. Never used by the API.
+                1       {$ToStr = 'OHCI'}
+                2       {$ToStr = 'EHCI'}
+                3       {$ToStr = 'XHCI'}
+                4       {$ToStr = 'Last'} # Last element (invalid). Used for parameter checks.
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class AudioDriverType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'        {$ToInt = 0} # Null value, also means “dummy audio driver”.
+                'WinMM'       {$ToInt = 1} # Windows multimedia (Windows hosts only, not supported at the moment).
+                'OSS'         {$ToInt = 2} # Open Sound System (Linux / Unix hosts only).
+                'ALSA'        {$ToInt = 3} # Advanced Linux Sound Architecture (Linux hosts only).
+                'DirectSound' {$ToInt = 4} # DirectSound (Windows hosts only).
+                'CoreAudio'   {$ToInt = 5} # CoreAudio (Mac hosts only).
+                'MMPM'        {$ToInt = 6} # Reserved for historical reasons.
+                'Pulse'       {$ToInt = 7} # PulseAudio (Linux hosts only).
+                'SolAudio'    {$ToInt = 8} # Solaris audio (Solaris hosts only, not supported at the moment).
+                Default       {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value, also means “dummy audio driver”.
+                1       {$ToStr = 'WinMM'} # Windows multimedia (Windows hosts only, not supported at the moment).
+                2       {$ToStr = 'OSS'} # Open Sound System (Linux / Unix hosts only).
+                3       {$ToStr = 'ALSA'} # Advanced Linux Sound Architecture (Linux hosts only).
+                4       {$ToStr = 'DirectSound'} # DirectSound (Windows hosts only).
+                5       {$ToStr = 'CoreAudio'} # CoreAudio (Mac hosts only).
+                6       {$ToStr = 'MMPM'} # Reserved for historical reasons.
+                7       {$ToStr = 'Pulse'} # PulseAudio (Linux hosts only).
+                8       {$ToStr = 'SolAudio'} # Solaris audio (Solaris hosts only, not supported at the moment).
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class AudioControllerType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'AC97'  {$ToInt = 0}
+                'SB16'  {$ToInt = 1}
+                'HDA'   {$ToInt = 2}
+                Default {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'AC97'}
+                1       {$ToStr = 'SB16'}
+                2       {$ToStr = 'HDA'}
+                default {$ToStr = 'AC97'} # Default to AC97.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class ChipsetType {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'  {$ToInt = 0} # Null value. Never used by the API.
+                'PIIX3' {$ToInt = 1} # A PIIX3 (PCI IDE ISA Xcelerator) chipset.
+                'ICH9'  {$ToInt = 2} # A ICH9 (I/O Controller Hub) chipset.
+                Default {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value. Never used by the API.
+                1       {$ToStr = 'PIIX3'} # A PIIX3 (PCI IDE ISA Xcelerator) chipset.
+                2       {$ToStr = 'ICH9'} # A ICH9 (I/O Controller Hub) chipset.
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+}
 #########################################################################################
 # Variable Declarations
 $authtype = "VBoxAuth"
 $vboxwebsrvtask = New-Object VirtualBoxWebSrvTask
 # probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
 $vboxerror = New-Object VirtualBoxError
+# unseal globals
+if ($mediumformats) {if ((Get-Variable -Name mediumformats -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformats -Option None -Scope Global -Force}}
+if ($mediumformatspso) {if ((Get-Variable -Name mediumformatspso -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformatspso -Option None -Scope Global -Force}}
+if ($systempropertiessupported) {if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name systempropertiessupported -Option None -Scope Global -Force}}
+if ($mediumvariantssupported) {if ((Get-Variable -Name mediumvariantssupported -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumvariantssupported -Option None -Scope Global -Force}}
+if ($accessmodessupported) {if ((Get-Variable -Name accessmodessupported -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name accessmodessupported -Option None -Scope Global -Force}}
+# initialize globals
 $global:mediumformats = New-Object MediumFormats
 $global:mediumformatspso = New-Object MediumFormats
 $global:systempropertiessupported = New-Object SystemPropertiesSupported
 $global:mediumvariantssupported = New-Object MediumVariantsSupported
 $global:accessmodessupported = New-Object AccessModesSupported
+# seal globals
+if ((Get-Variable -Name mediumformats -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformats -Description "A list of medium formats." -Option ReadOnly -Scope Global -Visibility Private -Force}
+if ((Get-Variable -Name mediumformatspso -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformatspso -Description "A list of medium formats in PowerShell-readable format." -Option ReadOnly -Scope Global -Visibility Private -Force}
+if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name systempropertiessupported -Description "A list of VirtualBox properties supported by your system." -Option ReadOnly -Scope Global -Visibility Private -Force}
+if ((Get-Variable -Name mediumvariantssupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumvariantssupported -Description "A list of medium variants supported by your system." -Option ReadOnly -Scope Global -Visibility Private -Force}
+if ((Get-Variable -Name accessmodessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name accessmodessupported -Description "A list of access modes supported by your system." -Option ReadOnly -Scope Global -Visibility Private -Force}
 # global automatic variables for conversion
+if ($ivirtualboxerrorinfo) {if ((Get-Variable -Name ivirtualboxerrorinfo -Scope Global).Options -match'ReadOnly') {Set-Variable -Name ivirtualboxerrorinfo -Description "Automatic variable used to get VirtualBox error information." -Option None -Scope Global -Force}}
 $global:ivirtualboxerrorinfo = New-Object IVirtualBoxErrorInfo
-$global:devicetype = New-Object DeviceType
-$global:accessmode = New-Object AccessMode
-$global:cleanupmode = New-Object CleanupMode
-$global:guestsessionwaitforflag = New-Object GuestSessionWaitForFlag
-$global:mediumvariant = New-Object MediumVariant
-$global:locktype = New-Object LockType
-$global:authtype = New-Object AuthType
-$global:importoptions = New-Object ImportOptions
-$global:exportoptions = New-Object ExportOptions
-$global:processcreateflag = New-Object ProcessCreateFlag
-$global:processwaitforflag = New-Object ProcessWaitForFlag
-$global:storagebus = New-Object StorageBus
-$global:vboxeventtype = New-Object VBoxEventType
-$global:handle = New-Object Handle
-$global:virtualsystemdescriptiontype = New-Object VirtualSystemDescriptionType # 430
+if ((Get-Variable -Name ivirtualboxerrorinfo -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name ivirtualboxerrorinfo -Description "Automatic variable used to get VirtualBox error information." -Option ReadOnly -Scope Global -Force}
 #########################################################################################
 # Includes
 # N/A
@@ -1486,40 +2403,110 @@ Process {
      $tempobj.IStorageControllers = $storagecontrollers.Fetch($tempobj.Id)
      $tempobj.IMediumAttachments = $mediumattachments.Fetch($tempobj.Id)
      foreach ($mediumattachment in $tempobj.IMediumAttachments) {
-      foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
-       if ($imediumid -eq $mediumattachment.MediumId) {
-        Write-Verbose "Getting attached disk: $($imediumid)"
-        $mediumattachment.IMedium.Name = $global:vbox.IMedium_getName($imediumid)
-        $mediumattachment.IMedium.GUID = $global:vbox.IMedium_getId($imediumid)
-        $mediumattachment.IMedium.Description = $global:vbox.IMedium_getDescription($imediumid)
-        $mediumattachment.IMedium.Format = $global:vbox.IMedium_getFormat($imediumid)
-        $mediumattachment.IMedium.Size = $global:vbox.IMedium_getSize($imediumid)
-        $mediumattachment.IMedium.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
-        $mediumattachment.IMedium.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
-        foreach ($machineid in $mediumattachment.IMedium.MachineGuid) {
-         foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
-          if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
-           $mediumattachment.IMedium.MachineName += $global:vbox.IMachine_getName($imachine)
-          } # end if ($global:vbox.IMachine_getId($imachine)) -eq $machineid
-          $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
-         } # foreach $imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))
-        } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
-        $mediumattachment.IMedium.State = $global:vbox.IMedium_getState($imediumid)
-        $mediumattachment.IMedium.Variant = $global:vbox.IMedium_getVariant($imediumid)
-        $mediumattachment.IMedium.Location = $global:vbox.IMedium_getLocation($imediumid)
-        $mediumattachment.IMedium.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
-        $mediumattachment.IMedium.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
-        $mediumattachment.IMedium.Type = $global:vbox.IMedium_getType($imediumid)
-        $mediumattachment.IMedium.Parent = $global:vbox.IMedium_getParent($imediumid)
-        $mediumattachment.IMedium.Children = $global:vbox.IMedium_getChildren($imediumid)
-        $mediumattachment.IMedium.Id = $imediumid
-        $mediumattachment.IMedium.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
-        $mediumattachment.IMedium.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
-        $mediumattachment.IMedium.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
-       } # end if $imediumid -eq $mediumattachment.MediumId
-      } # end foreach loop disk inventory
+      if ($mediumattachment.Type -eq 'HardDisk') {
+       foreach ($imediumid in ($global:vbox.IVirtualBox_getHardDisks($global:ivbox))) {
+        if ($imediumid -eq $mediumattachment.MediumId) {
+         Write-Verbose "Getting attached disk: $($global:vbox.IMedium_getName($imediumid))"
+         $mediumattachment.IMedium.Name = $global:vbox.IMedium_getName($imediumid)
+         $mediumattachment.IMedium.GUID = $global:vbox.IMedium_getId($imediumid)
+         $mediumattachment.IMedium.Description = $global:vbox.IMedium_getDescription($imediumid)
+         $mediumattachment.IMedium.Format = $global:vbox.IMedium_getFormat($imediumid)
+         $mediumattachment.IMedium.Size = $global:vbox.IMedium_getSize($imediumid)
+         $mediumattachment.IMedium.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+         $mediumattachment.IMedium.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
+         foreach ($machineid in $mediumattachment.IMedium.MachineGuid) {
+          foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+           if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
+            $mediumattachment.IMedium.MachineName += $global:vbox.IMachine_getName($imachine)
+           } # end if ($global:vbox.IMachine_getId($imachine)) -eq $machineid
+           $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
+          } # foreach $imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))
+         } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
+         $mediumattachment.IMedium.State = $global:vbox.IMedium_getState($imediumid)
+         $mediumattachment.IMedium.Variant = $global:vbox.IMedium_getVariant($imediumid)
+         $mediumattachment.IMedium.Location = $global:vbox.IMedium_getLocation($imediumid)
+         $mediumattachment.IMedium.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+         $mediumattachment.IMedium.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+         $mediumattachment.IMedium.Type = $global:vbox.IMedium_getType($imediumid)
+         $mediumattachment.IMedium.Parent = $global:vbox.IMedium_getParent($imediumid)
+         $mediumattachment.IMedium.Children = $global:vbox.IMedium_getChildren($imediumid)
+         $mediumattachment.IMedium.Id = $imediumid
+         $mediumattachment.IMedium.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+         $mediumattachment.IMedium.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+         $mediumattachment.IMedium.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+        } # end if $imediumid -eq $mediumattachment.MediumId
+       } # end foreach loop disk inventory
+      } # end if $mediumattachment.Type -match 'HardDisk'
+      if ($mediumattachment.Type -eq 'DVD') {
+       foreach ($imediumid in ($global:vbox.IVirtualBox_getDVDImages($global:ivbox))) {
+        if ($imediumid -eq $mediumattachment.MediumId) {
+         Write-Verbose "Getting attached disc: $($global:vbox.IMedium_getName($imediumid))"
+         $mediumattachment.IMedium.Name = $global:vbox.IMedium_getName($imediumid)
+         $mediumattachment.IMedium.GUID = $global:vbox.IMedium_getId($imediumid)
+         $mediumattachment.IMedium.Description = $global:vbox.IMedium_getDescription($imediumid)
+         $mediumattachment.IMedium.Format = $global:vbox.IMedium_getFormat($imediumid)
+         $mediumattachment.IMedium.Size = $global:vbox.IMedium_getSize($imediumid)
+         $mediumattachment.IMedium.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+         $mediumattachment.IMedium.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
+         foreach ($machineid in $mediumattachment.IMedium.MachineGuid) {
+          foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+           if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
+            $mediumattachment.IMedium.MachineName += $global:vbox.IMachine_getName($imachine)
+           } # end if ($global:vbox.IMachine_getId($imachine)) -eq $machineid
+           $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
+          } # foreach $imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))
+         } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
+         $mediumattachment.IMedium.State = $global:vbox.IMedium_getState($imediumid)
+         $mediumattachment.IMedium.Variant = $global:vbox.IMedium_getVariant($imediumid)
+         $mediumattachment.IMedium.Location = $global:vbox.IMedium_getLocation($imediumid)
+         $mediumattachment.IMedium.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+         $mediumattachment.IMedium.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+         $mediumattachment.IMedium.Type = $global:vbox.IMedium_getType($imediumid)
+         $mediumattachment.IMedium.Parent = $global:vbox.IMedium_getParent($imediumid)
+         $mediumattachment.IMedium.Children = $global:vbox.IMedium_getChildren($imediumid)
+         $mediumattachment.IMedium.Id = $imediumid
+         $mediumattachment.IMedium.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+         $mediumattachment.IMedium.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+         $mediumattachment.IMedium.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+        } # end if $imediumid -eq $mediumattachment.MediumId
+       } # end foreach loop disk inventory
+      } # end if $mediumattachment.Type -match 'DVD'
+      if ($mediumattachment.Type -eq 'Floppy') {
+       foreach ($imediumid in ($global:vbox.IVirtualBox_getFloppyImages($global:ivbox))) {
+        if ($imediumid -eq $mediumattachment.MediumId) {
+         Write-Verbose "Getting attached floppy: $($global:vbox.IMedium_getName($imediumid))"
+         $mediumattachment.IMedium.Name = $global:vbox.IMedium_getName($imediumid)
+         $mediumattachment.IMedium.GUID = $global:vbox.IMedium_getId($imediumid)
+         $mediumattachment.IMedium.Description = $global:vbox.IMedium_getDescription($imediumid)
+         $mediumattachment.IMedium.Format = $global:vbox.IMedium_getFormat($imediumid)
+         $mediumattachment.IMedium.Size = $global:vbox.IMedium_getSize($imediumid)
+         $mediumattachment.IMedium.LogicalSize = $global:vbox.IMedium_getLogicalSize($imediumid)
+         $mediumattachment.IMedium.MachineGuid = $global:vbox.IMedium_getMachineIds($imediumid)
+         foreach ($machineid in $mediumattachment.IMedium.MachineGuid) {
+          foreach ($imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
+           if (($global:vbox.IMachine_getId($imachine)) -eq $machineid) {
+            $mediumattachment.IMedium.MachineName += $global:vbox.IMachine_getName($imachine)
+           } # end if ($global:vbox.IMachine_getId($imachine)) -eq $machineid
+           $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
+          } # foreach $imachine in ($global:vbox.IVirtualBox_getMachines($global:ivbox))
+         } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
+         $mediumattachment.IMedium.State = $global:vbox.IMedium_getState($imediumid)
+         $mediumattachment.IMedium.Variant = $global:vbox.IMedium_getVariant($imediumid)
+         $mediumattachment.IMedium.Location = $global:vbox.IMedium_getLocation($imediumid)
+         $mediumattachment.IMedium.HostDrive = $global:vbox.IMedium_getHostDrive($imediumid)
+         $mediumattachment.IMedium.MediumFormat = $global:vbox.IMedium_getMediumFormat($imediumid)
+         $mediumattachment.IMedium.Type = $global:vbox.IMedium_getType($imediumid)
+         $mediumattachment.IMedium.Parent = $global:vbox.IMedium_getParent($imediumid)
+         $mediumattachment.IMedium.Children = $global:vbox.IMedium_getChildren($imediumid)
+         $mediumattachment.IMedium.Id = $imediumid
+         $mediumattachment.IMedium.ReadOnly = $global:vbox.IMedium_getReadOnly($imediumid)
+         $mediumattachment.IMedium.AutoReset = $global:vbox.IMedium_getAutoReset($imediumid)
+         $mediumattachment.IMedium.LastAccessError = $global:vbox.IMedium_getLastAccessError($imediumid)
+        } # end if $imediumid -eq $mediumattachment.MediumId
+       } # end foreach loop disk inventory
+      } # end if $mediumattachment.Type -match 'Floppy'
      } # foreach $mediumattachment in $tempobj.IMediumAttachments
-     $tempobj.IMediumAttachments = $tempobj.IMediumAttachments | Where-Object {$_.IMedium.Id -ne $null}
+     #$tempobj.IMediumAttachments = $tempobj.IMediumAttachments | Where-Object {$_.IMedium.Id -ne $null}
      Write-Verbose "Found $($tempobj.Name) and adding to inventory"
      $vminventory += $tempobj
    } # end foreach loop inventory
@@ -1598,8 +2585,8 @@ Process {
      $tempobj.IVrdeServer.SecurityCaCertificate = $vm.VRDEServer.GetVRDEProperty('Security/CACertificate')
      $tempobj.IVrdeServer.AudioRateCorrectionMode = $vm.VRDEServer.GetVRDEProperty('Audio/RateCorrectionMode')
      $tempobj.IVrdeServer.AudioLogPath = $vm.VRDEServer.GetVRDEProperty('Audio/LogPath')
-     foreach ($sc in $vm.StorageControllers) {[IStorageControllers[]]$tempobj.IStorageControllers += [IStorageControllers]@{Name=$sc.Name;MaxDevicesPerPortCount=$sc.MaxDevicesPerPortCount;MinPortCount=$sc.MinPortCount;MaxPortCount=$sc.MaxPortCount;Instance=$sc.Instance;PortCount=$sc.PortCount;Bus=$sc.Bus;ControllerType=$sc.ControllerType;UseHostIOCache=$sc.UseHostIOCache;Bootable=$sc.Bootable;ComObject=$sc}}
-     foreach ($ma in $vm.MediumAttachments) {[IMediumAttachments[]]$tempobj.IMediumAttachments += [IMediumAttachments]@{Controller=$ma.Controller;Port=$ma.Port;Device=$ma.Device;Type=$ma.Type;Passthrough=$ma.Passthrough;TemporaryEject=$ma.TemporaryEject;IsEjected=$ma.IsEjected;NonRotational=$ma.NonRotational;Discard=$ma.Discard;HotPluggable=$ma.HotPluggable;BandwidthGroup=$ma.BandwidthGroup;ComObject=$ma}}
+     foreach ($sc in $vm.StorageControllers) {[IStorageControllers[]]$tempobj.IStorageControllers += [IStorageControllers]@{Name=$sc.Name;MaxDevicesPerPortCount=$sc.MaxDevicesPerPortCount;MinPortCount=$sc.MinPortCount;MaxPortCount=$sc.MaxPortCount;Instance=$sc.Instance;PortCount=$sc.PortCount;Bus=[StorageBus]::new().ToStr($sc.Bus);ControllerType=[StorageControllerType]::new().ToStr($sc.ControllerType);UseHostIOCache=$sc.UseHostIOCache;Bootable=$sc.Bootable;ComObject=$sc}}
+     foreach ($ma in $vm.MediumAttachments) {[IMediumAttachments[]]$tempobj.IMediumAttachments += [IMediumAttachments]@{Controller=$ma.Controller;Port=$ma.Port;Device=$ma.Device;Type=[DeviceType]::new().ToStr($ma.Type);Passthrough=$ma.Passthrough;TemporaryEject=$ma.TemporaryEject;IsEjected=$ma.IsEjected;NonRotational=$ma.NonRotational;Discard=$ma.Discard;HotPluggable=$ma.HotPluggable;BandwidthGroup=$ma.BandwidthGroup;ComObject=$ma}}
      $tempobj.IStorageControllers = $tempobj.IStorageControllers | Where-Object {$_.Name -ne $null}
      $tempobj.IMediumAttachments = $tempobj.IMediumAttachments | Where-Object {$_.Controller -ne $null}
      foreach ($mediumattachment in $tempobj.IMediumAttachments) {
@@ -1620,17 +2607,20 @@ Process {
          $mediumattachment.IMedium.MachineName = $mediumattachment.IMedium.MachineName | Where-Object {$_ -ne $null}
         } # foreach $imachine in $global:vbox.Machines
        } # foreach $machineid in $mediumattachment.IMedium.MachineGuid
-       $mediumattachment.IMedium.State = $mediumattachment.ComObject.Medium.State
-       $mediumattachment.IMedium.Variant = $mediumattachment.ComObject.Medium.Variant
+       $mediumattachment.IMedium.State = [MediumState]::new().ToStr($mediumattachment.ComObject.Medium.State)
+       foreach ($variant in $mediumattachment.ComObject.Medium.Variant) {
+        $mediumattachment.IMedium.Variant = [MediumVariant]::new().ToStrCom($variant)
+       } # foreach $variant in $mediumattachment.ComObject.Medium.Variant
        $mediumattachment.IMedium.Location = $mediumattachment.ComObject.Medium.Location
        $mediumattachment.IMedium.HostDrive = $mediumattachment.ComObject.Medium.HostDrive
        $mediumattachment.IMedium.MediumFormat = $mediumattachment.ComObject.Medium.MediumFormat
-       $mediumattachment.IMedium.Type = $mediumattachment.ComObject.Medium.Type
+       $mediumattachment.IMedium.Type = [MediumType]::new().ToStr($mediumattachment.ComObject.Medium.Type)
        $mediumattachment.IMedium.Parent = $mediumattachment.ComObject.Medium.Parent
        $mediumattachment.IMedium.Children = $mediumattachment.ComObject.Medium.Children
        $mediumattachment.IMedium.ReadOnly = $mediumattachment.ComObject.Medium.ReadOnly
        $mediumattachment.IMedium.AutoReset = $mediumattachment.ComObject.Medium.AutoReset
        $mediumattachment.IMedium.LastAccessError = $mediumattachment.ComObject.Medium.LastAccessError
+       $mediumattachment.IMedium.ComObject = $mediumattachment.ComObject.Medium
       } # end if $mediumattachment.ComObject.Medium.Id
      } # foreach $mediumattachment in $tempobj.IMediumAttachments
      $tempobj.GuestProperties = $guestprops.Enumerate($vm, $ModuleHost)
@@ -1819,7 +2809,7 @@ Process {
       $imachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
       # lock the vm session
       Write-Verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
       # get the machine IConsole session
       Write-Verbose "Getting the machine IConsole session"
       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
@@ -1831,7 +2821,7 @@ Process {
       Write-Verbose "Suspending $($imachine.Name)"
       # lock the vm session
       Write-Verbose "Locking the machine session"
-      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
       # suspend the vm
       Write-Verbose "Pausing the virtual machine"
       $imachine.ISession.Session.Console.Pause()
@@ -1845,7 +2835,7 @@ Process {
  catch {
   Write-Verbose 'Exception suspending machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -1988,7 +2978,7 @@ Process {
       $imachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($imachine.Id)
       # lock the vm session
       Write-Verbose "Locking the machine session"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
       # get the machine IConsole session
       Write-Verbose "Getting the machine IConsole session"
       $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
@@ -2000,7 +2990,7 @@ Process {
       Write-Verbose "Resuming $($imachine.Name)"
       # lock the vm session
       Write-Verbose "Locking the machine session"
-      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
       # resume the vm
       Write-Verbose "Resuming the virtual machine"
       $imachine.ISession.Session.Console.Resume()
@@ -2014,7 +3004,7 @@ Process {
  catch {
   Write-Verbose 'Exception resuming machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -2301,7 +3291,7 @@ Process {
       Write-Verbose "VM $($imachine.Name) paused"
       if ($Type -match 'Sdl') {
        Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
       }
       $exptntrnsltr = New-Object VirtualBoxError
       foreach ($Credential in $Credentials) {
@@ -2350,7 +3340,7 @@ Process {
  catch {
   Write-Verbose 'Exception starting machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -2511,7 +3501,7 @@ Process {
      if ($imachine.State -eq 'Running') {
       if ($ModuleHost.ToLower() -eq 'websrv') {
        Write-verbose "Locking the machine session"
-       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
        # create iconsole session to vm
        Write-verbose "Creating IConsole session to the machine"
        $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
@@ -2521,7 +3511,7 @@ Process {
       } # end if websrv
       elseif ($ModuleHost.ToLower() -eq 'com') {
        Write-verbose "Locking the machine session"
-       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
        #send ACPI shutdown signal
        Write-verbose "Sending ACPI Shutdown signal to the machine"
        $imachine.ISession.Session.Console.PowerButton()
@@ -2543,7 +3533,7 @@ Process {
      if ($ModuleHost.ToLower() -eq 'websrv') {
       if ($global:vbox.IMachine_getState($imachine.Id) -ne 'PoweredOff') {
        Write-verbose "Locking the machine session"
-       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
        # create iconsole session to vm
        Write-verbose "Creating IConsole session to the machine"
        $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
@@ -2568,7 +3558,7 @@ Process {
      elseif ($ModuleHost.ToLower() -eq 'com') {
       if ($imachine.ComObject.State -ne 1) {
        Write-verbose "Locking the machine session"
-       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
        # Power off the machine
        Write-verbose "Powering off the machine"
        $imachine.IProgress.Progress = $imachine.ISession.Session.Console.PowerDown()
@@ -2592,7 +3582,7 @@ Process {
  catch {
   Write-Verbose 'Exception starting machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -2874,265 +3864,265 @@ ParameterSetName="Custom",Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 DynamicParam {
- $OsTypeIdAttributes = new-object System.Management.Automation.ParameterAttribute
+ $OsTypeIdAttributes = New-Object System.Management.Automation.ParameterAttribute
  $OsTypeIdAttributes.Mandatory = $true
  $OsTypeIdAttributes.Position = 1
  $OsTypeIdAttributes.HelpMessage = 'Enter the type ID for the virtual machine guest OS'
- $OsTypeIdCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $OsTypeIdCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $OsTypeIdCollection.Add($OsTypeIdAttributes)
  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute(@('Other','Other_64','Windows31','Windows95','Windows98','WindowsMe','WindowsNT3x','WindowsNT4','Windows2000','WindowsXP','WindowsXP_64','Windows2003','Windows2003_64','WindowsVista','WindowsVista_64','Windows2008','Windows2008_64','Windows7','Windows7_64','Windows8','Windows8_64','Windows81','Windows81_64','Windows2012_64','Windows10','Windows10_64','Windows2016_64','Windows2019_64','WindowsNT','WindowsNT_64','Linux22','Linux24','Linux24_64','Linux26','Linux26_64','ArchLinux','ArchLinux_64','Debian','Debian_64','Fedora','Fedora_64','Gentoo','Gentoo_64','Mandriva','Mandriva_64','Oracle','Oracle_64','RedHat','RedHat_64','OpenSUSE','OpenSUSE_64','Turbolinux','Turbolinux_64','Ubuntu','Ubuntu_64','Xandros','Xandros_64','Linux','Linux_64','Solaris','Solaris_64','OpenSolaris','OpenSolaris_64','Solaris11_64','FreeBSD','FreeBSD_64','OpenBSD','OpenBSD_64','NetBSD','NetBSD_64','OS2Warp3','OS2Warp4','OS2Warp45','OS2eCS','OS21x','OS2','MacOS','MacOS_64','MacOS106','MacOS106_64','MacOS107_64','MacOS108_64','MacOS109_64','MacOS1010_64','MacOS1011_64','MacOS1012_64','MacOS1013_64','DOS','Netware','L4','QNX','JRockitVE','VBoxBS_64'))
  if ($global:guestostype.id) {
   $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:guestostype.id)
  }
  $OsTypeIdCollection.Add($ValidateSetOsTypeId)
- $OsTypeId = new-object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
- $CustomAttributes = new-object System.Management.Automation.ParameterAttribute
+ $OsTypeId = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
+ $CustomAttributes = New-Object System.Management.Automation.ParameterAttribute
  $CustomAttributes.Mandatory = $false
  $CustomAttributes.ParameterSetName = 'Custom'
  $CustomAttributes.HelpMessage = 'Enter the paravirtual provider for the virtual machine'
- $ParavirtProvidersCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $ParavirtProvidersCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $ParavirtProvidersCollection.Add($CustomAttributes)
  $ValidateSetParavirtProviders = New-Object System.Management.Automation.ValidateSetAttribute(@('None','Default','Legacy','Minimal','HyperV','KVM'))
  if ($global:systempropertiessupported.ParavirtProviders) {
   $ValidateSetParavirtProviders = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.ParavirtProviders)
  }
  $ParavirtProvidersCollection.Add($ValidateSetParavirtProviders)
- $ParavirtProviders = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ParavirtProvider", [string], $ParavirtProvidersCollection)
+ $ParavirtProviders = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("ParavirtProvider", [string], $ParavirtProvidersCollection)
  $CustomAttributes.HelpMessage = 'Enter the clipboard mode for the virtual machine'
- $ClipboardModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $ClipboardModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $ClipboardModesCollection.Add($CustomAttributes)
  $ValidateSetClipboardModes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disabled','HostToGuest','GuestToHost','Bidirectional'))
  if ($global:systempropertiessupported.ClipboardModes) {
   $ValidateSetClipboardModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.ClipboardModes)
  }
  $ClipboardModesCollection.Add($ValidateSetClipboardModes)
- $ClipboardModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ClipboardMode", [string], $ClipboardModesCollection)
+ $ClipboardModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("ClipboardMode", [string], $ClipboardModesCollection)
  $CustomAttributes.HelpMessage = "Enter the drag n' drop mode for the virtual machine"
- $DndModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $DndModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $DndModesCollection.Add($CustomAttributes)
  $ValidateSetDndModes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disabled','HostToGuest','GuestToHost','Bidirectional'))
  if ($global:systempropertiessupported.DndModes) {
   $ValidateSetDndModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.DndModes)
  }
  $DndModesCollection.Add($ValidateSetDndModes)
- $DndModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("DndMode", [string], $DndModesCollection)
+ $DndModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("DndMode", [string], $DndModesCollection)
  $CustomAttributes.HelpMessage = 'Enter the firmware type for the virtual machine'
- $FirmwareTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $FirmwareTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $FirmwareTypesCollection.Add($CustomAttributes)
  $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('BIOS','EFI','EFI32','EFI64','EFIDUAL'))
  if ($global:systempropertiessupported.FirmwareTypes) {
   $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.FirmwareTypes)
  }
  $FirmwareTypesCollection.Add($ValidateSetFirmwareTypes)
- $FirmwareTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
+ $FirmwareTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the pointing HID type for the virtual machine'
- $PointingHidTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $PointingHidTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $PointingHidTypesCollection.Add($CustomAttributes)
  $ValidateSetPointingHidTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('PS2Mouse','USBTablet','USBMultiTouch'))
  if ($global:systempropertiessupported.PointingHidTypes) {
   $ValidateSetPointingHidTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.PointingHidTypes)
  }
  $PointingHidTypesCollection.Add($ValidateSetPointingHidTypes)
- $PointingHidTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("PointingHidType", [string], $PointingHidTypesCollection)
+ $PointingHidTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("PointingHidType", [string], $PointingHidTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the keyboard HID type for the virtual machine'
- $KeyboardHidTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $KeyboardHidTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $KeyboardHidTypesCollection.Add($CustomAttributes)
  $ValidateSetKeyboardHidTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('PS2Keyboard','USBKeyboard'))
  if ($global:systempropertiessupported.KeyboardHidTypes) {
   $ValidateSetKeyboardHidTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.KeyboardHidTypes)
  }
  $KeyboardHidTypesCollection.Add($ValidateSetKeyboardHidTypes)
- $KeyboardHidTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("KeyboardHidType", [string], $KeyboardHidTypesCollection)
+ $KeyboardHidTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("KeyboardHidType", [string], $KeyboardHidTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the Virtual File System type for the virtual machine'
- $VfsTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $VfsTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $VfsTypesCollection.Add($CustomAttributes)
  $ValidateSetVfsTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('File','Cloud','S3'))
  if ($global:systempropertiessupported.VfsTypes) {
   $ValidateSetVfsTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.VfsTypes)
  }
  $VfsTypesCollection.Add($ValidateSetVfsTypes)
- $VfsTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("VfsType", [string], $VfsTypesCollection)
+ $VfsTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("VfsType", [string], $VfsTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording audio codec for the virtual machine'
- $RecordingAudioCodecsCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingAudioCodecsCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingAudioCodecsCollection.Add($CustomAttributes)
  $ValidateSetRecordingAudioCodecs = New-Object System.Management.Automation.ValidateSetAttribute(@('Opus'))
  if ($global:systempropertiessupported.RecordingAudioCodecs) {
   $ValidateSetRecordingAudioCodecs = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingAudioCodecs)
  }
  $RecordingAudioCodecsCollection.Add($ValidateSetRecordingAudioCodecs)
- $RecordingAudioCodecs = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingAudioCodec", [string], $RecordingAudioCodecsCollection)
+ $RecordingAudioCodecs = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingAudioCodec", [string], $RecordingAudioCodecsCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording video codec for the virtual machine'
- $RecordingVideoCodecsCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingVideoCodecsCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingVideoCodecsCollection.Add($CustomAttributes)
  $ValidateSetRecordingVideoCodecs = New-Object System.Management.Automation.ValidateSetAttribute(@('VP8'))
  if ($global:systempropertiessupported.RecordingVideoCodecs) {
   $ValidateSetRecordingVideoCodecs = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingVideoCodecs)
  }
  $RecordingVideoCodecsCollection.Add($ValidateSetRecordingVideoCodecs)
- $RecordingVideoCodecs = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVideoCodec", [string], $RecordingVideoCodecsCollection)
+ $RecordingVideoCodecs = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVideoCodec", [string], $RecordingVideoCodecsCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording VS codec for the virtual machine'
- $RecordingVsMethodsCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingVsMethodsCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingVsMethodsCollection.Add($CustomAttributes)
  $ValidateSetRecordingVsMethods = New-Object System.Management.Automation.ValidateSetAttribute(@('None'))
  if ($global:systempropertiessupported.RecordingVsMethods) {
   $ValidateSetRecordingVsMethods = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingVsMethods)
  }
  $RecordingVsMethodsCollection.Add($ValidateSetRecordingVsMethods)
- $RecordingVsMethods = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVsMethod", [string], $RecordingVsMethodsCollection)
+ $RecordingVsMethods = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVsMethod", [string], $RecordingVsMethodsCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording VRC mode for the virtual machine'
- $RecordingVrcModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingVrcModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingVrcModesCollection.Add($CustomAttributes)
  $ValidateSetRecordingVrcModes = New-Object System.Management.Automation.ValidateSetAttribute(@('CBR'))
  if ($global:systempropertiessupported.RecordingVrcModes) {
   $ValidateSetRecordingVrcModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingVrcModes)
  }
  $RecordingVrcModesCollection.Add($ValidateSetRecordingVrcModes)
- $RecordingVrcModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVrcMode", [string], $RecordingVrcModesCollection)
+ $RecordingVrcModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVrcMode", [string], $RecordingVrcModesCollection)
  $CustomAttributes.HelpMessage = 'Enter the graphics controller type for the virtual machine'
- $GraphicsControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $GraphicsControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $GraphicsControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetGraphicsControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('VBoxVGA','VMSVGA','VBoxSVGA','Null'))
  if ($global:systempropertiessupported.GraphicsControllerTypes) {
   $ValidateSetGraphicsControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.GraphicsControllerTypes)
  }
  $GraphicsControllerTypesCollection.Add($ValidateSetGraphicsControllerTypes)
- $GraphicsControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("GraphicsControllerType", [string], $GraphicsControllerTypesCollection)
+ $GraphicsControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("GraphicsControllerType", [string], $GraphicsControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the auto stop type for the virtual machine'
- $AutostopTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $AutostopTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $AutostopTypesCollection.Add($CustomAttributes)
  $ValidateSetAutostopTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disabled','SaveState','PowerOff','AcpiShutdown'))
  if ($global:systempropertiessupported.AutostopTypes) {
   $ValidateSetAutostopTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.AutostopTypes)
  }
  $AutostopTypesCollection.Add($ValidateSetAutostopTypes)
- $AutostopTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("AutostopType", [string], $AutostopTypesCollection)
+ $AutostopTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("AutostopType", [string], $AutostopTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the VM process priority for the virtual machine'
- $VmProcPrioritiesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $VmProcPrioritiesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $VmProcPrioritiesCollection.Add($CustomAttributes)
  $ValidateSetVmProcPriorities = New-Object System.Management.Automation.ValidateSetAttribute(@('Default','Flat','Low','Normal','High'))
  if ($global:systempropertiessupported.VmProcPriorities) {
   $ValidateSetVmProcPriorities = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.VmProcPriorities)
  }
  $VmProcPrioritiesCollection.Add($ValidateSetVmProcPriorities)
- $VmProcPriorities = new-object -Type System.Management.Automation.RuntimeDefinedParameter("VmProcPriority", [string], $VmProcPrioritiesCollection)
+ $VmProcPriorities = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("VmProcPriority", [string], $VmProcPrioritiesCollection)
  $CustomAttributes.HelpMessage = 'Enter the network attachment type for the virtual machine'
- $NetworkAttachmentTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $NetworkAttachmentTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $NetworkAttachmentTypesCollection.Add($CustomAttributes)
  $ValidateSetNetworkAttachmentTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('NAT','Bridged','Internal','HostOnly','Generic','NATNetwork','Null'))
  if ($global:systempropertiessupported.NetworkAttachmentTypes) {
   $ValidateSetNetworkAttachmentTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.NetworkAttachmentTypes)
  }
  $NetworkAttachmentTypesCollection.Add($ValidateSetNetworkAttachmentTypes)
- $NetworkAttachmentTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAttachmentType", [string], $NetworkAttachmentTypesCollection)
+ $NetworkAttachmentTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAttachmentType", [string], $NetworkAttachmentTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the network adapter type for the virtual machine'
- $NetworkAdapterTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $NetworkAdapterTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $NetworkAdapterTypesCollection.Add($CustomAttributes)
  $ValidateSetNetworkAdapterTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('Am79C970A','Am79C973','I82540EM','I82543GC','I82545EM','Virtio','Am79C960'))
  if ($global:systempropertiessupported.NetworkAdapterTypes) {
   $ValidateSetNetworkAdapterTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.NetworkAdapterTypes)
  }
  $NetworkAdapterTypesCollection.Add($ValidateSetNetworkAdapterTypes)
- $NetworkAdapterTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAdapterType", [string], $NetworkAdapterTypesCollection)
+ $NetworkAdapterTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAdapterType", [string], $NetworkAdapterTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the port mode for the virtual machine'
- $PortModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $PortModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $PortModesCollection.Add($CustomAttributes)
  $ValidateSetPortModes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disconnected','HostPipe','HostDevice','RawFile','TCP'))
  if ($global:systempropertiessupported.PortModes) {
   $ValidateSetPortModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.PortModes)
  }
  $PortModesCollection.Add($ValidateSetPortModes)
- $PortModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("PortMode", [string], $PortModesCollection)
+ $PortModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("PortMode", [string], $PortModesCollection)
  $CustomAttributes.HelpMessage = 'Enter the emulated UART implementation type for the virtual machine'
- $UartTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $UartTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $UartTypesCollection.Add($CustomAttributes)
  $ValidateSetUartTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('U16450','U16550A','U16750'))
  if ($global:systempropertiessupported.UartTypes) {
   $ValidateSetUartTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.UartTypes)
  }
  $UartTypesCollection.Add($ValidateSetUartTypes)
- $UartTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("UartType", [string], $UartTypesCollection)
+ $UartTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("UartType", [string], $UartTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the USB controller type for the virtual machine'
- $UsbControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $UsbControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $UsbControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetUsbControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('OHCI','EHCI','XHCI'))
  if ($global:systempropertiessupported.UsbControllerTypes) {
   $ValidateSetUsbControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.UsbControllerTypes)
  }
  $UsbControllerTypesCollection.Add($ValidateSetUsbControllerTypes)
- $UsbControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("UsbControllerType", [string], $UsbControllerTypesCollection)
+ $UsbControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("UsbControllerType", [string], $UsbControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the audio driver type for the virtual machine'
- $AudioDriverTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $AudioDriverTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $AudioDriverTypesCollection.Add($CustomAttributes)
  $ValidateSetAudioDriverTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('DirectSound','Null'))
  if ($global:systempropertiessupported.AudioDriverTypes) {
   $ValidateSetAudioDriverTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.AudioDriverTypes)
  }
  $AudioDriverTypesCollection.Add($ValidateSetAudioDriverTypes)
- $AudioDriverTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("AudioDriverType", [string], $AudioDriverTypesCollection)
+ $AudioDriverTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("AudioDriverType", [string], $AudioDriverTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the audio controller type for the virtual machine'
- $AudioControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $AudioControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $AudioControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetAudioControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('AC97','SB16','HDA'))
  if ($global:systempropertiessupported.AudioControllerTypes) {
   $ValidateSetAudioControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.AudioControllerTypes)
  }
  $AudioControllerTypesCollection.Add($ValidateSetAudioControllerTypes)
- $AudioControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("AudioControllerType", [string], $AudioControllerTypesCollection)
+ $AudioControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("AudioControllerType", [string], $AudioControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the storage bus for the virtual machine'
- $StorageBusesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $StorageBusesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $StorageBusesCollection.Add($CustomAttributes)
  $ValidateSetStorageBuses = New-Object System.Management.Automation.ValidateSetAttribute(@('SATA','IDE','SCSI','Floppy','SAS','USB','PCIe','VirtioSCSI'))
  if ($global:systempropertiessupported.StorageBuses) {
   $ValidateSetStorageBuses = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.StorageBuses)
  }
  $StorageBusesCollection.Add($ValidateSetStorageBuses)
- $StorageBuses = new-object -Type System.Management.Automation.RuntimeDefinedParameter("StorageBus", [string], $StorageBusesCollection)
+ $StorageBuses = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("StorageBus", [string], $StorageBusesCollection)
  $CustomAttributes.HelpMessage = 'Enter the storage controller type for the virtual machine'
- $StorageControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $StorageControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $StorageControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetStorageControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('IntelAhci','PIIX4','PIIX3','ICH6','LsiLogic','BusLogic','I82078','LsiLogicSas','USB','NVMe','VirtioSCSI'))
  if ($global:systempropertiessupported.StorageControllerTypes) {
   $ValidateSetStorageControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.StorageControllerTypes)
  }
  $StorageControllerTypesCollection.Add($ValidateSetStorageControllerTypes)
- $StorageControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("StorageControllerType", [string], $StorageControllerTypesCollection)
+ $StorageControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("StorageControllerType", [string], $StorageControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the chipset type for the virtual machine'
- $ChipsetTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $ChipsetTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $ChipsetTypesCollection.Add($CustomAttributes)
  $ValidateSetChipsetTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('PIIX3','ICH9'))
  if ($global:systempropertiessupported.ChipsetTypes) {
   $ValidateSetChipsetTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.ChipsetTypes)
  }
  $ChipsetTypesCollection.Add($ValidateSetChipsetTypes)
- $ChipsetTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ChipsetType", [string], $ChipsetTypesCollection)
+ $ChipsetTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("ChipsetType", [string], $ChipsetTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the number of CPUs available to the virtual machine'
- $CpuCountCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $CpuCountCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $CpuCountCollection.Add($CustomAttributes)
  $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute(1, 32)
  if ($global:systempropertiessupported.MinGuestCPUCount -and $global:systempropertiessupported.MaxGuestCPUCount) {
   $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestCPUCount, $global:systempropertiessupported.MaxGuestCPUCount)
  }
  $CpuCountCollection.Add($ValidateSetCpuCount)
- $CpuCount = new-object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
+ $CpuCount = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
  $CustomAttributes.HelpMessage = 'Enter the memory size in MB for the virtual machine'
- $MemorySizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemorySizeCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $MemorySizeCollection.Add($CustomAttributes)
  $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
  if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
   $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
  }
  $MemorySizeCollection.Add($ValidateSetMemorySize)
- $MemorySize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
+ $MemorySize = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
  $CustomAttributes.HelpMessage = 'Enter the memory balloon size in MB for the virtual machine'
- $MemoryBalloonSizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemoryBalloonSizeCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $MemoryBalloonSizeCollection.Add($CustomAttributes)
  $ValidateSetMemoryBalloonSize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
  if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
   $ValidateSetMemoryBalloonSize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
  }
  $MemoryBalloonSizeCollection.Add($ValidateSetMemoryBalloonSize)
- $MemoryBalloonSize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemoryBalloonSize", [uint64], $MemoryBalloonSizeCollection)
- $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+ $MemoryBalloonSize = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("MemoryBalloonSize", [uint64], $MemoryBalloonSizeCollection)
+ $paramDictionary = New-Object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
  $paramDictionary.Add("OsTypeId", $OsTypeId)
  $paramDictionary.Add("ParavirtProvider", $ParavirtProviders)
  $paramDictionary.Add("ClipboardMode", $ClipboardModes)
@@ -3262,7 +4252,7 @@ Process {
     catch {
      Write-Verbose 'Exception applying custom parameters to machine'
      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
     }
    }
    $global:vbox.IMachine_saveSettings($imachine.Id)
@@ -3329,7 +4319,7 @@ Process {
     catch {
      Write-Verbose 'Exception applying custom parameters to machine'
      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-     Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+     Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
     }
    }
    $imachine.ComObject.SaveSettings()
@@ -3339,7 +4329,7 @@ Process {
  catch {
   Write-Verbose 'Exception creating machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -3499,21 +4489,21 @@ Process {
     if ($ModuleHost.ToLower() -eq 'websrv') {
      if ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnNone' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and detach all media from virtual machine ")) {
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnNone'))
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, [CleanupMode]::new().ToULong('DetachAllReturnNone'))
       # delete VM files
       Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
       $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
      } # end if ParameterSetName -eq DetachAllReturnNone
      elseif ($PSCmdlet.ParameterSetName -eq 'DetachAllReturnHardDisksOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, and delete all virtual disks but keep removable media in inventory ")) {
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('DetachAllReturnHardDisksOnly'))
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, [CleanupMode]::new().ToULong('DetachAllReturnHardDisksOnly'))
       # delete VM files and virtual disk(s)
       Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
       $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
      } # end elseif ParameterSetName -eq DetachAllReturnHardDisksOnly
      elseif ($PSCmdlet.ParameterSetName -eq 'Full' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Delete virtual machine from host, delete all snapshots, delete all virtual disks, and remove removable media from inventory ")) {
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('Full'))
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, [CleanupMode]::new().ToULong('Full'))
       # delete VM files and virtual disk(s)
       Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
       $imachine.IProgress.Id = $global:vbox.IMachine_deleteConfig($imachine.Id, $imediums)
@@ -3521,7 +4511,7 @@ Process {
      } # end elseif ParameterSetName -eq Full
      elseif ($PSCmdlet.ParameterSetName -eq 'UnregisterOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Remove virtual machine from inventory ")) {
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $global:vbox.IMachine_unregister($imachine.Id, $global:cleanupmode.ToULong('UnregisterOnly'))
+      $imediums = $global:vbox.IMachine_unregister($imachine.Id, [CleanupMode]::new().ToULong('UnregisterOnly'))
      } # end elseif ParameterSetName -eq UnregisterOnly
      if ($imachine.IProgress.Id) {
       Write-Verbose 'Displaying progress bar'
@@ -3577,7 +4567,7 @@ Process {
        }
       }
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('DetachAllReturnNone'))
+      $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('DetachAllReturnNone'))
       # delete VM files
       Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
       #$imachine.IProgress.Progress = $imachine.ComObject.DeleteConfig($imediums)
@@ -3628,7 +4618,7 @@ Process {
        }
       }
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('DetachAllReturnHardDisksOnly'))
+      $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('DetachAllReturnHardDisksOnly'))
       # delete VM files and virtual disk(s)
       Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
       #$imachine.IProgress.Progress = $imachine.ComObject.DeleteConfig($imediums)
@@ -3679,7 +4669,7 @@ Process {
        }
       }
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('Full'))
+      $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('Full'))
       # delete VM files and virtual disk(s)
       Write-Verbose "Running cleanup action $($PSCmdlet.ParameterSetName) for $($imachine.Name) machine's files"
       #$imachine.IProgress.Progress = $imachine.ComObject.DeleteConfig($imediums)
@@ -3690,7 +4680,7 @@ Process {
      } # end elseif ParameterSetName -eq Full
      elseif ($PSCmdlet.ParameterSetName -eq 'UnregisterOnly' -and $PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Remove virtual machine from inventory ")) {
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
-      $imediums = $imachine.ComObject.Unregister($global:cleanupmode.ToULong('UnregisterOnly'))
+      $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('UnregisterOnly'))
      } # end elseif ParameterSetName -eq UnregisterOnly
      if ($imachine.IProgress.Progress) {
       Write-Verbose 'Displaying progress bar'
@@ -3708,7 +4698,7 @@ Process {
   catch {
    Write-Verbose 'Exception removing machine'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   finally {
    # obligatory session unlock
@@ -3829,7 +4819,7 @@ Process {
  catch {
   Write-Verbose 'Exception importing machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -4099,261 +5089,261 @@ Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 DynamicParam {
- $CustomAttributes = new-object System.Management.Automation.ParameterAttribute
+ $CustomAttributes = New-Object System.Management.Automation.ParameterAttribute
  $CustomAttributes.Mandatory = $false
  $CustomAttributes.HelpMessage = 'Enter the type ID for the virtual machine guest OS'
- $OsTypeIdCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $OsTypeIdCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $OsTypeIdCollection.Add($CustomAttributes)
  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute(@('Other','Other_64','Windows31','Windows95','Windows98','WindowsMe','WindowsNT3x','WindowsNT4','Windows2000','WindowsXP','WindowsXP_64','Windows2003','Windows2003_64','WindowsVista','WindowsVista_64','Windows2008','Windows2008_64','Windows7','Windows7_64','Windows8','Windows8_64','Windows81','Windows81_64','Windows2012_64','Windows10','Windows10_64','Windows2016_64','Windows2019_64','WindowsNT','WindowsNT_64','Linux22','Linux24','Linux24_64','Linux26','Linux26_64','ArchLinux','ArchLinux_64','Debian','Debian_64','Fedora','Fedora_64','Gentoo','Gentoo_64','Mandriva','Mandriva_64','Oracle','Oracle_64','RedHat','RedHat_64','OpenSUSE','OpenSUSE_64','Turbolinux','Turbolinux_64','Ubuntu','Ubuntu_64','Xandros','Xandros_64','Linux','Linux_64','Solaris','Solaris_64','OpenSolaris','OpenSolaris_64','Solaris11_64','FreeBSD','FreeBSD_64','OpenBSD','OpenBSD_64','NetBSD','NetBSD_64','OS2Warp3','OS2Warp4','OS2Warp45','OS2eCS','OS21x','OS2','MacOS','MacOS_64','MacOS106','MacOS106_64','MacOS107_64','MacOS108_64','MacOS109_64','MacOS1010_64','MacOS1011_64','MacOS1012_64','MacOS1013_64','DOS','Netware','L4','QNX','JRockitVE','VBoxBS_64'))
  if ($global:guestostype.id) {
   $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:guestostype.id)
  }
  $OsTypeIdCollection.Add($ValidateSetOsTypeId)
- $OsTypeId = new-object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
+ $OsTypeId = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
  $CustomAttributes.HelpMessage = 'Enter the paravirtual provider for the virtual machine'
- $ParavirtProvidersCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $ParavirtProvidersCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $ParavirtProvidersCollection.Add($CustomAttributes)
  $ValidateSetParavirtProviders = New-Object System.Management.Automation.ValidateSetAttribute(@('None','Default','Legacy','Minimal','HyperV','KVM'))
  if ($global:systempropertiessupported.ParavirtProviders) {
   $ValidateSetParavirtProviders = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.ParavirtProviders)
  }
  $ParavirtProvidersCollection.Add($ValidateSetParavirtProviders)
- $ParavirtProviders = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ParavirtProvider", [string], $ParavirtProvidersCollection)
+ $ParavirtProviders = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("ParavirtProvider", [string], $ParavirtProvidersCollection)
  $CustomAttributes.HelpMessage = 'Enter the clipboard mode for the virtual machine'
- $ClipboardModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $ClipboardModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $ClipboardModesCollection.Add($CustomAttributes)
  $ValidateSetClipboardModes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disabled','HostToGuest','GuestToHost','Bidirectional'))
  if ($global:systempropertiessupported.ClipboardModes) {
   $ValidateSetClipboardModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.ClipboardModes)
  }
  $ClipboardModesCollection.Add($ValidateSetClipboardModes)
- $ClipboardModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ClipboardMode", [string], $ClipboardModesCollection)
+ $ClipboardModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("ClipboardMode", [string], $ClipboardModesCollection)
  $CustomAttributes.HelpMessage = "Enter the drag n' drop mode for the virtual machine"
- $DndModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $DndModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $DndModesCollection.Add($CustomAttributes)
  $ValidateSetDndModes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disabled','HostToGuest','GuestToHost','Bidirectional'))
  if ($global:systempropertiessupported.DndModes) {
   $ValidateSetDndModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.DndModes)
  }
  $DndModesCollection.Add($ValidateSetDndModes)
- $DndModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("DndMode", [string], $DndModesCollection)
+ $DndModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("DndMode", [string], $DndModesCollection)
  $CustomAttributes.HelpMessage = 'Enter the firmware type for the virtual machine'
- $FirmwareTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $FirmwareTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $FirmwareTypesCollection.Add($CustomAttributes)
  $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('BIOS','EFI','EFI32','EFI64','EFIDUAL'))
  if ($global:systempropertiessupported.FirmwareTypes) {
   $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.FirmwareTypes)
  }
  $FirmwareTypesCollection.Add($ValidateSetFirmwareTypes)
- $FirmwareTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
+ $FirmwareTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the pointing HID type for the virtual machine'
- $PointingHidTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $PointingHidTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $PointingHidTypesCollection.Add($CustomAttributes)
  $ValidateSetPointingHidTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('PS2Mouse','USBTablet','USBMultiTouch'))
  if ($global:systempropertiessupported.PointingHidTypes) {
   $ValidateSetPointingHidTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.PointingHidTypes)
  }
  $PointingHidTypesCollection.Add($ValidateSetPointingHidTypes)
- $PointingHidTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("PointingHidType", [string], $PointingHidTypesCollection)
+ $PointingHidTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("PointingHidType", [string], $PointingHidTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the keyboard HID type for the virtual machine'
- $KeyboardHidTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $KeyboardHidTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $KeyboardHidTypesCollection.Add($CustomAttributes)
  $ValidateSetKeyboardHidTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('PS2Keyboard','USBKeyboard'))
  if ($global:systempropertiessupported.KeyboardHidTypes) {
   $ValidateSetKeyboardHidTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.KeyboardHidTypes)
  }
  $KeyboardHidTypesCollection.Add($ValidateSetKeyboardHidTypes)
- $KeyboardHidTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("KeyboardHidType", [string], $KeyboardHidTypesCollection)
+ $KeyboardHidTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("KeyboardHidType", [string], $KeyboardHidTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the Virtual File System type for the virtual machine'
- $VfsTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $VfsTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $VfsTypesCollection.Add($CustomAttributes)
  $ValidateSetVfsTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('File','Cloud','S3'))
  if ($global:systempropertiessupported.VfsTypes) {
   $ValidateSetVfsTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.VfsTypes)
  }
  $VfsTypesCollection.Add($ValidateSetVfsTypes)
- $VfsTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("VfsType", [string], $VfsTypesCollection)
+ $VfsTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("VfsType", [string], $VfsTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording audio codec for the virtual machine'
- $RecordingAudioCodecsCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingAudioCodecsCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingAudioCodecsCollection.Add($CustomAttributes)
  $ValidateSetRecordingAudioCodecs = New-Object System.Management.Automation.ValidateSetAttribute(@('Opus'))
  if ($global:systempropertiessupported.RecordingAudioCodecs) {
   $ValidateSetRecordingAudioCodecs = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingAudioCodecs)
  }
  $RecordingAudioCodecsCollection.Add($ValidateSetRecordingAudioCodecs)
- $RecordingAudioCodecs = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingAudioCodec", [string], $RecordingAudioCodecsCollection)
+ $RecordingAudioCodecs = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingAudioCodec", [string], $RecordingAudioCodecsCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording video codec for the virtual machine'
- $RecordingVideoCodecsCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingVideoCodecsCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingVideoCodecsCollection.Add($CustomAttributes)
  $ValidateSetRecordingVideoCodecs = New-Object System.Management.Automation.ValidateSetAttribute(@('VP8'))
  if ($global:systempropertiessupported.RecordingVideoCodecs) {
   $ValidateSetRecordingVideoCodecs = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingVideoCodecs)
  }
  $RecordingVideoCodecsCollection.Add($ValidateSetRecordingVideoCodecs)
- $RecordingVideoCodecs = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVideoCodec", [string], $RecordingVideoCodecsCollection)
+ $RecordingVideoCodecs = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVideoCodec", [string], $RecordingVideoCodecsCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording VS codec for the virtual machine'
- $RecordingVsMethodsCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingVsMethodsCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingVsMethodsCollection.Add($CustomAttributes)
  $ValidateSetRecordingVsMethods = New-Object System.Management.Automation.ValidateSetAttribute(@('None'))
  if ($global:systempropertiessupported.RecordingVsMethods) {
   $ValidateSetRecordingVsMethods = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingVsMethods)
  }
  $RecordingVsMethodsCollection.Add($ValidateSetRecordingVsMethods)
- $RecordingVsMethods = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVsMethod", [string], $RecordingVsMethodsCollection)
+ $RecordingVsMethods = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVsMethod", [string], $RecordingVsMethodsCollection)
  $CustomAttributes.HelpMessage = 'Enter the recording VRC mode for the virtual machine'
- $RecordingVrcModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $RecordingVrcModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $RecordingVrcModesCollection.Add($CustomAttributes)
  $ValidateSetRecordingVrcModes = New-Object System.Management.Automation.ValidateSetAttribute(@('CBR'))
  if ($global:systempropertiessupported.RecordingVrcModes) {
   $ValidateSetRecordingVrcModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.RecordingVrcModes)
  }
  $RecordingVrcModesCollection.Add($ValidateSetRecordingVrcModes)
- $RecordingVrcModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVrcMode", [string], $RecordingVrcModesCollection)
+ $RecordingVrcModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("RecordingVrcMode", [string], $RecordingVrcModesCollection)
  $CustomAttributes.HelpMessage = 'Enter the graphics controller type for the virtual machine'
- $GraphicsControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $GraphicsControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $GraphicsControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetGraphicsControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('VBoxVGA','VMSVGA','VBoxSVGA','Null'))
  if ($global:systempropertiessupported.GraphicsControllerTypes) {
   $ValidateSetGraphicsControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.GraphicsControllerTypes)
  }
  $GraphicsControllerTypesCollection.Add($ValidateSetGraphicsControllerTypes)
- $GraphicsControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("GraphicsControllerType", [string], $GraphicsControllerTypesCollection)
+ $GraphicsControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("GraphicsControllerType", [string], $GraphicsControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the auto stop type for the virtual machine'
- $AutostopTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $AutostopTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $AutostopTypesCollection.Add($CustomAttributes)
  $ValidateSetAutostopTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disabled','SaveState','PowerOff','AcpiShutdown'))
  if ($global:systempropertiessupported.AutostopTypes) {
   $ValidateSetAutostopTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.AutostopTypes)
  }
  $AutostopTypesCollection.Add($ValidateSetAutostopTypes)
- $AutostopTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("AutostopType", [string], $AutostopTypesCollection)
+ $AutostopTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("AutostopType", [string], $AutostopTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the VM process priority for the virtual machine'
- $VmProcPrioritiesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $VmProcPrioritiesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $VmProcPrioritiesCollection.Add($CustomAttributes)
  $ValidateSetVmProcPriorities = New-Object System.Management.Automation.ValidateSetAttribute(@('Default','Flat','Low','Normal','High'))
  if ($global:systempropertiessupported.VmProcPriorities) {
   $ValidateSetVmProcPriorities = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.VmProcPriorities)
  }
  $VmProcPrioritiesCollection.Add($ValidateSetVmProcPriorities)
- $VmProcPriorities = new-object -Type System.Management.Automation.RuntimeDefinedParameter("VmProcPriority", [string], $VmProcPrioritiesCollection)
+ $VmProcPriorities = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("VmProcPriority", [string], $VmProcPrioritiesCollection)
  $CustomAttributes.HelpMessage = 'Enter the network attachment type for the virtual machine'
- $NetworkAttachmentTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $NetworkAttachmentTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $NetworkAttachmentTypesCollection.Add($CustomAttributes)
  $ValidateSetNetworkAttachmentTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('NAT','Bridged','Internal','HostOnly','Generic','NATNetwork','Null'))
  if ($global:systempropertiessupported.NetworkAttachmentTypes) {
   $ValidateSetNetworkAttachmentTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.NetworkAttachmentTypes)
  }
  $NetworkAttachmentTypesCollection.Add($ValidateSetNetworkAttachmentTypes)
- $NetworkAttachmentTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAttachmentType", [string], $NetworkAttachmentTypesCollection)
+ $NetworkAttachmentTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAttachmentType", [string], $NetworkAttachmentTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the network adapter type for the virtual machine'
- $NetworkAdapterTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $NetworkAdapterTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $NetworkAdapterTypesCollection.Add($CustomAttributes)
  $ValidateSetNetworkAdapterTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('Am79C970A','Am79C973','I82540EM','I82543GC','I82545EM','Virtio','Am79C960'))
  if ($global:systempropertiessupported.NetworkAdapterTypes) {
   $ValidateSetNetworkAdapterTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.NetworkAdapterTypes)
  }
  $NetworkAdapterTypesCollection.Add($ValidateSetNetworkAdapterTypes)
- $NetworkAdapterTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAdapterType", [string], $NetworkAdapterTypesCollection)
+ $NetworkAdapterTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("NetworkAdapterType", [string], $NetworkAdapterTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the port mode for the virtual machine'
- $PortModesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $PortModesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $PortModesCollection.Add($CustomAttributes)
  $ValidateSetPortModes = New-Object System.Management.Automation.ValidateSetAttribute(@('Disconnected','HostPipe','HostDevice','RawFile','TCP'))
  if ($global:systempropertiessupported.PortModes) {
   $ValidateSetPortModes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.PortModes)
  }
  $PortModesCollection.Add($ValidateSetPortModes)
- $PortModes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("PortMode", [string], $PortModesCollection)
+ $PortModes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("PortMode", [string], $PortModesCollection)
  $CustomAttributes.HelpMessage = 'Enter the emulated UART implementation type for the virtual machine'
- $UartTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $UartTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $UartTypesCollection.Add($CustomAttributes)
  $ValidateSetUartTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('U16450','U16550A','U16750'))
  if ($global:systempropertiessupported.UartTypes) {
   $ValidateSetUartTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.UartTypes)
  }
  $UartTypesCollection.Add($ValidateSetUartTypes)
- $UartTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("UartType", [string], $UartTypesCollection)
+ $UartTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("UartType", [string], $UartTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the USB controller type for the virtual machine'
- $UsbControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $UsbControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $UsbControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetUsbControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('OHCI','EHCI','XHCI'))
  if ($global:systempropertiessupported.UsbControllerTypes) {
   $ValidateSetUsbControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.UsbControllerTypes)
  }
  $UsbControllerTypesCollection.Add($ValidateSetUsbControllerTypes)
- $UsbControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("UsbControllerType", [string], $UsbControllerTypesCollection)
+ $UsbControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("UsbControllerType", [string], $UsbControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the audio driver type for the virtual machine'
- $AudioDriverTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $AudioDriverTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $AudioDriverTypesCollection.Add($CustomAttributes)
  $ValidateSetAudioDriverTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('DirectSound','Null'))
  if ($global:systempropertiessupported.AudioDriverTypes) {
   $ValidateSetAudioDriverTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.AudioDriverTypes)
  }
  $AudioDriverTypesCollection.Add($ValidateSetAudioDriverTypes)
- $AudioDriverTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("AudioDriverType", [string], $AudioDriverTypesCollection)
+ $AudioDriverTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("AudioDriverType", [string], $AudioDriverTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the audio controller type for the virtual machine'
- $AudioControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $AudioControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $AudioControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetAudioControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('AC97','SB16','HDA'))
  if ($global:systempropertiessupported.AudioControllerTypes) {
   $ValidateSetAudioControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.AudioControllerTypes)
  }
  $AudioControllerTypesCollection.Add($ValidateSetAudioControllerTypes)
- $AudioControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("AudioControllerType", [string], $AudioControllerTypesCollection)
+ $AudioControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("AudioControllerType", [string], $AudioControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the storage bus for the virtual machine'
- $StorageBusesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $StorageBusesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $StorageBusesCollection.Add($CustomAttributes)
  $ValidateSetStorageBuses = New-Object System.Management.Automation.ValidateSetAttribute(@('SATA','IDE','SCSI','Floppy','SAS','USB','PCIe','VirtioSCSI'))
  if ($global:systempropertiessupported.StorageBuses) {
   $ValidateSetStorageBuses = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.StorageBuses)
  }
  $StorageBusesCollection.Add($ValidateSetStorageBuses)
- $StorageBuses = new-object -Type System.Management.Automation.RuntimeDefinedParameter("StorageBus", [string], $StorageBusesCollection)
+ $StorageBuses = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("StorageBus", [string], $StorageBusesCollection)
  $CustomAttributes.HelpMessage = 'Enter the storage controller type for the virtual machine'
- $StorageControllerTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $StorageControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $StorageControllerTypesCollection.Add($CustomAttributes)
  $ValidateSetStorageControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('IntelAhci','PIIX4','PIIX3','ICH6','LsiLogic','BusLogic','I82078','LsiLogicSas','USB','NVMe','VirtioSCSI'))
  if ($global:systempropertiessupported.StorageControllerTypes) {
   $ValidateSetStorageControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.StorageControllerTypes)
  }
  $StorageControllerTypesCollection.Add($ValidateSetStorageControllerTypes)
- $StorageControllerTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("StorageControllerType", [string], $StorageControllerTypesCollection)
+ $StorageControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("StorageControllerType", [string], $StorageControllerTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the chipset type for the virtual machine'
- $ChipsetTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $ChipsetTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $ChipsetTypesCollection.Add($CustomAttributes)
  $ValidateSetChipsetTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('PIIX3','ICH9'))
  if ($global:systempropertiessupported.ChipsetTypes) {
   $ValidateSetChipsetTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.ChipsetTypes)
  }
  $ChipsetTypesCollection.Add($ValidateSetChipsetTypes)
- $ChipsetTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("ChipsetType", [string], $ChipsetTypesCollection)
+ $ChipsetTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("ChipsetType", [string], $ChipsetTypesCollection)
  $CustomAttributes.HelpMessage = 'Enter the number of CPUs available to the virtual machine'
- $CpuCountCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $CpuCountCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $CpuCountCollection.Add($CustomAttributes)
  $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute(1, 32)
  if ($global:systempropertiessupported.MinGuestCPUCount -and $global:systempropertiessupported.MaxGuestCPUCount) {
   $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestCPUCount, $global:systempropertiessupported.MaxGuestCPUCount)
  }
  $CpuCountCollection.Add($ValidateSetCpuCount)
- $CpuCount = new-object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
+ $CpuCount = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
  $CustomAttributes.HelpMessage = 'Enter the memory size in MB for the virtual machine'
- $MemorySizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemorySizeCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $MemorySizeCollection.Add($CustomAttributes)
  $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
  if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
   $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
  }
  $MemorySizeCollection.Add($ValidateSetMemorySize)
- $MemorySize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
+ $MemorySize = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
  $CustomAttributes.HelpMessage = 'Enter the memory balloon size in MB for the virtual machine'
- $MemoryBalloonSizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemoryBalloonSizeCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $MemoryBalloonSizeCollection.Add($CustomAttributes)
  $ValidateSetMemoryBalloonSize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
  if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
   $ValidateSetMemoryBalloonSize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
  }
  $MemoryBalloonSizeCollection.Add($ValidateSetMemoryBalloonSize)
- $MemoryBalloonSize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemoryBalloonSize", [uint64], $MemoryBalloonSizeCollection)
- $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+ $MemoryBalloonSize = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("MemoryBalloonSize", [uint64], $MemoryBalloonSizeCollection)
+ $paramDictionary = New-Object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
  $paramDictionary.Add("OsTypeId", $OsTypeId)
  $paramDictionary.Add("ParavirtProvider", $ParavirtProviders)
  $paramDictionary.Add("ClipboardMode", $ClipboardModes)
@@ -4455,7 +5445,7 @@ Process {
    try {
     if ($ModuleHost.ToLower() -eq 'websrv') {
      Write-Verbose "Getting write lock on machine $($imachine.Name)"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
      # create a new machine object
      $mmachine = New-Object VirtualBoxVM
      # get the mutable machine object
@@ -4515,7 +5505,7 @@ Process {
      catch {
       Write-Verbose 'Exception applying custom parameters to machine'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      }
      # save new settings
      Write-Verbose "Saving new settings"
@@ -4526,7 +5516,7 @@ Process {
     } # end if websrv
     elseif ($ModuleHost.ToLower() -eq 'com') {
      Write-Verbose "Getting write lock on machine $($imachine.Name)"
-     $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+     $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
      # create a new machine object
      $mmachine = New-Object VirtualBoxVM
      # get the mutable machine object
@@ -4536,7 +5526,7 @@ Process {
      try {
       Write-Verbose "Modifying requeseted settings on machine $($mmachine.Name)"
       if ($Icon -or $Icon -eq '') {
-       if ($Icon -eq '') {$mmachine.ComObject.Icon = $null}
+       if ($Icon -eq '') {$mmachine.ComObject.Icon = [byte[]]@($null)}
        else {
         # convert to png
         if (!(Test-Path "$env:TEMP\VirtualBoxPS")) {New-Item -ItemType Directory -Path "$env:TEMP\VirtualBoxPS\" -Force -Confirm:$false | Write-Verbose}
@@ -4586,7 +5576,7 @@ Process {
      catch {
       Write-Verbose 'Exception applying custom parameters to machine'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      }
      # save new settings
      Write-Verbose "Saving new settings"
@@ -4599,7 +5589,7 @@ Process {
    catch {
     Write-Verbose 'Exception creating machine'
     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+    Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
    } # Catch
    finally {
     # release mutable machine objects if they exist
@@ -4652,6 +5642,976 @@ Process {
   } # foreach $imachine in $imachines
  } # end if $imachines
  else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Get-VirtualBoxVMStorageController {
+<#
+.SYNOPSIS
+Get VirtualBox storage controller information
+.DESCRIPTION
+Retrieves storage controllers by name, bus, type or all for a machine object, name, or GUID.
+.PARAMETER Name
+At least one storage controller name.
+.PARAMETER Bus
+At least one storage controller bus.
+.PARAMETER ControllerType
+At least one storage controller type.
+.PARAMETER Machine
+At least one virtual machine object. Can be received via pipeline input.
+.PARAMETER MachineName
+The name of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER MachineGuid
+The GUID of at least one virtual machine. Can be received via pipeline input by name.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Get-VirtualBoxVMStorageController -Name sata -MachineName 2016
+
+Name           : SATA
+Bus            : SATA
+ControllerType : IntelAhci
+Bootable       : True
+
+Get storage controller for the 2016 Core machine by name and machine name
+.EXAMPLE
+PS C:\> Get-VirtualBoxVM -Name 2016 | Get-VirtualBoxVMStorageController
+
+Name           : SATA
+Bus            : SATA
+ControllerType : IntelAhci
+Bootable       : True
+
+Get all storage controllers by machine object from pipeline input
+.EXAMPLE
+PS C:\> Get-VirtualBoxVMStorageController -MachineName 2016
+
+Name           : SATA
+Bus            : SATA
+ControllerType : IntelAhci
+Bootable       : True
+
+Get all storage controllers for the 2016 Core machine by machine name
+.NOTES
+NAME        :  Get-VirtualBoxVMStorageController
+VERSION     :  1.0
+LAST UPDATED:  2/8/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+New-VirtualBoxDisk
+.INPUTS
+String[]      :  Strings for storage controller names
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+.OUTPUTS
+VirtualBoxVHD[]
+#>
+[cmdletbinding()]
+Param(
+[Parameter(HelpMessage="Enter one or more storage controller name(s)",
+Mandatory=$false,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(HelpMessage="Enter one or more storage controller bus(es)",
+Mandatory=$false)]
+[ValidateSet('IDE','SATA','SCSI','Floppy','SAS','USB','PCIe','VirtioSCSI')]
+  [string[]]$Bus,
+[Parameter(HelpMessage="Enter one or more storage controller type(s)",
+Mandatory=$false)]
+[ValidateSet('LsiLogic','BusLogic','IntelAhci','PIIX3','PIIX4','ICH6','I82078','LsiLogicSas','USB','NVMe','VirtioSCSI')]
+  [string[]]$ControllerType,
+[Parameter(ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)",
+Mandatory=$false,Position=1)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM[]]$Machine,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)",
+Mandatory=$false)]
+  [string[]]$MachineName,
+[Parameter(ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)",
+Mandatory=$false)]
+  [guid[]]$MachineGuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Bus: `"$Bus`""
+ Write-Verbose "Pipeline - ControllerType: `"$ControllerType`""
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - MachineName: `"$MachineName`""
+ Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $MachineName -or $MachineGuid)) {Write-Host "[Error] You must supply at least one virtual machine object, name, or GUID using supplied parameters.";return}
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($MachineName) {
+  foreach ($item in $MachineName) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($MachineGuid) {
+  foreach ($item in $MachineGuid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ $storagecontrollers = @()
+ $obj = @()
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   try {
+    # get storage controller inventory
+    Write-Verbose "Getting storage controller inventory for the $($imachine.Name) machine"
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     foreach ($istoragecontrollerid in $global:vbox.IMachine_getStorageControllers($imachine.Id)) {
+      Write-Verbose "Getting storage controller: $($istoragecontrollerid)"
+      $storagecontroller = New-Object IStorageControllers
+      $storagecontroller.Name = $global:vbox.IStorageController_getName($istoragecontrollerid)
+      $storagecontroller.MaxDevicesPerPortCount = $global:vbox.IStorageController_getMaxDevicesPerPortCount($istoragecontrollerid)
+      $storagecontroller.MinPortCount = $global:vbox.IStorageController_getMinPortCount($istoragecontrollerid)
+      $storagecontroller.MaxPortCount = $global:vbox.IStorageController_getMaxPortCount($istoragecontrollerid)
+      $storagecontroller.Instance = $global:vbox.IStorageController_getInstance($istoragecontrollerid)
+      $storagecontroller.PortCount = $global:vbox.IStorageController_getPortCount($istoragecontrollerid)
+      $storagecontroller.Bus = $global:vbox.IStorageController_getBus($istoragecontrollerid)
+      $storagecontroller.ControllerType = $global:vbox.IStorageController_getControllerType($istoragecontrollerid)
+      $storagecontroller.UseHostIOCache = $global:vbox.IStorageController_getUseHostIOCache($istoragecontrollerid)
+      $storagecontroller.Bootable = $global:vbox.IStorageController_getBootable($istoragecontrollerid)
+      $storagecontroller.Id = $istoragecontrollerid
+      [IStorageControllers[]]$storagecontrollers += [IStorageControllers]@{Name=$storagecontroller.Name;MaxDevicesPerPortCount=$storagecontroller.MaxDevicesPerPortCount;MinPortCount=$storagecontroller.MinPortCount;MaxPortCount=$storagecontroller.MaxPortCount;Instance=$storagecontroller.Instance;PortCount=$storagecontroller.PortCount;Bus=$storagecontroller.Bus;ControllerType=$storagecontroller.ControllerType;UseHostIOCache=$storagecontroller.UseHostIOCache;Bootable=$storagecontroller.Bootable;Id=$storagecontroller.Id}
+     } # end foreach loop inventory
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     foreach ($istoragecontroller in $imachine.ComObject.StorageControllers) {
+      Write-Verbose "Getting storage controller: $($istoragecontroller.Name)"
+      $storagecontroller = New-Object IStorageControllers
+      $storagecontroller.Name = $istoragecontroller.Name
+      $storagecontroller.MaxDevicesPerPortCount = $istoragecontroller.MaxDevicesPerPortCount
+      $storagecontroller.MinPortCount = $istoragecontroller.MinPortCount
+      $storagecontroller.MaxPortCount = $istoragecontroller.MaxPortCount
+      $storagecontroller.Instance = $istoragecontroller.Instance
+      $storagecontroller.PortCount = $istoragecontroller.PortCount
+      $storagecontroller.Bus = [StorageBus]::new().ToStr($istoragecontroller.Bus)
+      $storagecontroller.ControllerType = [StorageControllerType]::new().ToStr($istoragecontroller.ControllerType)
+      $storagecontroller.UseHostIOCache = $istoragecontroller.UseHostIOCache
+      $storagecontroller.Bootable = $istoragecontroller.Bootable
+      $storagecontroller.ComObject = $istoragecontroller
+      [IStorageControllers[]]$storagecontrollers += [IStorageControllers]@{Name=$storagecontroller.Name;MaxDevicesPerPortCount=$storagecontroller.MaxDevicesPerPortCount;MinPortCount=$storagecontroller.MinPortCount;MaxPortCount=$storagecontroller.MaxPortCount;Instance=$storagecontroller.Instance;PortCount=$storagecontroller.PortCount;Bus=$storagecontroller.Bus;ControllerType=$storagecontroller.ControllerType;UseHostIOCache=$storagecontroller.UseHostIOCache;Bootable=$storagecontroller.Bootable;ComObject=$storagecontroller.ComObject}
+     } # end foreach loop inventory
+    } # end elseif com
+   } # Try
+   catch {
+    Write-Verbose 'Exception retrieving storage controller information'
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+   } # Catch
+   # filter by storage controller name
+   if ($Name) {
+    foreach ($storagecontroller in $storagecontrollers) {
+     $matched = $false
+     Write-Verbose "Matching $($storagecontroller.Name) to $Name"
+     if ($storagecontroller.Name -match $Name) {Write-Verbose "Matched $($storagecontroller.Name) to $Name";$matched = $true}
+     if ($matched -eq $true) {[IStorageControllers[]]$obj += [IStorageControllers]@{Name=$storagecontroller.Name;MaxDevicesPerPortCount=$storagecontroller.MaxDevicesPerPortCount;MinPortCount=$storagecontroller.MinPortCount;MaxPortCount=$storagecontroller.MaxPortCount;Instance=$storagecontroller.Instance;PortCount=$storagecontroller.PortCount;Bus=$storagecontroller.Bus;ControllerType=$storagecontroller.ControllerType;UseHostIOCache=$storagecontroller.UseHostIOCache;Bootable=$storagecontroller.Bootable;Id=$storagecontroller.Id;ComObject=$storagecontroller.ComObject}}
+    } # foreach $storagecontroller in $storagecontrollers
+   } # end if $Name
+   # filter by storage controller bus
+   elseif ($Bus) {
+    foreach ($storagecontroller in $storagecontrollers) {
+     $matched = $false
+     Write-Verbose "Matching $($storagecontroller.Bus) to $Bus"
+     if ($storagecontroller.Bus -match $Bus) {Write-Verbose "Matched $($storagecontroller.Bus) to $Bus";$matched = $true}
+     if ($matched -eq $true) {[IStorageControllers[]]$obj += [IStorageControllers]@{Name=$storagecontroller.Name;MaxDevicesPerPortCount=$storagecontroller.MaxDevicesPerPortCount;MinPortCount=$storagecontroller.MinPortCount;MaxPortCount=$storagecontroller.MaxPortCount;Instance=$storagecontroller.Instance;PortCount=$storagecontroller.PortCount;Bus=$storagecontroller.Bus;ControllerType=$storagecontroller.ControllerType;UseHostIOCache=$storagecontroller.UseHostIOCache;Bootable=$storagecontroller.Bootable;Id=$storagecontroller.Id;ComObject=$storagecontroller.ComObject}}
+    } # foreach $storagecontroller in $storagecontrollers
+   } # end elseif $Bus
+   # filter by storage controller type
+   elseif ($ControllerType) {
+    foreach ($storagecontroller in $storagecontrollers) {
+     $matched = $false
+     Write-Verbose "Matching $($storagecontroller.ControllerType) to $ControllerType"
+     if ($storagecontroller.ControllerType -match $ControllerType) {Write-Verbose "Matched $($storagecontroller.ControllerType) to $ControllerType";$matched = $true}
+     if ($matched -eq $true) {[IStorageControllers[]]$obj += [IStorageControllers]@{Name=$storagecontroller.Name;MaxDevicesPerPortCount=$storagecontroller.MaxDevicesPerPortCount;MinPortCount=$storagecontroller.MinPortCount;MaxPortCount=$storagecontroller.MaxPortCount;Instance=$storagecontroller.Instance;PortCount=$storagecontroller.PortCount;Bus=$storagecontroller.Bus;ControllerType=$storagecontroller.ControllerType;UseHostIOCache=$storagecontroller.UseHostIOCache;Bootable=$storagecontroller.Bootable;Id=$storagecontroller.Id;ComObject=$storagecontroller.ComObject}}
+    } # foreach $storagecontroller in $storagecontrollers
+   } # end elseif $ControllerType
+   # no filter
+   elseif (!($Name -or $Bus -or $ControllerType)) {foreach ($storagecontroller in $storagecontrollers) {[IStorageControllers[]]$obj += [IStorageControllers]@{Name=$storagecontroller.Name;MaxDevicesPerPortCount=$storagecontroller.MaxDevicesPerPortCount;MinPortCount=$storagecontroller.MinPortCount;MaxPortCount=$storagecontroller.MaxPortCount;Instance=$storagecontroller.Instance;PortCount=$storagecontroller.PortCount;Bus=$storagecontroller.Bus;ControllerType=$storagecontroller.ControllerType;UseHostIOCache=$storagecontroller.UseHostIOCache;Bootable=$storagecontroller.Bootable;Id=$storagecontroller.Id;ComObject=$storagecontroller.ComObject}}}
+   else {Write-Verbose "[Warning] No storage controllers found"}
+   Write-Verbose "Found $(($obj | Measure-Object).count) storage controller(s)"
+   if ($obj) {
+    # write virtual machines object to the pipeline as an array
+    Write-Output ([System.Array]$obj)
+   } # end if $obj
+   else {
+    Write-Verbose "[Warning] No matching storage controllers found."
+   } # end else
+  } # foreach $imachine in $imachines
+ } # end if $imachines
+ else {Write-Host "[Error] No matching virtual machines found using specified parameters." -ForegroundColor Red -BackgroundColor Black}
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function New-VirtualBoxVMStorageController {
+<#
+.SYNOPSIS
+Create VirtualBox disk
+.DESCRIPTION
+Creates VirtualBox disks. The command will fail if a virtual disk with the same name exists in the VirtualBox inventory.
+.PARAMETER Name
+The virtual disk name.
+.PARAMETER Format
+The virtual disk format.
+.PARAMETER Location
+The location to store the virtual disk. If the path does not exist it will be created.
+.PARAMETER AccessMode
+Either Readonly or ReadWrite.
+.PARAMETER LogicalSize
+The size of the virtual disk in bytes.
+.PARAMETER VariantType
+The variant type of the virtual disk.
+.PARAMETER VariantFlag
+The variant flag of the virtual disk.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> New-VirtualBoxVMStorageController -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar
+
+Create a standard, fixed 4MB virtual disk named "TestDisk.vmdk" in the C:\Disks\ location and display a progress bar
+.NOTES
+NAME        :  New-VirtualBoxVMStorageController
+VERSION     :  1.0
+LAST UPDATED:  1/16/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisk
+.INPUTS
+String        :  String for virtual disk name
+String        :  String for virtual disk format
+String        :  String for virtual disk location
+String        :  String for virtual disk access mode
+UInt64        :  UInt64 for virtual disk size
+String        :  String for virtual disk variant type
+String        :  String for virtual disk variant flag
+.OUTPUTS
+None
+#>
+[cmdletbinding()]
+Param(
+[Parameter(HelpMessage="Enter the storage controller name",
+Mandatory=$true,Position=0)]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,
+HelpMessage="Enter a virtual machine object to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter the name of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter the GUID of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [guid]$MachineGuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+DynamicParam {
+ $CustomAttributes = New-Object System.Management.Automation.ParameterAttribute
+ $CustomAttributes.Mandatory = $true
+ $CustomAttributes.HelpMessage = 'Enter the storage bus for the virtual machine'
+ $StorageBusesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $StorageBusesCollection.Add($CustomAttributes)
+ $ValidateSetStorageBuses = New-Object System.Management.Automation.ValidateSetAttribute(@('SATA','IDE','SCSI','Floppy','SAS','USB','PCIe','VirtioSCSI'))
+ if ($global:systempropertiessupported.StorageBuses) {
+  $ValidateSetStorageBuses = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.StorageBuses)
+ }
+ $StorageBusesCollection.Add($ValidateSetStorageBuses)
+ $StorageBuses = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("StorageBus", [string], $StorageBusesCollection)
+ $CustomAttributes.HelpMessage = 'Enter the storage controller type for the virtual machine'
+ $StorageControllerTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $StorageControllerTypesCollection.Add($CustomAttributes)
+ $ValidateSetStorageControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('IntelAhci','PIIX4','PIIX3','ICH6','LsiLogic','BusLogic','I82078','LsiLogicSas','USB','NVMe','VirtioSCSI'))
+ if ($global:systempropertiessupported.StorageControllerTypes) {
+  $ValidateSetStorageControllerTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.StorageControllerTypes)
+ }
+ $StorageControllerTypesCollection.Add($ValidateSetStorageControllerTypes)
+ $StorageControllerTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("StorageControllerType", [string], $StorageControllerTypesCollection)
+ $paramDictionary = New-Object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+ $paramDictionary.Add("StorageBus", $StorageBuses)
+ $paramDictionary.Add("StorageControllerType", $StorageControllerTypes)
+ return $paramDictionary
+}
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ $StorageBus = $PSBoundParameters['StorageBus']
+ $StorageControllerType = $PSBoundParameters['StorageControllerType']
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - MachineName: `"$MachineName`""
+ Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
+ if (!($Machine -or $MachineName -or $MachineGuid)) {Write-Host "[Error] You must supply at least one machine object, name, or GUID using provided parameters." -ForegroundColor Red -BackgroundColor Black;return}
+ if ($Machine) {
+  $imachines = $Machine
+ } # get vm inventory (by $Machine)
+ elseif ($MachineName) {
+  $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+ } # get vm inventory (by $MachineName)
+ elseif ($MachineGuid) {
+  $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+ } # get vm inventory (by $MachineGuid)
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   if ($imachine.State -match 'PoweredOff') {
+    try {
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Getting write lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+      $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+      # create the storage controller on the current machine
+      Write-Verbose "Creating the $StorageBus storage controller $Name for the $($imachine.Name) machine"
+      $istoragecontroller = $global:vbox.IMachine_addStorageController($mmachine.Id, $Name, [StorageBus]::new().ToInt($StorageBus))
+      # set the storage controller type
+      Write-Verbose "Setting storage controller type to $StorageControllerType"
+      $global:vbox.IStorageController_setControllerType($istoragecontroller, [StorageControllerType]::new().ToInt($StorageControllerType))
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $global:vbox.IMachine_saveSettings($mmachine.Id)
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Getting write lock on machine $($imachine.Name)"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.ComObject = $imachine.ISession.Session.Machine
+      $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+      # create the storage controller on the current machine
+      Write-Verbose "Creating the $StorageBus storage controller $Name for the $($imachine.Name) machine"
+      $istoragecontroller = $mmachine.ComObject.AddStorageController($Name, [StorageBus]::new().ToInt($StorageBus))
+      # set the storage controller type
+      Write-Verbose "Setting storage controller type to $StorageControllerType"
+      $istoragecontroller.ControllerType = [StorageControllerType]::new().ToInt($StorageControllerType)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $mmachine.ComObject.SaveSettings()
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $imachine.ISession.Session.UnlockMachine()
+     } # end elseif com
+    } # Try
+    catch {
+     Write-Verbose 'Exception creating storage controller'
+     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+     Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+    } # Catch
+    finally {
+     # release mutable machine objects if they exist
+     if ($mmachine) {
+      if ($mmachine.ISession.Id) {
+       # release mutable session object
+       Write-Verbose "Releasing mutable session object"
+       $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+      }
+      if ($mmachine.ISession.Session) {
+       if ($mmachine.ISession.Session.State -gt 1) {
+        $mmachine.ISession.Session.UnlockMachine()
+       } # end if $mmachine.ISession.Session locked
+      } # end if $mmachine.ISession.Session
+      if ($mmachine.Id) {
+       # release mutable object
+       Write-Verbose "Releasing mutable object"
+       $global:vbox.IManagedObjectRef_release($mmachine.Id)
+      }
+     }
+     # obligatory session unlock
+     Write-Verbose 'Cleaning up machine sessions'
+     if ($imachines) {
+      foreach ($imachine in $imachines) {
+       if ($imachine.ISession.Id) {
+        if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+         Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+         $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+        } # end if session state not unlocked
+       } # end if $imachine.ISession.Id
+       if ($imachine.ISession.Session) {
+        if ($imachine.ISession.Session.State -gt 1) {
+         $imachine.ISession.Session.UnlockMachine()
+        } # end if $imachine.ISession.Session locked
+       } # end if $imachine.ISession.Session
+       if ($imachine.IConsole) {
+        # release the iconsole session
+        Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+        $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+       } # end if $imachine.IConsole
+       #$imachine.ISession.Id = $null
+       $imachine.IConsole = $null
+       if ($imachine.IPercent) {$imachine.IPercent = $null}
+       $imachine.MSession = $null
+       $imachine.MConsole = $null
+       $imachine.MMachine = $null
+      } # end foreach $imachine in $imachines
+     } # end if $imachines
+    } # Finally
+   } # end if machine powered off
+   else {Write-Host "[Error] The requested $($imachine.Name) machine is not powered off. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black}
+  } # foreach $imachine in $imachines
+ } # end if $imachines
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function New-VirtualBoxVMOpticalDrive {
+<#
+.SYNOPSIS
+Mount VirtualBox disc
+.DESCRIPTION
+Mounts VirtualBox discs. The command will fail if a virtual disc is already mounted to the specified virtual machine.
+.PARAMETER Disc
+At least one virtual disc object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to mount the disc to. This is a required parameter.
+.PARAMETER Controller
+The name of the storage controller to mount the disc to. This is a required parameter.
+.PARAMETER ControllerPort
+The port of the storage controller to mount the disc to. This is a required parameter.
+.PARAMETER ControllerSlot
+The slot of the storage controller to mount the disc to. This is a required parameter.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> New-VirtualBoxVMOpticalDrive -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
+
+Mounts the virtual disc named "TestDisc.vmdk" to the Win10 virtual machine SATA controller on port 0 slot 0
+.NOTES
+NAME        :  New-VirtualBoxVMOpticalDrive
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisc
+.INPUTS
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disc objects
+String[]       :  Strings for virtual disc names
+GUID[]         :  GUIDS for virtual disc GUIDS
+String         :  String for virtual machine name
+String         :  String for controller name
+Int            :  Integer for controller port
+Int            :  Integer for controller slot
+.OUTPUTS
+None
+#>
+[cmdletbinding()]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter a virtual disc object",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD]$Disc,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter a virtual disc name")]
+[ValidateNotNullorEmpty()]
+  [string]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter a virtual disc GUID")]
+[ValidateNotNullorEmpty()]
+  [guid]$Guid,
+[Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [guid]$MachineGuid,
+[Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to mount the disc to",
+ParameterSetName="HardDisc")]
+[ValidateNotNullorEmpty()]
+  [string]$Controller,
+[Parameter(Mandatory=$true,HelpMessage="Enter the port number to mount the disc to",
+ParameterSetName="HardDisc")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerPort,
+[Parameter(Mandatory=$true,HelpMessage="Enter the slot number to mount the disc to",
+ParameterSetName="HardDisc")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerSlot,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disc: `"$Disc`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Machine: `"$Machine`""
+ Write-Verbose "Machine Name: `"$MachineName`""
+ Write-Verbose "Machine Guid: `"$MachineGuid`""
+ Write-Verbose "Controller Name: `"$Controller`""
+ Write-Verbose "Controller Port: `"$ControllerPort`""
+ Write-Verbose "Controller Slot: `"$ControllerSlot`""
+ if (!($Machine -or $MachineName -or $MachineGuid)) {Write-Host "[Error] You must supply at least one machine object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disc) {
+  Write-Verbose "Getting disc inventory from Disc(s) object"
+  $imediums = $Disc
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get disc inventory (by $Disc)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disc inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisc -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get disc inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disc inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisc -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get vm inventory (by $Guid)
+ if ($Machine) {
+  $imachines = $Machine
+ } # get vm inventory (by $Machine)
+ elseif ($MachineName) {
+  $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+ } # get vm inventory (by $MachineName)
+ elseif ($MachineGuid) {
+  $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+ } # get vm inventory (by $MachineGuid)
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black;return}
+   if ($imediums) {
+    Write-Verbose "[Info] Found discs"
+    foreach ($imedium in $imediums) {
+     Write-Verbose "Found disc: $($imedium.Name)"
+     if ($imedium.MachineName) {
+      # make sure it's not already attached to the requested vm
+      foreach ($vmname in $imedium.MachineName) {
+       Write-Verbose "Disc attached to VM: $vmname"
+       if (Get-VirtualBoxDisc -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disc $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
+      } # foreach $vmname in $imedium.MachineName
+     } # end if $imedium.MachineName
+    } # foreach $imedium in $imediums
+   } # end if $imediums
+   try {
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     <#
+     #$istoragecontrollers = New-Object IStorageController
+     #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+     foreach ($istoragecontroller in $imachine.IStorageControllers) {
+      if ($istoragecontroller.Name -eq $Controller) {
+       if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       $controllerfound = $true
+      } # end if $istoragecontroller.Name -eq $Controller
+      if (!$controllerfound) {Write-Host "[Error] The controller $Controller was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
+     } # foreach $istoragecontroller in $imachine.IStorageControllers
+     #>
+     $storagecontrollers = Get-VirtualBoxVMStorageController -Name $Controller -Machine $imachine -SkipCheck
+     if (!$storagecontrollers) {Write-Host "[Error] The controller $Controller was not found on the $($imachine.Name) machine. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black}
+     else {
+      foreach ($storagecontroller in $storagecontrollers) {
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+       $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+       if ($imediums) {
+        foreach ($imedium in $imediums) {
+         # attach the disc drive with disc
+         Write-Verbose "Attaching optical drive to machine $($imachine.Name) and mounting $($imedium.Name)"
+         $global:vbox.IMachine_attachDevice($mmachine.Id, $storagecontroller.Name, $ControllerPort, $ControllerSlot, [DeviceType]::new().ToULong('DVD'), $imedium.Id)
+        } # foreach $imedium in $imediums
+       } # end if $imediums
+       else {
+        # attach the disc drive
+        Write-Verbose "Attaching optical drive $($imedium.Name) to machine $($imachine.Name)" 
+        $global:vbox.IMachine_attachDeviceWithoutMedium($mmachine.Id, $storagecontroller.Name, $ControllerPort, $ControllerSlot, [DeviceType]::new().ToULong('DVD'))
+       } # end else
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $global:vbox.IMachine_saveSettings($mmachine.Id)
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # foreach $storagecontroller in $storagecontrollers
+     } # end else
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     <#
+     $istoragecontrollers = $imachine.ComObject.StorageControllers
+     foreach ($istoragecontroller in $istoragecontrollers) {
+      if ($istoragecontroller.Name -eq $Controller) {
+       if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       $controllerfound = $true
+      } # end if $istoragecontroller.Name -eq $Controller
+      if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
+     } # foreach $istoragecontroller in $istoragecontrollers
+     #>
+     $storagecontrollers = Get-VirtualBoxVMStorageController -Name $Controller -Machine $imachine -SkipCheck
+     if (!$storagecontrollers) {Write-Host "[Error] The controller $Controller was not found on the $($imachine.Name) machine. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black}
+     else {
+      foreach ($storagecontroller in $storagecontrollers) {
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.ComObject = $imachine.ISession.Session.Machine
+       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+       if ($imediums) {
+        foreach ($imedium in $imediums) {
+         # wait for the disc to become available
+         Write-Verbose "Waiting for the disc to become available"
+         do {} until ($imedium.ComObject.State -eq 1)
+         # attach the disc drive with disc
+         Write-Verbose "Attaching optical drive to machine $($imachine.Name) and mounting $($imedium.Name)"
+         $mmachine.ComObject.AttachDevice($storagecontroller.Name, $ControllerPort, $ControllerSlot, [DeviceType]::new().ToULong('DVD'), $imedium.ComObject)
+        } # foreach $imedium in $imediums
+       } # end if $imediums
+       else {
+        # attach the disc drive
+        Write-Verbose "Attaching optical drive $($imedium.Name) to machine $($imachine.Name)"
+        $mmachine.ComObject.AttachDeviceWithoutMedium($storagecontroller.Name, $ControllerPort, $ControllerSlot, [DeviceType]::new().ToULong('DVD'))
+       } # end else
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $mmachine.ComObject.SaveSettings()
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $imachine.ISession.Session.UnlockMachine()
+      } # foreach $storagecontroller in $storagecontrollers
+     } # end else
+    } # end elseif com
+   } # Try
+   catch {
+    Write-Verbose 'Exception mounting virtual disc'
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+   } # Catch
+   finally {
+    # release mutable machine objects if they exist
+    if ($mmachine) {
+     if ($mmachine.ISession.Id) {
+      # release mutable session object
+      Write-Verbose "Releasing mutable session object"
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+     }
+     if ($mmachine.ISession.Session) {
+      if ($mmachine.ISession.Session.State -gt 1) {
+       $mmachine.ISession.Session.UnlockMachine()
+      } # end if $mmachine.ISession.Session locked
+     } # end if $mmachine.ISession.Session
+     if ($mmachine.Id) {
+      # release mutable object
+      Write-Verbose "Releasing mutable object"
+      $global:vbox.IManagedObjectRef_release($mmachine.Id)
+     }
+    }
+    # obligatory session unlock
+    Write-Verbose 'Cleaning up machine sessions'
+    if ($imachines) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.ISession.Id) {
+       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+       } # end if session state not unlocked
+      } # end if $imachine.ISession.Id
+      if ($imachine.ISession.Session) {
+       if ($imachine.ISession.Session.State -gt 1) {
+        $imachine.ISession.Session.UnlockMachine()
+       } # end if $imachine.ISession.Session locked
+      } # end if $imachine.ISession.Session
+      if ($imachine.IConsole) {
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+      } # end if $imachine.IConsole
+      #$imachine.ISession.Id = $null
+      $imachine.IConsole = $null
+      if ($imachine.IPercent) {$imachine.IPercent = $null}
+      $imachine.MSession = $null
+      $imachine.MConsole = $null
+      $imachine.MMachine = $null
+     } # end foreach $imachine in $imachines
+    } # end if $imachines
+   } # Finally
+  } # foreach $imachine in $imachines
+ } # end if $imachines
+ else {Write-Host "[Error] No machines found using specified filters." -ForegroundColor Red -BackgroundColor Black;return}
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Remove-VirtualBoxVMOpticalDrive {
+<#
+.SYNOPSIS
+Dismount VirtualBox disc
+.DESCRIPTION
+Dismounts VirtualBox discs. The command will fail if the virtual disc is not attached to the specified virtual machine.
+.PARAMETER Disc
+At least one virtual disc object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to dismount the disc from. This is a required parameter.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Remove-VirtualBoxVMOpticalDrive -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
+
+Dismounts the virtual disc named "TestDisc.vmdk" from the Win10 virtual machine SATA controller on port 0 slot 0
+.NOTES
+NAME        :  Remove-VirtualBoxVMOpticalDrive
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisc
+.INPUTS
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disc objects
+String[]       :  Strings for virtual disc names
+GUID[]         :  GUIDS for virtual disc GUIDS
+String         :  String for virtual machine name
+String         :  String for controller name
+Int            :  Integer for controller port
+Int            :  Integer for controller slot
+.OUTPUTS
+None
+#>
+[cmdletbinding(SupportsShouldProcess,ConfirmImpact='High')]
+Param(
+[Parameter(Mandatory=$false,HelpMessage="Enter a storage controller name")]
+[ValidateNotNullorEmpty()]
+  [string]$Controller,
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,
+HelpMessage="Enter a virtual machine object to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter the name of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter the GUID of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [guid]$MachineGuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - MachineName: `"$MachineName`""
+ Write-Verbose "Pipeline - MachineGuid: `"$MachineGuid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if ($Machine) {
+  $imachines = $Machine
+ } # get vm inventory (by $Machine)
+ elseif ($MachineName) {
+  $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+ } # get vm inventory (by $MachineName)
+ elseif ($MachineGuid) {
+  $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+ } # get vm inventory (by $MachineGuid)
+ elseif ($Machine -or $MachineName -or $MachineGuid -and !$imachines) {
+  Write-Verbose "[Warning] No machines found using provided filters. Matching all machines."
+  $imachines = Get-VirtualBoxVM -SkipCheck
+ } # get vm inventory (fallback)
+ if (!$imachines) {$imachines = Get-VirtualBoxVM -SkipCheck}
+ try {
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black}
+    if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
+     if ($ModuleHost.ToLower() -eq 'websrv') {
+      Write-Verbose "Getting medium attachment information"
+      $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Controller -match $Controller} | Where-Object {$_.Type -match 'DVD'}
+      Write-Verbose "Getting write lock on machine $($imachine.Name)"
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+      $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+      Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
+      $global:vbox.IMachine_detachDevice($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $global:vbox.IMachine_saveSettings($mmachine.Id)
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+     } # end if websrv
+     elseif ($ModuleHost.ToLower() -eq 'com') {
+      Write-Verbose "Getting medium attachment information"
+      $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Controller -match $Controller} | Where-Object {$_.Type -match [DeviceType]::new().ToULong('DVD')}
+      Write-Verbose "Getting write lock on machine $($imachine.Name)"
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+      # create a new machine object
+      $mmachine = New-Object VirtualBoxVM
+      # get the mutable machine object
+      Write-Verbose "Getting the mutable machine object"
+      $mmachine.ComObject = $imachine.ISession.Session.Machine
+      $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+      Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
+      Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+      Write-Verbose "Port: `"$($imediumattachment.Port)`""
+      Write-Verbose "Device: `"$($imediumattachment.Device)`""
+      $mmachine.ComObject.DetachDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)
+      # save new settings
+      Write-Verbose "Saving new settings"
+      $mmachine.ComObject.SaveSettings()
+      # unlock machine session
+      Write-Verbose "Unlocking machine session"
+      $imachine.ISession.Session.UnlockMachine()
+     } # end elseif com
+    } # end if $PSCmdlet.ShouldProcess(
+   } # foreach $imachine in $imachines
+  } # end if $imachines
+ } # Try
+ catch {
+  Write-Verbose 'Exception dismounting virtual disc'
+  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+ } # Catch
+ finally {
+  # release mutable machine objects if they exist
+  if ($mmachine) {
+   if ($mmachine.ISession.Id) {
+    # release mutable session object
+    Write-Verbose "Releasing mutable session object"
+    $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+   }
+   if ($mmachine.ISession.Session) {
+    if ($mmachine.ISession.Session.State -gt 1) {
+     $mmachine.ISession.Session.UnlockMachine()
+    } # end if $mmachine.ISession.Session locked
+   } # end if $mmachine.ISession.Session
+   if ($mmachine.Id) {
+    # release mutable object
+    Write-Verbose "Releasing mutable object"
+    $global:vbox.IManagedObjectRef_release($mmachine.Id)
+   }
+  }
+  # obligatory session unlock
+  Write-Verbose 'Cleaning up machine sessions'
+  if ($imachines) {
+   foreach ($imachine in $imachines) {
+    if ($imachine.ISession.Id) {
+     if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+      Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+      $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+     } # end if session state not unlocked
+    } # end if $imachine.ISession.Id
+    if ($imachine.ISession.Session) {
+     if ($imachine.ISession.Session.State -gt 1) {
+      $imachine.ISession.Session.UnlockMachine()
+     } # end if $imachine.ISession.Session locked
+    } # end if $imachine.ISession.Session
+    if ($imachine.IConsole) {
+     # release the iconsole session
+     Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+     $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+    } # end if $imachine.IConsole
+    #$imachine.ISession.Id = $null
+    $imachine.IConsole = $null
+    if ($imachine.IPercent) {$imachine.IPercent = $null}
+    $imachine.MSession = $null
+    $imachine.MConsole = $null
+    $imachine.MMachine = $null
+   } # end foreach $imachine in $imachines
+  } # end if $imachines
+ } # Finally
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -4798,7 +6758,7 @@ Process {
  catch {
   Write-Verbose 'Exception setting guest property'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -4932,7 +6892,7 @@ Process {
  catch {
   Write-Verbose 'Exception removing guest property'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -5040,7 +7000,7 @@ Process {
     if ($imachine.IVrdeServer.Enabled -eq $false) {
      if ($ModuleHost.ToLower() -eq 'websrv') {
       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
       # create a new machine object
       $mmachine = New-Object VirtualBoxVM
       # get the mutable machine object
@@ -5066,7 +7026,7 @@ Process {
      } # end if websrv
      elseif ($ModuleHost.ToLower() -eq 'com') {
       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
       # create a new machine object
       $mmachine = New-Object VirtualBoxVM
       # get the mutable machine object
@@ -5095,7 +7055,7 @@ Process {
  catch {
   Write-Verbose 'Exception enabling VRDE server'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -5233,7 +7193,7 @@ Process {
     if ($imachine.IVrdeServer.Enabled -eq $true) {
      if ($ModuleHost.ToLower() -eq 'websrv') {
       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
       # create a new machine object
       $mmachine = New-Object VirtualBoxVM
       # get the mutable machine object
@@ -5259,7 +7219,7 @@ Process {
      } # end if websrv
      elseif ($ModuleHost.ToLower() -eq 'com') {
       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
       # create a new machine object
       $mmachine = New-Object VirtualBoxVM
       # get the mutable machine object
@@ -5288,7 +7248,7 @@ Process {
  catch {
   Write-Verbose 'Exception disabling VRDE server'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -5560,7 +7520,7 @@ Process {
     if ($imachine.IVrdeServer.Enabled -eq $true) {
      if ($ModuleHost.ToLower() -eq 'websrv') {
       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+      $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
       # create a new machine object
       $mmachine = New-Object VirtualBoxVM
       # get the mutable machine object
@@ -5643,7 +7603,7 @@ Process {
      } # end if websrv
      elseif ($ModuleHost.ToLower() -eq 'com') {
       Write-Verbose "Getting shared lock on machine $($imachine.Name)"
-      $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+      $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
       # create a new machine object
       $mmachine = New-Object VirtualBoxVM
       # get the mutable machine object
@@ -5652,7 +7612,7 @@ Process {
       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
       # apply custom settings as requested
       Write-Verbose "Processing VRDE server setting: AuthType"
-      if ($AuthType) {$mmachine.ComObject.VRDEServer.AuthType = ($global:authtype.ToInt($AuthType)).ToString()}
+      if ($AuthType) {$mmachine.ComObject.VRDEServer.AuthType = ([AuthType]::new().ToInt($AuthType)).ToString()}
       Write-Verbose "Processing VRDE server setting: AuthTimeout"
       if ($MyInvocation.BoundParameters.Keys -contains 'AuthTimeout') {$mmachine.ComObject.VRDEServer.AuthTimeout = $AuthTimeout}
       Write-Verbose "Processing VRDE server setting: AllowMultiConnection"
@@ -5729,7 +7689,7 @@ Process {
  catch {
   Write-Verbose 'Exception editing VRDE server'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -6140,46 +8100,46 @@ ParameterSetName="Custom",Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 DynamicParam {
- $CustomAttributes = new-object System.Management.Automation.ParameterAttribute
+ $CustomAttributes = New-Object System.Management.Automation.ParameterAttribute
  $CustomAttributes.Mandatory = $false
  $CustomAttributes.ParameterSetName = 'Custom'
  $CustomAttributes.HelpMessage = 'Enter custom type ID for the virtual machine guest OS'
- $OsTypeIdCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $OsTypeIdCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $OsTypeIdCollection.Add($CustomAttributes)
  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute(@('Other','Other_64','Windows31','Windows95','Windows98','WindowsMe','WindowsNT3x','WindowsNT4','Windows2000','WindowsXP','WindowsXP_64','Windows2003','Windows2003_64','WindowsVista','WindowsVista_64','Windows2008','Windows2008_64','Windows7','Windows7_64','Windows8','Windows8_64','Windows81','Windows81_64','Windows2012_64','Windows10','Windows10_64','Windows2016_64','Windows2019_64','WindowsNT','WindowsNT_64','Linux22','Linux24','Linux24_64','Linux26','Linux26_64','ArchLinux','ArchLinux_64','Debian','Debian_64','Fedora','Fedora_64','Gentoo','Gentoo_64','Mandriva','Mandriva_64','Oracle','Oracle_64','RedHat','RedHat_64','OpenSUSE','OpenSUSE_64','Turbolinux','Turbolinux_64','Ubuntu','Ubuntu_64','Xandros','Xandros_64','Linux','Linux_64','Solaris','Solaris_64','OpenSolaris','OpenSolaris_64','Solaris11_64','FreeBSD','FreeBSD_64','OpenBSD','OpenBSD_64','NetBSD','NetBSD_64','OS2Warp3','OS2Warp4','OS2Warp45','OS2eCS','OS21x','OS2','MacOS','MacOS_64','MacOS106','MacOS106_64','MacOS107_64','MacOS108_64','MacOS109_64','MacOS1010_64','MacOS1011_64','MacOS1012_64','MacOS1013_64','DOS','Netware','L4','QNX','JRockitVE','VBoxBS_64'))
  if ($global:guestostype.id) {
   $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:guestostype.id)
  }
  $OsTypeIdCollection.Add($ValidateSetOsTypeId)
- $OsTypeId = new-object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
+ $OsTypeId = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
  $CustomAttributes.HelpMessage = 'Enter custom number of CPUs available to the virtual machine'
- $CpuCountCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $CpuCountCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $CpuCountCollection.Add($CustomAttributes)
  $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute(1, 32)
  if ($global:systempropertiessupported.MinGuestCPUCount -and $global:systempropertiessupported.MaxGuestCPUCount) {
   $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestCPUCount, $global:systempropertiessupported.MaxGuestCPUCount)
  }
  $CpuCountCollection.Add($ValidateSetCpuCount)
- $CpuCount = new-object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
+ $CpuCount = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
  $CustomAttributes.HelpMessage = 'Enter custom memory size in MB for the virtual machine'
- $MemorySizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemorySizeCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $MemorySizeCollection.Add($CustomAttributes)
  $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
  if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
   $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
  }
  $MemorySizeCollection.Add($ValidateSetMemorySize)
- $MemorySize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
+ $MemorySize = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
  $CustomAttributes.HelpMessage = 'Enter custom firmware type for the virtual machine'
- $FirmwareTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $FirmwareTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $FirmwareTypesCollection.Add($CustomAttributes)
  $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('BIOS','EFI','EFI32','EFI64','EFIDUAL'))
  if ($global:systempropertiessupported.FirmwareTypes) {
   $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.FirmwareTypes)
  }
  $FirmwareTypesCollection.Add($ValidateSetFirmwareTypes)
- $FirmwareTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
- $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+ $FirmwareTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
+ $paramDictionary = New-Object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
  $paramDictionary.Add("OsTypeId", $OsTypeId)
  $paramDictionary.Add("CpuCount", $CpuCount)
  $paramDictionary.Add("MemorySize", $MemorySize)
@@ -6437,7 +8397,7 @@ Process {
    } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
    # import the machine to inventory
    Write-Verbose "Importing machine to VirtualBox inventory"
-   $imachine.IProgress.Id = $global:vbox.IAppliance_importMachines($iappliance, $global:importoptions.ToInt($ImportOptions))
+   $imachine.IProgress.Id = $global:vbox.IAppliance_importMachines($iappliance, [ImportOptions]::new().ToInt($ImportOptions))
    # collect iprogress data
    Write-Verbose "Fetching IProgress data"
    $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
@@ -6689,7 +8649,7 @@ Process {
    } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
    # import the machine to inventory
    Write-Verbose "Importing machine to VirtualBox inventory"
-   $imachine.IProgress.Progress = $iappliance.ImportMachines($global:importoptions.ToInt($ImportOptions))
+   $imachine.IProgress.Progress = $iappliance.ImportMachines([ImportOptions]::new().ToInt($ImportOptions))
    if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
    do {
     # update iprogress data
@@ -6702,7 +8662,7 @@ Process {
  catch {
   Write-Verbose 'Exception importing OVF'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -7053,46 +9013,46 @@ ParameterSetName="Custom",Mandatory=$false)]
   [switch]$SkipCheck
 ) # Param
 DynamicParam {
- $CustomAttributes = new-object System.Management.Automation.ParameterAttribute
+ $CustomAttributes = New-Object System.Management.Automation.ParameterAttribute
  $CustomAttributes.Mandatory = $false
  $CustomAttributes.ParameterSetName = 'Custom'
  $CustomAttributes.HelpMessage = 'Enter custom type ID for the virtual machine guest OS'
- $OsTypeIdCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $OsTypeIdCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $OsTypeIdCollection.Add($CustomAttributes)
  $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute(@('Other','Other_64','Windows31','Windows95','Windows98','WindowsMe','WindowsNT3x','WindowsNT4','Windows2000','WindowsXP','WindowsXP_64','Windows2003','Windows2003_64','WindowsVista','WindowsVista_64','Windows2008','Windows2008_64','Windows7','Windows7_64','Windows8','Windows8_64','Windows81','Windows81_64','Windows2012_64','Windows10','Windows10_64','Windows2016_64','Windows2019_64','WindowsNT','WindowsNT_64','Linux22','Linux24','Linux24_64','Linux26','Linux26_64','ArchLinux','ArchLinux_64','Debian','Debian_64','Fedora','Fedora_64','Gentoo','Gentoo_64','Mandriva','Mandriva_64','Oracle','Oracle_64','RedHat','RedHat_64','OpenSUSE','OpenSUSE_64','Turbolinux','Turbolinux_64','Ubuntu','Ubuntu_64','Xandros','Xandros_64','Linux','Linux_64','Solaris','Solaris_64','OpenSolaris','OpenSolaris_64','Solaris11_64','FreeBSD','FreeBSD_64','OpenBSD','OpenBSD_64','NetBSD','NetBSD_64','OS2Warp3','OS2Warp4','OS2Warp45','OS2eCS','OS21x','OS2','MacOS','MacOS_64','MacOS106','MacOS106_64','MacOS107_64','MacOS108_64','MacOS109_64','MacOS1010_64','MacOS1011_64','MacOS1012_64','MacOS1013_64','DOS','Netware','L4','QNX','JRockitVE','VBoxBS_64'))
  if ($global:guestostype.id) {
   $ValidateSetOsTypeId = New-Object System.Management.Automation.ValidateSetAttribute($global:guestostype.id)
  }
  $OsTypeIdCollection.Add($ValidateSetOsTypeId)
- $OsTypeId = new-object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
+ $OsTypeId = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("OsTypeId", [string], $OsTypeIdCollection)
  $CustomAttributes.HelpMessage = 'Enter custom number of CPUs available to the virtual machine'
- $CpuCountCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $CpuCountCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $CpuCountCollection.Add($CustomAttributes)
  $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute(1, 32)
  if ($global:systempropertiessupported.MinGuestCPUCount -and $global:systempropertiessupported.MaxGuestCPUCount) {
   $ValidateSetCpuCount = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestCPUCount, $global:systempropertiessupported.MaxGuestCPUCount)
  }
  $CpuCountCollection.Add($ValidateSetCpuCount)
- $CpuCount = new-object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
+ $CpuCount = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("CpuCount", [uint64], $CpuCountCollection)
  $CustomAttributes.HelpMessage = 'Enter custom memory size in MB for the virtual machine'
- $MemorySizeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $MemorySizeCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $MemorySizeCollection.Add($CustomAttributes)
  $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute(4, 2097152)
  if ($global:systempropertiessupported.MinGuestRam -and $global:systempropertiessupported.MaxGuestRam) {
   $ValidateSetMemorySize = New-Object System.Management.Automation.ValidateRangeAttribute($global:systempropertiessupported.MinGuestRam, $global:systempropertiessupported.MaxGuestRam)
  }
  $MemorySizeCollection.Add($ValidateSetMemorySize)
- $MemorySize = new-object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
+ $MemorySize = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("MemorySize", [uint64], $MemorySizeCollection)
  $CustomAttributes.HelpMessage = 'Enter custom firmware type for the virtual machine'
- $FirmwareTypesCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+ $FirmwareTypesCollection = New-Object -Type System.Collections.ObjectModel.Collection[System.Attribute]
  $FirmwareTypesCollection.Add($CustomAttributes)
  $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute(@('BIOS','EFI','EFI32','EFI64','EFIDUAL'))
  if ($global:systempropertiessupported.FirmwareTypes) {
   $ValidateSetFirmwareTypes = New-Object System.Management.Automation.ValidateSetAttribute($global:systempropertiessupported.FirmwareTypes)
  }
  $FirmwareTypesCollection.Add($ValidateSetFirmwareTypes)
- $FirmwareTypes = new-object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
- $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+ $FirmwareTypes = New-Object -Type System.Management.Automation.RuntimeDefinedParameter("FirmwareType", [string], $FirmwareTypesCollection)
+ $paramDictionary = New-Object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
  $paramDictionary.Add("OsTypeId", $OsTypeId)
  $paramDictionary.Add("CpuCount", $CpuCount)
  $paramDictionary.Add("MemorySize", $MemorySize)
@@ -7348,7 +9308,7 @@ Process {
      } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
      # export the machine to disk
      Write-Verbose "Writing OVF to disk"
-     $imachine.IProgress.Id = $global:vbox.IAppliance_write($iappliance, $OvfFormat, $global:exportoptions.ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
+     $imachine.IProgress.Id = $global:vbox.IAppliance_write($iappliance, $OvfFormat, [ExportOptions]::new().ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
      # collect iprogress data
      Write-Verbose "Fetching IProgress data"
      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
@@ -7568,7 +9528,7 @@ Process {
      } # foreach $ivirtualsystemdescription in $ivirtualsystemdescriptions
      # export the machine to disk
      Write-Verbose "Writing OVF to disk"
-     $imachine.IProgress.Progress = $iappliance.Write($OvfFormat, $global:exportoptions.ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
+     $imachine.IProgress.Progress = $iappliance.Write($OvfFormat, [ExportOptions]::new().ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
      if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
      do {
       # update iprogress data
@@ -7584,7 +9544,7 @@ Process {
  catch {
   Write-Verbose 'Exception exporting OVF'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -7838,12 +9798,15 @@ Process {
       $disk.MachineName = $disk.MachineName | Where-Object {$_ -ne $null}
      } # foreach $imachine in $imachines
     } # foreach $machineid in $disk.MachineGuid
-    $disk.State = $imedium.State
-    $disk.Variant = $imedium.Variant
+    $disk.State = [MediumState]::new().ToStr($imedium.State)
+    $disk.Variant = @()
+    foreach ($variant in $imedium.Variant) {
+     $disk.Variant += [MediumVariant]::new().ToStrCom($variant)
+    }
+    $disk.Variant = $disk.Variant | Where-Object {$_ -ne $null}
     $disk.Location = $imedium.Location
     $disk.HostDrive = $imedium.HostDrive
-    $disk.MediumFormat = $imedium.MediumFormat.Name
-    $disk.Type = $imedium.Type
+    $disk.Type = [MediumType]::new().ToStr($imedium.Type)
     if ($imedium.Parent) {$disk.Parent = $imedium.Parent.Name}
     if ($imedium.Children) {$disk.Children = $imedium.Children.Name}
     $disk.ComObject = $imedium
@@ -7857,7 +9820,7 @@ Process {
  catch {
   Write-Verbose 'Exception retrieving virtual disk information'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  if ($PSCmdlet.ParameterSetName -eq "Disk") {
   # filter by disk name
@@ -8069,14 +10032,14 @@ Process {
   if ($ModuleHost.ToLower() -eq 'websrv') {
    Write-Verbose "Creating medium"
    Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
-   Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
-   Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
-   $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+   Write-Verbose "AccessMode: `"$($AccessMode)`" ($([AccessMode]::new().ToULong($AccessMode)))"
+   Write-Verbose "DeviceType: `"$('HardDisk')`" ($([DeviceType]::new().ToULong('HardDisk')))"
+   $imedium.Id = $global:vbox.IVirtualBox_createMedium($global:ivbox, $Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), [AccessMode]::new().ToULong($AccessMode), [DeviceType]::new().ToULong('HardDisk'))
    Write-Verbose "Creating base storage"
    Write-Verbose "LogicalSize: `"$($LogicalSize)`""
-   Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
-   Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
-   $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+   Write-Verbose "VariantType: `"$($VariantType)`" ($([MediumVariant]::new().ToInt($VariantType)))"
+   Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($([MediumVariant]::new().ToInt($VariantFlag)))"
+   $imedium.IProgress.Id = $global:vbox.IMedium_createBaseStorage($imedium.Id, $LogicalSize, @([MediumVariant]::new().ToInt($VariantType), [MediumVariant]::new().ToInt($VariantFlag)))
    # collect iprogress data
    Write-Verbose "Fetching IProgress data"
    $imedium.IProgress = $imedium.IProgress.Fetch($imedium.IProgress.Id)
@@ -8094,15 +10057,15 @@ Process {
    Write-Verbose "Creating medium"
    Write-Verbose "Path: `"$(Join-Path -ChildPath "$Name.$Ext" -Path $Location)`""
    Write-Verbose "Format: `"$($Format)`""
-   Write-Verbose "AccessMode: `"$($AccessMode)`" ($($global:accessmode.ToULong($AccessMode)))"
-   Write-Verbose "DeviceType: `"$('HardDisk')`" ($($global:devicetype.ToULong('HardDisk')))"
-   $newdisk = $global:vbox.CreateMedium($Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), $global:accessmode.ToULong($AccessMode), $global:devicetype.ToULong('HardDisk'))
+   Write-Verbose "AccessMode: `"$($AccessMode)`" ($([AccessMode]::new().ToULong($AccessMode)))"
+   Write-Verbose "DeviceType: `"$('HardDisk')`" ($([DeviceType]::new().ToULong('HardDisk')))"
+   $newdisk = $global:vbox.CreateMedium($Format, (Join-Path -ChildPath "$Name.$Ext" -Path $Location), [AccessMode]::new().ToULong($AccessMode), [DeviceType]::new().ToULong('HardDisk'))
    $imedium.ComObject = $newdisk
    Write-Verbose "Creating base storage"
    Write-Verbose "LogicalSize: `"$($LogicalSize)`""
-   Write-Verbose "VariantType: `"$($VariantType)`" ($($global:mediumvariant.ToULong($VariantType)))"
-   Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($($global:mediumvariant.ToULong($VariantFlag)))"
-   $imedium.IProgress.Progress = $newdisk.CreateBaseStorage($LogicalSize, [int[]]@($global:mediumvariant.ToULong($VariantType), $global:mediumvariant.ToULong($VariantFlag)))
+   Write-Verbose "VariantType: `"$($VariantType)`" ($([MediumVariant]::new().ToInt($VariantType)))"
+   Write-Verbose "VariantFlag: `"$($VariantFlag)`" ($([MediumVariant]::new().ToInt($VariantFlag)))"
+   $imedium.IProgress.Progress = $newdisk.CreateBaseStorage($LogicalSize, [int[]]@([MediumVariant]::new().ToInt($VariantType), [MediumVariant]::new().ToInt($VariantFlag)))
    if ($ProgressBar) {Write-Progress -Activity "Creating virtual disk $($imedium.Name)" -status "$($imedium.IProgress.Progress.Description): $($imedium.IProgress.Progress.Percent)%" -percentComplete ($imedium.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imedium.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imedium.IProgress.Progress.TimeRemaining)}
    do {
     # update iprogress data
@@ -8115,7 +10078,7 @@ Process {
  catch {
   Write-Verbose 'Exception creating virtual disk'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -8198,16 +10161,16 @@ Process {
  try {
   $imedium = New-Object VirtualBoxVHD
   if ($ModuleHost.ToLower() -eq 'websrv') {
-   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('HardDisk'), $global:accessmode.ToULong($AccessMode), $(if ($ForceNewUuid) {$true} else {$false}))
+   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, [DeviceType]::new().ToULong('HardDisk'), [AccessMode]::new().ToULong($AccessMode), $(if ($ForceNewUuid) {$true} else {$false}))
   } # end if websrv
   elseif ($ModuleHost.ToLower() -eq 'com') {
-   $imedium.ComObject = $global:vbox.OpenMedium($FileName, $global:devicetype.ToULong('HardDisk'), $global:accessmode.ToULong($AccessMode), $(if ($ForceNewUuid) {1} else {0}))
+   $imedium.ComObject = $global:vbox.OpenMedium($FileName, [DeviceType]::new().ToULong('HardDisk'), [AccessMode]::new().ToULong($AccessMode), $(if ($ForceNewUuid) {1} else {0}))
   } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception importing virtual disk'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -8315,6 +10278,7 @@ Process {
   }
   $imediums = $imediums | Where-Object {$_ -ne $null}
  }# get vm inventory (by $Guid)
+ $imediums = $imediums | Where-Object {$_.Format -notmatch 'RAW'}
  if ($imediums) {
   Write-Verbose "[Info] Found disks"
   try {
@@ -8372,7 +10336,7 @@ Process {
   catch {
    Write-Verbose 'Exception removing virtual disk'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   finally {
    # cleanup
@@ -8445,13 +10409,13 @@ HelpMessage="Enter one or more virtual disk GUID(s)")]
   [guid[]]$Guid,
 [Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
 [ValidateNotNullorEmpty()]
-  [string]$Machine,
+  [VirtualBoxVM]$Machine,
 [Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disk from")]
 [ValidateNotNullorEmpty()]
   [string]$MachineName,
 [Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disk from")]
 [ValidateNotNullorEmpty()]
-  [string]$MachineGuid,
+  [guid]$MachineGuid,
 [Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to mount the disk to",
 ParameterSetName="HardDisk")]
 [ValidateNotNullorEmpty()]
@@ -8515,6 +10479,7 @@ Process {
   }
   $imediums = $imediums | Where-Object {$_ -ne $null}
  } # get vm inventory (by $Guid)
+ $imediums = $imediums | Where-Object {$_.Format -notmatch 'RAW'}
  if ($imediums) {
   Write-Verbose "[Info] Found disks"
   try {
@@ -8538,20 +10503,20 @@ Process {
     } # get vm inventory (by $MachineGuid)
     if ($imachines) {
      foreach ($imachine in $imachines) {
-      if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black;return}
+      if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black;return}
       if ($ModuleHost.ToLower() -eq 'websrv') {
        #$istoragecontrollers = New-Object IStorageController
        #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
        foreach ($istoragecontroller in $imachine.IStorageControllers) {
         if ($istoragecontroller.Name -eq $Controller) {
-         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
          $controllerfound = $true
         } # end if $istoragecontroller.Name -eq $Controller
-        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
        } # foreach $istoragecontroller in $imachine.IStorageControllers
        Write-Verbose "Getting write lock on machine $($imachine.Name)"
-       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
        # create a new machine object
        $mmachine = New-Object VirtualBoxVM
        # get the mutable machine object
@@ -8560,7 +10525,7 @@ Process {
        $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
        # attach the disk
        Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-       $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.Id)
+       $global:vbox.IMachine_attachDevice($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, [DeviceType]::new().ToULong('HardDisk'), $imedium.Id)
        # save new settings
        Write-Verbose "Saving new settings"
        $global:vbox.IMachine_saveSettings($mmachine.Id)
@@ -8572,14 +10537,14 @@ Process {
        $istoragecontrollers = $imachine.ComObject.StorageControllers
        foreach ($istoragecontroller in $istoragecontrollers) {
         if ($istoragecontroller.Name -eq $Controller) {
-         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
          $controllerfound = $true
         } # end if $istoragecontroller.Name -eq $Controller
-        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again and try again." -ForegroundColor Red -BackgroundColor Black;return}
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
        } # foreach $istoragecontroller in $istoragecontrollers
        Write-Verbose "Getting write lock on machine $($imachine.Name)"
-       $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
        # create a new machine object
        $mmachine = New-Object VirtualBoxVM
        # get the mutable machine object
@@ -8592,7 +10557,7 @@ Process {
        } until ($imedium.ComObject.State -eq 1)
        # attach the disk
        Write-Verbose "Mounting disk $($imedium.Name) to machine $($imachine.Name)"
-       $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, $global:devicetype.ToULong('HardDisk'), $imedium.ComObject)
+       $mmachine.ComObject.AttachDevice($Controller, $ControllerPort, $ControllerSlot, [DeviceType]::new().ToULong('HardDisk'), $imedium.ComObject)
        # save new settings
        Write-Verbose "Saving new settings"
        $mmachine.ComObject.SaveSettings()
@@ -8608,7 +10573,7 @@ Process {
   catch {
    Write-Verbose 'Exception mounting virtual disk'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   finally {
    # release mutable machine objects if they exist
@@ -8720,13 +10685,13 @@ HelpMessage="Enter one or more virtual disk GUID(s)")]
   [guid[]]$Guid,
 [Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
 [ValidateNotNullorEmpty()]
-  [string]$Machine,
+  [VirtualBoxVM]$Machine,
 [Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disk from")]
 [ValidateNotNullorEmpty()]
   [string]$MachineName,
 [Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disk from")]
 [ValidateNotNullorEmpty()]
-  [string]$MachineGuid,
+  [guid]$MachineGuid,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
@@ -8750,159 +10715,158 @@ Process {
  Write-Verbose "Pipeline - Guid: `"$Guid`""
  Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
  if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
- if ($PSCmdlet.ParameterSetName -eq "HardDisk") {
-  # initialize $imachines array
-  $imediums = @()
-  if ($Disk) {
-   Write-Verbose "Getting disk inventory from Disk(s) object"
-   $imediums = $Disk
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Machine)
-  elseif ($Name) {
-   foreach ($item in $Name) {
-    Write-Verbose "Getting disk inventory from Name(s)"
-    $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
-   }
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Name)
-  elseif ($Guid) {
-   foreach ($item in $Guid) {
-    Write-Verbose "Getting disk inventory from GUID(s)"
-    $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
-   }
-   $imediums = $imediums | Where-Object {$_ -ne $null}
-  }# get vm inventory (by $Guid)
-  if ($imediums) {
-   Write-Verbose "[Info] Found disks"
-   try {
-    foreach ($imedium in $imediums) {
-     Write-Verbose "Found disk: $($imedium.Name)"
-     if ($imedium.MachineGuid) {
-      foreach ($vmids in $imedium.MachineGuid) {
-       Write-Verbose "Disk attached to VM: $vmname"
-       if ($Machine) {
-        $imachines = $Machine
-       } # get vm inventory (by $Machine)
-       elseif ($MachineName) {
-        $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
-       } # get vm inventory (by $MachineName)
-       elseif ($MachineGuid) {
-        $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
-       } # get vm inventory (by $MachineGuid)
-       elseif ($Machine -or $MachineName -or $MachineGuid -and !$imachines) {
-        Write-Verbose "[Warning] No machines found using provided filters. Matching all machines."
-        $imachines = Get-VirtualBoxVM -SkipCheck
-       } # get vm inventory (fallback)
-       if (!$imachines) {$imachines = Get-VirtualBoxVM -SkipCheck}
-       if ($imachines) {
-        foreach ($imachine in $imachines) {
-         if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power off the machine and try again." -ForegroundColor Red -BackgroundColor Black}
-         if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
-          if ($ModuleHost.ToLower() -eq 'websrv') {
-           Write-Verbose "Getting medium attachment information"
-           $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
-           Write-Verbose "Getting write lock on machine $($imachine.Name)"
-           $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Write'))
-           # create a new machine object
-           $mmachine = New-Object VirtualBoxVM
-           # get the mutable machine object
-           Write-Verbose "Getting the mutable machine object"
-           $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
-           $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-           Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
-           $global:vbox.IMachine_detachDevice($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device)
-           # save new settings
-           Write-Verbose "Saving new settings"
-           $global:vbox.IMachine_saveSettings($mmachine.Id)
-           # unlock machine session
-           Write-Verbose "Unlocking machine session"
-           $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-          } # end if websrv
-          elseif ($ModuleHost.ToLower() -eq 'com') {
-           Write-Verbose "Getting medium attachment information"
-           $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
-           Write-Verbose "Getting write lock on machine $($imachine.Name)"
-           $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Write'))
-           # create a new machine object
-           $mmachine = New-Object VirtualBoxVM
-           # get the mutable machine object
-           Write-Verbose "Getting the mutable machine object"
-           $mmachine.ComObject = $imachine.ISession.Session.Machine
-           $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
-           Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
-           Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
-           Write-Verbose "Port: `"$($imediumattachment.Port)`""
-           Write-Verbose "Device: `"$($imediumattachment.Device)`""
-           $mmachine.ComObject.DetachDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)
-           # save new settings
-           Write-Verbose "Saving new settings"
-           $mmachine.ComObject.SaveSettings()
-           # unlock machine session
-           Write-Verbose "Unlocking machine session"
-           $imachine.ISession.Session.UnlockMachine()
-          } # end elseif com
-         } # end if $PSCmdlet.ShouldProcess(
-        } # foreach $imachine in $imachines
-       } # end if $imachines
-      } # foreach $vmname in $imedium.MachineGuid
-     } # end if $imedium.MachineGuid
-    } # foreach $imedium in $imediums
-   } # Try
-   catch {
-    Write-Verbose 'Exception dismounting virtual disk'
-    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
-   } # Catch
-   finally {
-    # release mutable machine objects if they exist
-    if ($mmachine) {
-     if ($mmachine.ISession.Id) {
-      # release mutable session object
-      Write-Verbose "Releasing mutable session object"
-      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
-     }
-     if ($mmachine.ISession.Session) {
-      if ($mmachine.ISession.Session.State -gt 1) {
-       $mmachine.ISession.Session.UnlockMachine()
-      } # end if $mmachine.ISession.Session locked
-     } # end if $mmachine.ISession.Session
-     if ($mmachine.Id) {
-      # release mutable object
-      Write-Verbose "Releasing mutable object"
-      $global:vbox.IManagedObjectRef_release($mmachine.Id)
-     }
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disk) {
+  Write-Verbose "Getting disk inventory from Disk(s) object"
+  $imediums = $Disk
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disk inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disk inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ $imediums = $imediums | Where-Object {$_.Format -notmatch 'RAW'}
+ if ($imediums) {
+  Write-Verbose "[Info] Found disks"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disk: $($imedium.Name)"
+    if ($imedium.MachineGuid) {
+     foreach ($vmids in $imedium.MachineGuid) {
+      Write-Verbose "Disk attached to VM: $vmname"
+      if ($Machine) {
+       $imachines = $Machine
+      } # get vm inventory (by $Machine)
+      elseif ($MachineName) {
+       $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+      } # get vm inventory (by $MachineName)
+      elseif ($MachineGuid) {
+       $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+      } # get vm inventory (by $MachineGuid)
+      elseif ($Machine -or $MachineName -or $MachineGuid -and !$imachines) {
+       Write-Verbose "[Warning] No machines found using provided filters. Matching all machines."
+       $imachines = Get-VirtualBoxVM -SkipCheck
+      } # get vm inventory (fallback)
+      if (!$imachines) {$imachines = Get-VirtualBoxVM -SkipCheck}
+      if ($imachines) {
+       foreach ($imachine in $imachines) {
+        if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black}
+        if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
+         if ($ModuleHost.ToLower() -eq 'websrv') {
+          Write-Verbose "Getting medium attachment information"
+          $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
+          Write-Verbose "Getting write lock on machine $($imachine.Name)"
+          $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+          # create a new machine object
+          $mmachine = New-Object VirtualBoxVM
+          # get the mutable machine object
+          Write-Verbose "Getting the mutable machine object"
+          $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+          $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+          Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+          $global:vbox.IMachine_detachDevice($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device)
+          # save new settings
+          Write-Verbose "Saving new settings"
+          $global:vbox.IMachine_saveSettings($mmachine.Id)
+          # unlock machine session
+          Write-Verbose "Unlocking machine session"
+          $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+         } # end if websrv
+         elseif ($ModuleHost.ToLower() -eq 'com') {
+          Write-Verbose "Getting medium attachment information"
+          $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
+          Write-Verbose "Getting write lock on machine $($imachine.Name)"
+          $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+          # create a new machine object
+          $mmachine = New-Object VirtualBoxVM
+          # get the mutable machine object
+          Write-Verbose "Getting the mutable machine object"
+          $mmachine.ComObject = $imachine.ISession.Session.Machine
+          $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+          Write-Verbose "Attempting to unmount disk $($imedium.Name) from machine: $($imachine.Name)"
+          Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+          Write-Verbose "Port: `"$($imediumattachment.Port)`""
+          Write-Verbose "Device: `"$($imediumattachment.Device)`""
+          $mmachine.ComObject.DetachDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)
+          # save new settings
+          Write-Verbose "Saving new settings"
+          $mmachine.ComObject.SaveSettings()
+          # unlock machine session
+          Write-Verbose "Unlocking machine session"
+          $imachine.ISession.Session.UnlockMachine()
+         } # end elseif com
+        } # end if $PSCmdlet.ShouldProcess(
+       } # foreach $imachine in $imachines
+      } # end if $imachines
+     } # foreach $vmname in $imedium.MachineGuid
+    } # end if $imedium.MachineGuid
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception dismounting virtual disk'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # release mutable machine objects if they exist
+   if ($mmachine) {
+    if ($mmachine.ISession.Id) {
+     # release mutable session object
+     Write-Verbose "Releasing mutable session object"
+     $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
     }
-    # obligatory session unlock
-    Write-Verbose 'Cleaning up machine sessions'
-    if ($imachines) {
-     foreach ($imachine in $imachines) {
-      if ($imachine.ISession.Id) {
-       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
-        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
-        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-       } # end if session state not unlocked
-      } # end if $imachine.ISession.Id
-      if ($imachine.ISession.Session) {
-       if ($imachine.ISession.Session.State -gt 1) {
-        $imachine.ISession.Session.UnlockMachine()
-       } # end if $imachine.ISession.Session locked
-      } # end if $imachine.ISession.Session
-      if ($imachine.IConsole) {
-       # release the iconsole session
-       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
-       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
-      } # end if $imachine.IConsole
-      #$imachine.ISession.Id = $null
-      $imachine.IConsole = $null
-      if ($imachine.IPercent) {$imachine.IPercent = $null}
-      $imachine.MSession = $null
-      $imachine.MConsole = $null
-      $imachine.MMachine = $null
-     } # end foreach $imachine in $imachines
-    } # end if $imachines
-   } # Finally
-  } # end if $imediums
- } # end if ParameterSetName -eq HardDisk
+    if ($mmachine.ISession.Session) {
+     if ($mmachine.ISession.Session.State -gt 1) {
+      $mmachine.ISession.Session.UnlockMachine()
+     } # end if $mmachine.ISession.Session locked
+    } # end if $mmachine.ISession.Session
+    if ($mmachine.Id) {
+     # release mutable object
+     Write-Verbose "Releasing mutable object"
+     $global:vbox.IManagedObjectRef_release($mmachine.Id)
+    }
+   }
+   # obligatory session unlock
+   Write-Verbose 'Cleaning up machine sessions'
+   if ($imachines) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.ISession.Id) {
+      if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if session state not unlocked
+     } # end if $imachine.ISession.Id
+     if ($imachine.ISession.Session) {
+      if ($imachine.ISession.Session.State -gt 1) {
+       $imachine.ISession.Session.UnlockMachine()
+      } # end if $imachine.ISession.Session locked
+     } # end if $imachine.ISession.Session
+     if ($imachine.IConsole) {
+      # release the iconsole session
+      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+     } # end if $imachine.IConsole
+     #$imachine.ISession.Id = $null
+     $imachine.IConsole = $null
+     if ($imachine.IPercent) {$imachine.IPercent = $null}
+     $imachine.MSession = $null
+     $imachine.MConsole = $null
+     $imachine.MMachine = $null
+    } # end foreach $imachine in $imachines
+   } # end if $imachines
+  } # Finally
+ } # end if $imediums
 } # Process
 End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
@@ -9112,12 +11076,14 @@ Process {
       $disc.MachineName = $disc.MachineName | Where-Object {$_ -ne $null}
      } # foreach $imachine in $imachines
     } # foreach $machineid in $disc.MachineGuid
-    $disc.State = $imedium.State
-    $disc.Variant = $imedium.Variant
+    $disc.State = [MediumState]::new().ToStr($imedium.State)
+    foreach ($variant in $imedium.Variant) {
+     $disc.Variant += [MediumVariant]::new().ToStrCom($variant)
+    } # foreach $variant in $imedium.Variant
     $disc.Location = $imedium.Location
     $disc.HostDrive = $imedium.HostDrive
     $disc.MediumFormat = $imedium.MediumFormat.Name
-    $disc.Type = $imedium.Type
+    $disc.Type = [MediumType]::new().ToStr($imedium.Type)
     if ($imedium.Parent) {$disc.Parent = $imedium.Parent.Name}
     if ($imedium.Children) {$disc.Children = $imedium.Children.Name}
     $disc.ComObject = $imedium
@@ -9131,7 +11097,7 @@ Process {
  catch {
   Write-Verbose 'Exception retrieving virtual disc information'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  if ($PSCmdlet.ParameterSetName -eq "Disc") {
   # filter by disc name
@@ -9297,16 +11263,16 @@ Process {
  try {
   $imedium = New-Object VirtualBoxVHD
   if ($ModuleHost.ToLower() -eq 'websrv') {
-   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, $global:devicetype.ToULong('DVD'), $global:accessmode.ToULong('ReadOnly'), $(if ($ForceNewUuid) {$true} else {$false}))
+   $imedium.Id = $global:vbox.IVirtualBox_openMedium($global:ivbox, $FileName, [DeviceType]::new().ToULong('DVD'), [AccessMode]::new().ToULong('ReadOnly'), $(if ($ForceNewUuid) {$true} else {$false}))
   } # end if websrv
   elseif ($ModuleHost.ToLower() -eq 'com') {
-   $imedium.ComObject = $global:vbox.OpenMedium($FileName, $global:devicetype.ToULong('DVD'), $global:accessmode.ToULong('ReadOnly'), $(if ($ForceNewUuid) {1} else {0}))
+   $imedium.ComObject = $global:vbox.OpenMedium($FileName, [DeviceType]::new().ToULong('DVD'), [AccessMode]::new().ToULong('ReadOnly'), $(if ($ForceNewUuid) {1} else {0}))
   } # end elseif com
  } # Try
  catch {
   Write-Verbose 'Exception importing virtual disc'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -9410,6 +11376,7 @@ Process {
   }
   $imediums = $imediums | Where-Object {$_ -ne $null}
  }# get vm inventory (by $Guid)
+ $imediums = $imediums | Where-Object {$_.Format -match 'RAW'}
  if ($imediums) {
   Write-Verbose "[Info] Found discs"
   try {
@@ -9434,10 +11401,533 @@ Process {
   catch {
    Write-Verbose 'Exception removing virtual disc'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   finally {
    # cleanup
+  } # Finally
+ } # end if $imediums
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Mount-VirtualBoxDisc {
+<#
+.SYNOPSIS
+Mount VirtualBox disc
+.DESCRIPTION
+Mounts VirtualBox discs. The command will fail if a virtual disc is already mounted to the specified virtual machine.
+.PARAMETER Disc
+At least one virtual disc object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to mount the disc to. This is a required parameter.
+.PARAMETER Controller
+The name of the storage controller to mount the disc to. This is a required parameter.
+.PARAMETER ControllerPort
+The port of the storage controller to mount the disc to. This is a required parameter.
+.PARAMETER ControllerSlot
+The slot of the storage controller to mount the disc to. This is a required parameter.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Mount-VirtualBoxDisc -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
+
+Mounts the virtual disc named "TestDisc.vmdk" to the Win10 virtual machine SATA controller on port 0 slot 0
+.NOTES
+NAME        :  Mount-VirtualBoxDisc
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisc
+.INPUTS
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disc objects
+String[]       :  Strings for virtual disc names
+GUID[]         :  GUIDS for virtual disc GUIDS
+String         :  String for virtual machine name
+String         :  String for controller name
+Int            :  Integer for controller port
+Int            :  Integer for controller slot
+.OUTPUTS
+None
+#>
+[cmdletbinding()]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc object(s)",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD[]]$Disc,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc name(s)")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [guid]$MachineGuid,
+[Parameter(Mandatory=$true,HelpMessage="Enter the name of the controller to mount the disc to",
+ParameterSetName="HardDisc")]
+[ValidateNotNullorEmpty()]
+  [string]$Controller,
+[Parameter(Mandatory=$true,HelpMessage="Enter the port number to mount the disc to",
+ParameterSetName="HardDisc")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerPort,
+[Parameter(Mandatory=$true,HelpMessage="Enter the slot number to mount the disc to",
+ParameterSetName="HardDisc")]
+[ValidateNotNullorEmpty()]
+  [int]$ControllerSlot,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disc: `"$Disc`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ Write-Verbose "Machine: `"$Machine`""
+ Write-Verbose "Machine Name: `"$MachineName`""
+ Write-Verbose "Machine Guid: `"$MachineGuid`""
+ Write-Verbose "Controller Name: `"$Controller`""
+ Write-Verbose "Controller Port: `"$ControllerPort`""
+ Write-Verbose "Controller Slot: `"$ControllerSlot`""
+ if (!($Disc -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disc object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ if (!($Machine -or $MachineName -or $MachineGuid)) {Write-Host "[Error] You must supply at least one machine object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disc) {
+  Write-Verbose "Getting disc inventory from Disc(s) object"
+  $imediums = $Disc
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get disc inventory (by $Disc)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disc inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisc -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get disc inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disc inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisc -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ } # get vm inventory (by $Guid)
+ if ($imediums) {
+  Write-Verbose "[Info] Found discs"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disc: $($imedium.Name)"
+    if ($imedium.MachineName) {
+     # make sure it's not already attached to the requested vm
+     foreach ($vmname in $imedium.MachineName) {
+      Write-Verbose "Disc attached to VM: $vmname"
+      if (Get-VirtualBoxDisc -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disc $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
+     } # foreach $vmname in $imedium.MachineName
+    } # end if $imedium.MachineName
+    if ($Machine) {
+     $imachines = $Machine
+    } # get vm inventory (by $Machine)
+    elseif ($MachineName) {
+     $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+    } # get vm inventory (by $MachineName)
+    elseif ($MachineGuid) {
+     $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+    } # get vm inventory (by $MachineGuid)
+    if ($imachines) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black;return}
+      if ($ModuleHost.ToLower() -eq 'websrv') {
+       #$istoragecontrollers = New-Object IStorageController
+       #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
+       foreach ($istoragecontroller in $imachine.IStorageControllers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $imachine.IStorageControllers
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+       $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+       # attach the disc
+       Write-Verbose "Mounting disc $($imedium.Name) to machine $($imachine.Name)"
+       $global:vbox.IMachine_mountMedium($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $imedium.Id, $false)
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $global:vbox.IMachine_saveSettings($mmachine.Id)
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if websrv
+      elseif ($ModuleHost.ToLower() -eq 'com') {
+       $istoragecontrollers = $imachine.ComObject.StorageControllers
+       foreach ($istoragecontroller in $istoragecontrollers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $istoragecontrollers
+       Write-Verbose "Getting write lock on machine $($imachine.Name)"
+       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+       # create a new machine object
+       $mmachine = New-Object VirtualBoxVM
+       # get the mutable machine object
+       Write-Verbose "Getting the mutable machine object"
+       $mmachine.ComObject = $imachine.ISession.Session.Machine
+       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+       # wait for the disc to become available
+       Write-Verbose "Waiting for the disc to become available"
+       do {
+       } until ($imedium.ComObject.State -eq 1)
+       # attach the disc
+       Write-Verbose "Mounting disc $($imedium.Name) to machine $($imachine.Name)"
+       $mmachine.ComObject.MountMedium($Controller, $ControllerPort, $ControllerSlot, $imedium.ComObject, $false)
+       # save new settings
+       Write-Verbose "Saving new settings"
+       $mmachine.ComObject.SaveSettings()
+       # unlock machine session
+       Write-Verbose "Unlocking machine session"
+       $imachine.ISession.Session.UnlockMachine()
+      } # end elseif com
+     } # foreach $imachine in $imachines
+    } # end if $imachines
+    else {Write-Host "[Error] No machines found using specified filters." -ForegroundColor Red -BackgroundColor Black;return}
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception mounting virtual disc'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # release mutable machine objects if they exist
+   if ($mmachine) {
+    if ($mmachine.ISession.Id) {
+     # release mutable session object
+     Write-Verbose "Releasing mutable session object"
+     $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+    }
+    if ($mmachine.ISession.Session) {
+     if ($mmachine.ISession.Session.State -gt 1) {
+      $mmachine.ISession.Session.UnlockMachine()
+     } # end if $mmachine.ISession.Session locked
+    } # end if $mmachine.ISession.Session
+    if ($mmachine.Id) {
+     # release mutable object
+     Write-Verbose "Releasing mutable object"
+     $global:vbox.IManagedObjectRef_release($mmachine.Id)
+    }
+   }
+   # obligatory session unlock
+   Write-Verbose 'Cleaning up machine sessions'
+   if ($imachines) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.ISession.Id) {
+      if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if session state not unlocked
+     } # end if $imachine.ISession.Id
+     if ($imachine.ISession.Session) {
+      if ($imachine.ISession.Session.State -gt 1) {
+       $imachine.ISession.Session.UnlockMachine()
+      } # end if $imachine.ISession.Session locked
+     } # end if $imachine.ISession.Session
+     if ($imachine.IConsole) {
+      # release the iconsole session
+      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+     } # end if $imachine.IConsole
+     #$imachine.ISession.Id = $null
+     $imachine.IConsole = $null
+     if ($imachine.IPercent) {$imachine.IPercent = $null}
+     $imachine.MSession = $null
+     $imachine.MConsole = $null
+     $imachine.MMachine = $null
+    } # end foreach $imachine in $imachines
+   } # end if $imachines
+  } # Finally
+ } # end if $imediums
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Dismount-VirtualBoxDisc {
+<#
+.SYNOPSIS
+Dismount VirtualBox disc
+.DESCRIPTION
+Dismounts VirtualBox discs. The command will fail if the virtual disc is not attached to the specified virtual machine.
+.PARAMETER Disc
+At least one virtual disc object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disc. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to dismount the disc from. This is a required parameter.
+.PARAMETER SkipCheck
+A switch to skip service update (for development use).
+.EXAMPLE
+PS C:\> Dismount-VirtualBoxDisc -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
+
+Dismounts the virtual disc named "TestDisc.vmdk" from the Win10 virtual machine SATA controller on port 0 slot 0
+.NOTES
+NAME        :  Dismount-VirtualBoxDisc
+VERSION     :  1.0
+LAST UPDATED:  1/20/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisc
+.INPUTS
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disc objects
+String[]       :  Strings for virtual disc names
+GUID[]         :  GUIDS for virtual disc GUIDS
+String         :  String for virtual machine name
+String         :  String for controller name
+Int            :  Integer for controller port
+Int            :  Integer for controller slot
+.OUTPUTS
+None
+#>
+[cmdletbinding(SupportsShouldProcess,ConfirmImpact='High')]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc object(s)",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD[]]$Disc,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc name(s)")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disc GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disc from")]
+[ValidateNotNullorEmpty()]
+  [guid]$MachineGuid,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disc: `"$Disc`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Disc -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disc object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disc) {
+  Write-Verbose "Getting disc inventory from Disc(s) object"
+  $imediums = $Disc
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disc inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisc -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disc inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisc -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ if ($imediums) {
+  Write-Verbose "[Info] Found discs"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disc: $($imedium.Name)"
+    if ($imedium.MachineGuid) {
+     foreach ($vmids in $imedium.MachineGuid) {
+      Write-Verbose "Disc attached to VM: $vmname"
+      if ($Machine) {
+       $imachines = $Machine
+      } # get vm inventory (by $Machine)
+      elseif ($MachineName) {
+       $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+      } # get vm inventory (by $MachineName)
+      elseif ($MachineGuid) {
+       $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+      } # get vm inventory (by $MachineGuid)
+      elseif ($Machine -or $MachineName -or $MachineGuid -and !$imachines) {
+       Write-Verbose "[Warning] No machines found using provided filters. Matching all machines."
+       $imachines = Get-VirtualBoxVM -SkipCheck
+      } # get vm inventory (fallback)
+      if (!$imachines) {$imachines = Get-VirtualBoxVM -SkipCheck}
+      if ($imachines) {
+       foreach ($imachine in $imachines) {
+        if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black}
+        if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
+         if ($ModuleHost.ToLower() -eq 'websrv') {
+          Write-Verbose "Getting medium attachment information"
+          $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
+          Write-Verbose "Getting write lock on machine $($imachine.Name)"
+          $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+          # create a new machine object
+          $mmachine = New-Object VirtualBoxVM
+          # get the mutable machine object
+          Write-Verbose "Getting the mutable machine object"
+          $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+          $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+          Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
+          $global:vbox.IMachine_unmountMedium($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device, $false)
+          # save new settings
+          Write-Verbose "Saving new settings"
+          $global:vbox.IMachine_saveSettings($mmachine.Id)
+          # unlock machine session
+          Write-Verbose "Unlocking machine session"
+          $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+         } # end if websrv
+         elseif ($ModuleHost.ToLower() -eq 'com') {
+          Write-Verbose "Getting medium attachment information"
+          $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
+          Write-Verbose "Getting write lock on machine $($imachine.Name)"
+          $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+          # create a new machine object
+          $mmachine = New-Object VirtualBoxVM
+          # get the mutable machine object
+          Write-Verbose "Getting the mutable machine object"
+          $mmachine.ComObject = $imachine.ISession.Session.Machine
+          $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+          Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
+          Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+          Write-Verbose "Port: `"$($imediumattachment.Port)`""
+          Write-Verbose "Device: `"$($imediumattachment.Device)`""
+          $mmachine.ComObject.UnmountMedium($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $false)
+          # save new settings
+          Write-Verbose "Saving new settings"
+          $mmachine.ComObject.SaveSettings()
+          # unlock machine session
+          Write-Verbose "Unlocking machine session"
+          $imachine.ISession.Session.UnlockMachine()
+         } # end elseif com
+        } # end if $PSCmdlet.ShouldProcess(
+       } # foreach $imachine in $imachines
+      } # end if $imachines
+     } # foreach $vmname in $imedium.MachineGuid
+    } # end if $imedium.MachineGuid
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception dismounting virtual disc'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # release mutable machine objects if they exist
+   if ($mmachine) {
+    if ($mmachine.ISession.Id) {
+     # release mutable session object
+     Write-Verbose "Releasing mutable session object"
+     $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+    }
+    if ($mmachine.ISession.Session) {
+     if ($mmachine.ISession.Session.State -gt 1) {
+      $mmachine.ISession.Session.UnlockMachine()
+     } # end if $mmachine.ISession.Session locked
+    } # end if $mmachine.ISession.Session
+    if ($mmachine.Id) {
+     # release mutable object
+     Write-Verbose "Releasing mutable object"
+     $global:vbox.IManagedObjectRef_release($mmachine.Id)
+    }
+   }
+   # obligatory session unlock
+   Write-Verbose 'Cleaning up machine sessions'
+   if ($imachines) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.ISession.Id) {
+      if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if session state not unlocked
+     } # end if $imachine.ISession.Id
+     if ($imachine.ISession.Session) {
+      if ($imachine.ISession.Session.State -gt 1) {
+       $imachine.ISession.Session.UnlockMachine()
+      } # end if $imachine.ISession.Session locked
+     } # end if $imachine.ISession.Session
+     if ($imachine.IConsole) {
+      # release the iconsole session
+      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+     } # end if $imachine.IConsole
+     #$imachine.ISession.Id = $null
+     $imachine.IConsole = $null
+     if ($imachine.IPercent) {$imachine.IPercent = $null}
+     $imachine.MSession = $null
+     $imachine.MConsole = $null
+     $imachine.MMachine = $null
+    } # end foreach $imachine in $imachines
+   } # end if $imachines
   } # Finally
  } # end if $imediums
 } # Process
@@ -9581,7 +12071,7 @@ Process {
    foreach ($imachine in $imachines) {
     if ($ModuleHost.ToLower() -eq 'websrv') {
      Write-verbose "Locking the machine session"
-     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, $global:locktype.ToInt('Shared'))
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Shared'))
      # create iconsole session to vm
      Write-verbose "Creating IConsole session to the machine"
      $imachine.IConsole = $global:vbox.ISession_getConsole($imachine.ISession.Id)
@@ -9593,12 +12083,12 @@ Process {
      $imachine.IGuestSession = $global:vbox.IGuest_createSession($imachine.IConsoleGuest, $Credential.GetNetworkCredential().UserName, $Credential.GetNetworkCredential().Password, $Credential.GetNetworkCredential().Domain, "WsPsLaunchProcess_$([datetime]::Now)")
      # wait 10 seconds for the session to be created successfully
      Write-Verbose "Waiting for guest console to establish successfully (timeout: 10s)"
-     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, $global:guestsessionwaitforflag.ToULong('Start'), 10000)
+     $iguestsessionstatus = $global:vbox.IGuestSession_waitFor($imachine.IGuestSession, [GuestSessionWaitForFlag]::new().ToULong('Start'), 10000)
      Write-Verbose "Guest console status: $iguestsessionstatus"
      # create the process in the guest machine and send it a list of arguments
      Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
      if ($global:vbox.IGuestSession_fsObjExists($imachine.IGuestSession, $PathToExecutable, 1)) {
-      $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), [array]@($global:processcreateflag.ToInt('WaitForStdOut'), $global:processcreateflag.ToInt('WaitForStdErr')), $Timeout)
+      $iguestprocess = $global:vbox.IGuestSession_processCreate($imachine.IGuestSession, $PathToExecutable, $Arguments, [array]@(), [array]@([ProcessCreateFlag]::new().ToInt('WaitForStdOut'), [ProcessCreateFlag]::new().ToInt('WaitForStdErr')), $Timeout)
      }
      else {Write-Host "[Error] Executable specified ($PathToExecutable) does not exist on the guest. Check the path and try again." -ForegroundColor Red -BackgroundColor Black;return}
      if (!$NoWait) {
@@ -9610,11 +12100,11 @@ Process {
       $ieventlistener = $global:vbox.IEventSource_createListener($ieventsource)
       # register event listener
       Write-Verbose "Registering event listener"
-      $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, $global:vboxeventtype.ToInt('Any'), $false)
+      $global:vbox.IEventSource_registerListener($ieventsource, $ieventlistener, [VBoxEventType]::new().ToInt('Any'), $false)
       try {
        # wait for process creation
        Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
-       $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, $global:processwaitforflag.ToULong('Start'), 10000)
+       $processwaitresult = $global:vbox.IProcess_waitFor($iguestprocess, [ProcessWaitForFlag]::new().ToULong('Start'), 10000)
        Write-Verbose "Process wait result: $($processwaitresult)"
        # gather extra data
        $guestprocessexecutablepath = $global:vbox.IProcess_getExecutablePath($iguestprocess)
@@ -9667,10 +12157,10 @@ Process {
          $global:vbox.IEventSource_eventProcessed($ieventsource, $ieventsublistener, $isubevent)
         } # end if $isubevent -ne ''
         # this is returning WaitFlagNotSupported - waiting for stdout and stderr is not currently implemented - leaving this for when it does work and waitfor terminate still works
-        $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @($global:processwaitforflag.ToULong('StdOut'),$global:processwaitforflag.ToULong('StdErr'),$global:processwaitforflag.ToULong('Terminate')), 200)
+        $processwaitresult = $global:vbox.IProcess_waitForArray($iguestprocess, @([ProcessWaitForFlag]::new().ToULong('StdOut'),[ProcessWaitForFlag]::new().ToULong('StdErr'),[ProcessWaitForFlag]::new().ToULong('Terminate')), 200)
         if ($StdOut) {
          # read guest process stdout
-         [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdOut'), (64 * 1024), 0)
+         [char[]]$readstdout = $global:vbox.IProcess_read($iguestprocess, [Handle]::new().ToULong('StdOut'), (64 * 1024), 0)
          if ($readstdout) {
           # write stdout to pipeline
           Write-Verbose "Writing StdOut to pipeline"
@@ -9680,7 +12170,7 @@ Process {
         # write stderr to the host as error text if it contains anything
         if ($StdErr) {
          # read guest process stderr
-         [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, $global:handle.ToULong('StdErr'), (64 * 1024), 0)
+         [char[]]$readstderr = $global:vbox.IProcess_read($iguestprocess, [Handle]::new().ToULong('StdErr'), (64 * 1024), 0)
          if ($readstderr) {
           # write stderr to pipeline
           Write-Verbose "Writing StdErr to pipeline"
@@ -9702,7 +12192,7 @@ Process {
       catch {
        Write-Verbose 'Exception while running process in guest machine'
        Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-       Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+       Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
       } # Catch
       finally {
        # unregister listener object
@@ -9718,7 +12208,7 @@ Process {
     } # end if websrv
     elseif ($ModuleHost.ToLower() -eq 'com') {
      Write-verbose "Locking the machine session"
-     $imachine.ComObject.LockMachine($imachine.ISession.Session, $global:locktype.ToInt('Shared'))
+     $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Shared'))
      # create a guest session
      Write-Verbose "Creating a guest console session"
      $imachine.ISession.Session.Console.Guest.CreateSession($Credential.GetNetworkCredential().UserName, $Credential.GetNetworkCredential().Password, $Credential.GetNetworkCredential().Domain, "ComPsLaunchProcess_$([datetime]::Now)") | Out-Null
@@ -9727,15 +12217,15 @@ Process {
      $iguestsessionstatus = $imachine.ISession.Session.Console.Guest.Sessions.WaitFor(1, 10000)
      Write-Verbose "Guest console status: $($iguestsessionstatus)"
      Write-Verbose "Guest console status: $($iguestsessionstatus.GetType())"
-     if ($iguestsessionstatus.GetType().Name -eq 'Int32') {Write-Verbose "Guest console status: $($global:guestsessionwaitforflag.ToStr($iguestsessionstatus))"}
-     elseif ($iguestsessionstatus.GetType().Name -eq 'Object[]') {Write-Verbose "Guest console status: $($global:guestsessionwaitforflag.ToStr($iguestsessionstatus.GetUpperBound(0)))"}
+     if ($iguestsessionstatus.GetType().Name -eq 'Int32') {Write-Verbose "Guest console status: $([GuestSessionWaitForFlag]::new().ToStr($iguestsessionstatus))"}
+     elseif ($iguestsessionstatus.GetType().Name -eq 'Object[]') {Write-Verbose "Guest console status: $([GuestSessionWaitForFlag]::new().ToStr($iguestsessionstatus.GetUpperBound(0)))"}
      # create the process in the guest machine and send it a list of arguments
      Write-Verbose "Sending `"$command`" command (timeout: $($Timeout)ms)"
      if ($imachine.ISession.Session.Console.Guest.Sessions.FsObjExists($PathToExecutable, 1) -eq 1) {
-      if ($StdOut -and $StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('WaitForStdOut'), $global:processcreateflag.ToIntCom('WaitForStdErr')), $Timeout)}
-      elseif ($StdOut) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('WaitForStdOut')), $Timeout)}
-      elseif ($StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('WaitForStdErr')), $Timeout)}
-      else {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@($global:processcreateflag.ToIntCom('Hidden')), $Timeout)}
+      if ($StdOut -and $StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@([ProcessCreateFlag]::new().ToIntCom('WaitForStdOut'), [ProcessCreateFlag]::new().ToIntCom('WaitForStdErr')), $Timeout)}
+      elseif ($StdOut) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@([ProcessCreateFlag]::new().ToIntCom('WaitForStdOut')), $Timeout)}
+      elseif ($StdErr) {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@([ProcessCreateFlag]::new().ToIntCom('WaitForStdErr')), $Timeout)}
+      else {$iguestprocess = $imachine.ISession.Session.Console.Guest.Sessions.ProcessCreate($PathToExecutable, [string[]]@($Arguments), [string[]]@(), [int[]]@([ProcessCreateFlag]::new().ToIntCom('Hidden')), $Timeout)}
      }
      else {Write-Host "[Error] Executable specified ($PathToExecutable) does not exist on the guest. Check the path and try again." -ForegroundColor Red -BackgroundColor Black;return}
      if (!$NoWait) {
@@ -9744,11 +12234,11 @@ Process {
       $ieventlistener = $imachine.ISession.Session.Console.EventSource.CreateListener()
       # register event listener
       Write-Verbose "Registering event listener"
-      $imachine.ISession.Session.Console.EventSource.RegisterListener($ieventlistener, [int[]]@($global:vboxeventtype.ToInt('Any')), $false)
+      $imachine.ISession.Session.Console.EventSource.RegisterListener($ieventlistener, [int[]]@([VBoxEventType]::new().ToInt('Any')), $false)
       try {
        # wait for process creation
        Write-Verbose "Waiting for guest process to be created (timeout: 10s)"
-       $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitFor($global:processwaitforflag.ToULong('Start'), 10000)
+       $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitFor([ProcessWaitForFlag]::new().ToULong('Start'), 10000)
        Write-Verbose "Process wait result: $($processwaitresult)"
        # gather extra data
        $guestprocessexecutablepath = $imachine.ISession.Session.Console.Guest.Sessions.Processes.ExecutablePath
@@ -9767,10 +12257,10 @@ Process {
          $imachine.ISession.Session.Console.EventSource.EventProcessed($ieventlistener, $ievent)
         } # end if $ievent -ne ''
         # this is returning WaitFlagNotSupported - waiting for stdout and stderr is not currently implemented - leaving this for when it does work and waitfor terminate still works
-        $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitForArray([int[]]@($global:processwaitforflag.ToULong('StdOut'), $global:processwaitforflag.ToULong('StdErr'), $global:processwaitforflag.ToULong('Terminate')), 200)
+        $processwaitresult = $imachine.ISession.Session.Console.Guest.Sessions.Processes.WaitForArray([int[]]@([ProcessWaitForFlag]::new().ToULong('StdOut'), [ProcessWaitForFlag]::new().ToULong('StdErr'), [ProcessWaitForFlag]::new().ToULong('Terminate')), 200)
         if ($StdOut) {
          # read guest process stdout
-         [byte[]]$readstdout = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdOut'), (64 * 1024), 0)
+         [byte[]]$readstdout = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read([Handle]::new().ToULong('StdOut'), (64 * 1024), 0)
          if ($readstdout) {
           # write stdout to pipeline
           Write-Verbose "Writing StdOut to pipeline"
@@ -9780,7 +12270,7 @@ Process {
         # write stderr to the host as error text if it contains anything
         if ($StdErr) {
          # read guest process stderr
-         [byte[]]$readstderr = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read($global:handle.ToULong('StdErr'), (64 * 1024), 0)
+         [byte[]]$readstderr = $imachine.ISession.Session.Console.Guest.Sessions.Processes.Read([Handle]::new().ToULong('StdErr'), (64 * 1024), 0)
          if ($readstderr) {
           # write stderr to pipeline
           Write-Verbose "Writing StdErr to pipeline"
@@ -9802,7 +12292,7 @@ Process {
       catch {
        Write-Verbose 'Exception while running process in guest machine'
        Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-       Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+       Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
       } # Catch
       finally {
        # unregister listener object
@@ -9823,7 +12313,7 @@ Process {
  catch {
   Write-Verbose 'Exception running process in guest machine'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
  finally {
   # obligatory session unlock
@@ -10097,12 +12587,14 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
      try {
       # get guest OS type IDs
       Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+      if ($global:guestostype) {if ((Get-Variable -Name guestostype -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name guestostype -Option None -Scope Global -Force}}
       $global:guestostype = $global:vbox.IVirtualBox_getGuestOSTypes($global:ivbox)
+      if ((Get-Variable -Name guestostype -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name guestostype -Description "A list of VirtualBox guest OS type codes." -Option ReadOnly -Scope Global -Force}
      } # Try
      catch {
       Write-Verbose 'Exception fetching guest OS type data'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      } # Catch
     }
     if (!$global:isystemproperties -or $Force) {
@@ -10114,7 +12606,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
      catch {
       Write-Verbose 'Exception fetching system properties'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      } # Catch
      <#
      try {
@@ -10128,30 +12620,35 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
      catch {
       Write-Verbose 'Exception fetching device types for storage buses'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      }
      #> # disabling since this isn't really useful data
      try {
       Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+      if ($global:systempropertiessupported) {if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name systempropertiessupported -Option None -Scope Global -Force}}
       $global:systempropertiessupported.Fetch()
+      if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name systempropertiessupported -Description "A list of VirtualBox properties currently supported by your system." -Option ReadOnly -Scope Global -Force}
      } # Try
      catch {
       Write-Verbose 'Exception fetching supported system properties'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      } # Catch
      try {
-      Write-Verbose 'Fetching supported medium formats ($global:systempropertiessupported)'
+      Write-Verbose 'Fetching supported medium formats ($global:mediumformats)'
+      if ($global:mediumformats) {if ((Get-Variable -Name mediumformats -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformats -Option None -Scope Global -Force}}
       $global:mediumformats.Fetch()
+      if ((Get-Variable -Name mediumformats -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformats -Description "A list of medium formats." -Option ReadOnly -Scope Global -Force}
       # get a human readable copy
-      Write-Verbose 'Fetching medium format PSO ($global:systempropertiessupported)'
+      Write-Verbose 'Fetching medium format PSO ($global:mediumformatspso)'
+      if ($global:mediumformatspso) {if ((Get-Variable -Name mediumformatspso -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformatspso -Option None -Scope Global -Force}}
       $global:mediumformatspso = $mediumformatspso.FetchObject($global:vbox.ISystemProperties_getMediumFormats($global:isystemproperties))
-      Write-Verbose 'Done fetching medium format PSO ($global:systempropertiessupported)'
+      if ((Get-Variable -Name mediumformatspso -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformatspso -Description "A list of medium formats in PowerShell-readable format." -Option ReadOnly -Scope Global -Force}
      } # Try
      catch {
       Write-Verbose 'Exception fetching supported medium formats'
       Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-      Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
      } # Catch
     }
    }
@@ -10208,7 +12705,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
    catch {
     Write-Verbose 'Exception closing the VirtualBox Web Service session'
     Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-    Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+    Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
    }
   }
  } # Process
@@ -10264,7 +12761,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
   catch {
    Write-Verbose 'Exception starting the VirtualBox Web Service'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   }
  } # Process
  End {
@@ -10310,7 +12807,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
   catch {
    Write-Verbose 'Exception ending the VirtualBox Web Service'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # end catch
  } # Process
  End {
@@ -10405,7 +12902,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
   catch {
    Write-Verbose 'Exception updating the VirtualBox Web Service'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # end catch
   if (!$vboxwebsrvtask) {Write-Host '[Error] Failed to update $vboxwebsrvtask' -ForegroundColor Red -BackgroundColor Black;return}
   return $vboxwebsrvtask
@@ -10535,12 +13032,14 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
   try {
    # get guest OS type IDs
    Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+   if ($guestostype) {if ((Get-Variable -Name guestostype -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name guestostype -Option None -Scope Global -Force}}
    $global:guestostype = $vbox.IVirtualBox_getGuestOSTypes($ivbox)
+   if ((Get-Variable -Name guestostype -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name guestostype -Description "A list of VirtualBox guest OS type codes." -Option ReadOnly -Scope Global -Force}
   } # Try
   catch {
    Write-Verbose 'Exception fetching guest OS type data'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
    # get system properties interface reference
@@ -10550,28 +13049,34 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
   catch {
    Write-Verbose 'Exception fetching system properties'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
    Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+   if ($systempropertiessupported) {if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name systempropertiessupported -Option None -Scope Global -Force}}
    $global:systempropertiessupported.Fetch()
+   if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name systempropertiessupported -Description "A list of VirtualBox properties currently supported by your system." -Option ReadOnly -Scope Global -Force}
   } # Try
   catch {
    Write-Verbose 'Exception fetching supported system properties'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
   try {
    Write-Verbose 'Fetching supported medium formats ($global:mediumformats)'
+   if ($mediumformats) {if ((Get-Variable -Name mediumformats -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformats -Option None -Scope Global -Force}}
    $global:mediumformats.Fetch()
+   if ((Get-Variable -Name mediumformats -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformats -Description "A list of medium formats." -Option ReadOnly -Scope Global -Force}
    # get a human readable copy
    Write-Verbose 'Fetching medium format PSO ($global:mediumformatspso)'
+   if ($mediumformatspso) {if ((Get-Variable -Name mediumformatspso -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformatspso -Option None -Scope Global -Force}}
    $global:mediumformatspso = $global:mediumformatspso.FetchObject($vbox.ISystemProperties_getMediumFormats($isystemproperties))
+   if ((Get-Variable -Name mediumformatspso -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformatspso -Description "A list of medium formats in PowerShell-readable format." -Option ReadOnly -Scope Global -Force}
   } # Try
   catch {
    Write-Verbose 'Exception fetching supported medium formats'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   } # Catch
  } # end if $ivbox
  # get the web service task
@@ -10579,35 +13084,87 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
  $vboxwebsrvtask = Update-VirtualBoxWebSrv
 } # end if websrv
 elseif ($ModuleHost.ToLower() -eq 'com') {
+ $ErrorActionPreference = 'SilentlyContinue'
  # create vbox app
  Write-Verbose 'Creating the VirtualBox COM object ($global:vbox)'
  $vbox = New-Object -ComObject "VirtualBox.VirtualBox"
- if ($vbox.APIVersion.Replace('_','.') -lt 6.1) {Write-Host "[Error] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$($vbox.APIVersion.Replace('_','.'))`"." -ForegroundColor Yellow -BackgroundColor Black;return}
- try {
-  # get guest OS type IDs
-  Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
-  $global:guestostype = $vbox.GuestOSTypes
- } # Try
- catch {
-  Write-Verbose 'Exception fetching guest OS type data'
-  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
- } # Catch
- try {
-  Write-Verbose 'Fetching supported medium formats ($global:mediumformats)'
-  $global:mediumformats = Get-Content -Raw -Path "C:\Program Files\Oracle\VirtualBox\sdk\MediumFormat.json" | ConvertFrom-Json
-  # get a human readable copy
-  Write-Verbose 'Fetching medium format PSO ($global:mediumformatspso)'
-  $global:mediumformatspso = Get-Content -Raw -Path "C:\Program Files\Oracle\VirtualBox\sdk\MediumFormatPso.json" | ConvertFrom-Json
- } # Try
- catch {
-  Write-Verbose 'Exception fetching supported medium formats'
-  Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception.Message -ForegroundColor Red -BackgroundColor Black
- } # Catch
+ $ErrorActionPreference = 'Continue'
+ if ($vbox) {
+  if ($vbox.APIVersion.Replace('_','.') -lt 6.1) {Write-Host "[Error] Minimum VirtualBox API version required for this module is `"6.1`". Installed version is `"$($vbox.APIVersion.Replace('_','.'))`"." -ForegroundColor Yellow -BackgroundColor Black;return}
+  try {
+   # get guest OS type IDs
+   Write-Verbose 'Fetching guest OS type data ($global:guestostype)'
+   if ($guestostype) {if ((Get-Variable -Name guestostype -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name guestostype -Option None -Scope Global -Force}}
+   $global:guestostype = $vbox.GuestOSTypes
+   if ((Get-Variable -Name guestostype -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name guestostype -Description "A list of VirtualBox guest OS type codes." -Option ReadOnly -Scope Global -Force}
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching guest OS type data'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  try {
+   Write-Verbose 'Fetching supported system properties ($global:systempropertiessupported)'
+   if ($systempropertiessupported) {if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name systempropertiessupported -Option None -Scope Global -Force}}
+   foreach ($SupportedParavirtProvider in $vbox.SystemProperties.SupportedParavirtProviders) {$global:systempropertiessupported.ParavirtProviders += [ParavirtProvider]::new().ToStr($SupportedParavirtProvider)}
+   foreach ($SupportedClipboardMode in $vbox.SystemProperties.SupportedClipboardModes) {$global:systempropertiessupported.ClipboardModes += [ClipboardMode]::new().ToStr($SupportedClipboardMode)}
+   foreach ($SupportedDnDMode in $vbox.SystemProperties.SupportedDnDModes) {$global:systempropertiessupported.DndModes += [DnDMode]::new().ToStr($SupportedDnDMode)}
+   foreach ($SupportedFirmwareType in $vbox.SystemProperties.SupportedFirmwareTypes) {$global:systempropertiessupported.FirmwareTypes += [FirmwareType]::new().ToStr($SupportedFirmwareType)}
+   foreach ($SupportedPointingHIDType in $vbox.SystemProperties.SupportedPointingHIDTypes) {$global:systempropertiessupported.PointingHidTypes += [PointingHIDType]::new().ToStr($SupportedPointingHIDType)}
+   foreach ($SupportedKeyboardHIDType in $vbox.SystemProperties.SupportedKeyboardHIDTypes) {$global:systempropertiessupported.KeyboardHidTypes += [KeyboardHIDType]::new().ToStr($SupportedKeyboardHIDType)}
+   foreach ($SupportedVFSType in $vbox.SystemProperties.SupportedVFSTypes) {$global:systempropertiessupported.VfsTypes += [VFSType]::new().ToStr($SupportedVFSType)}
+   foreach ($SupportedImportOption in $vbox.SystemProperties.SupportedImportOptions) {$global:systempropertiessupported.ImportOptions += [ImportOptions]::new().ToStr($SupportedImportOption)}
+   foreach ($SupportedExportOption in $vbox.SystemProperties.SupportedExportOptions) {$global:systempropertiessupported.ExportOptions += [ExportOptions]::new().ToStr($SupportedExportOption)}
+   foreach ($SupportedRecordingAudioCodec in $vbox.SystemProperties.SupportedRecordingAudioCodecs) {$global:systempropertiessupported.RecordingAudioCodecs += [RecordingAudioCodec]::new().ToStr($SupportedRecordingAudioCodec)}
+   foreach ($SupportedRecordingVideoCodec in $vbox.SystemProperties.SupportedRecordingVideoCodecs) {$global:systempropertiessupported.RecordingVideoCodecs += [RecordingVideoCodec]::new().ToStr($SupportedRecordingVideoCodec)}
+   foreach ($SupportedRecordingVSMethod in $vbox.SystemProperties.SupportedRecordingVSMethods) {$global:systempropertiessupported.RecordingVsMethods += [RecordingVideoScalingMethod]::new().ToStr($SupportedRecordingVSMethod)}
+   foreach ($SupportedRecordingVRCMode in $vbox.SystemProperties.SupportedRecordingVRCModes) {$global:systempropertiessupported.RecordingVrcModes += [RecordingVideoRateControlMode]::new().ToStr($SupportedRecordingVRCMode)}
+   foreach ($SupportedGraphicsControllerType in $vbox.SystemProperties.SupportedGraphicsControllerTypes) {$global:systempropertiessupported.GraphicsControllerTypes += [GraphicsControllerType]::new().ToStr($SupportedGraphicsControllerType)}
+   foreach ($SupportedCloneOption in $vbox.SystemProperties.SupportedCloneOptions) {$global:systempropertiessupported.CloneOptions += [CloneOptions]::new().ToStr($SupportedCloneOption)}
+   foreach ($SupportedAutostopType in $vbox.SystemProperties.SupportedAutostopTypes) {$global:systempropertiessupported.AutostopTypes += [AutostopType]::new().ToStr($SupportedAutostopType)}
+   foreach ($SupportedVMProcPriority in $vbox.SystemProperties.SupportedVMProcPriorities) {$global:systempropertiessupported.VmProcPriorities += [VMProcPriority]::new().ToStr($SupportedVMProcPriority)}
+   foreach ($SupportedNetworkAttachmentType in $vbox.SystemProperties.SupportedNetworkAttachmentTypes) {$global:systempropertiessupported.NetworkAttachmentTypes += [NetworkAttachmentType]::new().ToStr($SupportedNetworkAttachmentType)}
+   foreach ($SupportedNetworkAdapterType in $vbox.SystemProperties.SupportedNetworkAdapterTypes) {$global:systempropertiessupported.NetworkAdapterTypes += [NetworkAdapterType]::new().ToStr($SupportedNetworkAdapterType)}
+   foreach ($SupportedPortMode in $vbox.SystemProperties.SupportedPortModes) {$global:systempropertiessupported.PortModes += [PortMode]::new().ToStr($SupportedPortMode)}
+   foreach ($SupportedUartType in $vbox.SystemProperties.SupportedUartTypes) {$global:systempropertiessupported.UartTypes += [UartType]::new().ToStr($SupportedUartType)}
+   foreach ($SupportedUSBControllerType in $vbox.SystemProperties.SupportedUSBControllerTypes) {$global:systempropertiessupported.UsbControllerTypes += [USBControllerType]::new().ToStr($SupportedUSBControllerType)}
+   foreach ($SupportedAudioDriverType in $vbox.SystemProperties.SupportedAudioDriverTypes) {$global:systempropertiessupported.AudioDriverTypes += [AudioDriverType]::new().ToStr($SupportedAudioDriverType)}
+   foreach ($SupportedAudioControllerType in $vbox.SystemProperties.SupportedAudioControllerTypes) {$global:systempropertiessupported.AudioControllerTypes += [AudioControllerType]::new().ToStr($SupportedAudioControllerType)}
+   foreach ($SupportedStorageBus in $vbox.SystemProperties.SupportedStorageBuses) {$global:systempropertiessupported.StorageBuses += [StorageBus]::new().ToStr($SupportedStorageBus)}
+   foreach ($SupportedStorageControllerType in $vbox.SystemProperties.SupportedStorageControllerTypes) {$global:systempropertiessupported.StorageControllerTypes += [StorageControllerType]::new().ToStr($SupportedStorageControllerType)}
+   foreach ($SupportedChipsetType in $vbox.SystemProperties.SupportedChipsetTypes) {$global:systempropertiessupported.ChipsetTypes += [ChipsetType]::new().ToStr($SupportedChipsetType)}
+   $global:systempropertiessupported.MinGuestRam = $vbox.SystemProperties.MinGuestRAM
+   $global:systempropertiessupported.MaxGuestRam = $vbox.SystemProperties.MaxGuestRAM
+   $global:systempropertiessupported.MinGuestVRam = $vbox.SystemProperties.MinGuestVRAM
+   $global:systempropertiessupported.MaxGuestVRam = $vbox.SystemProperties.MaxGuestVRAM
+   $global:systempropertiessupported.MinGuestCPUCount = $vbox.SystemProperties.MinGuestCPUCount
+   $global:systempropertiessupported.MaxGuestCPUCount = $vbox.SystemProperties.MaxGuestCPUCount
+   if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name systempropertiessupported -Description "A list of VirtualBox properties currently supported by your system." -Option ReadOnly -Scope Global -Force}
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching supported system properties'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  try {
+   Write-Verbose 'Fetching supported medium formats ($global:mediumformats)'
+   if ($mediumformats) {if ((Get-Variable -Name mediumformats -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformats -Option None -Scope Global -Force}}
+   $global:mediumformats = Get-Content -Raw -Path "C:\Program Files\Oracle\VirtualBox\sdk\MediumFormat.json" | ConvertFrom-Json
+   if ((Get-Variable -Name mediumformats -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformats -Description "A list of medium formats." -Option ReadOnly -Scope Global -Force}
+   # get a human readable copy
+   Write-Verbose 'Fetching medium format PSO ($global:mediumformatspso)'
+   if ($mediumformatspso) {if ((Get-Variable -Name mediumformatspso -Scope Global).Options -match 'ReadOnly') {Set-Variable -Name mediumformatspso -Option None -Scope Global -Force}}
+   $global:mediumformatspso = Get-Content -Raw -Path "C:\Program Files\Oracle\VirtualBox\sdk\MediumFormatPso.json" | ConvertFrom-Json
+   if ((Get-Variable -Name mediumformatspso -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformatspso -Description "A list of medium formats in PowerShell-readable format." -Option ReadOnly -Scope Global -Force}
+  } # Try
+  catch {
+   Write-Verbose 'Exception fetching supported medium formats'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+ } # end if $vbox
 } # end elseif com
 # define aliases
-New-Alias -Name gvbox -Value Get-VirtualBox
 New-Alias -Name gvboxvm -Value Get-VirtualBoxVM
 New-Alias -Name ssvboxvm -Value Suspend-VirtualBoxVM
 New-Alias -Name ruvboxvm -Value Resume-VirtualBoxVM
@@ -10617,6 +13174,10 @@ New-Alias -Name nvboxvm -Value New-VirtualBoxVM
 New-Alias -Name rvboxvm -Value Remove-VirtualBoxVM
 New-Alias -Name ipvboxvm -Value Import-VirtualBoxVM
 New-Alias -Name edvboxvm -Value Edit-VirtualBoxVM
+New-Alias -Name gvboxvmsc -Value Get-VirtualBoxVMStorageController
+New-Alias -Name nvboxvmsc -Value New-VirtualBoxVMStorageController
+New-Alias -Name nvboxvmod -Value New-VirtualBoxVMOpticalDrive
+New-Alias -Name rvboxvmod -Value Remove-VirtualBoxVMOpticalDrive
 New-Alias -Name svboxvmgp -Value Set-VirtualBoxVMGuestProperty
 New-Alias -Name rvboxvmgp -Value Remove-VirtualBoxVMGuestProperty
 New-Alias -Name evboxvmvrde -Value Enable-VirtualBoxVMVRDEServer
@@ -10634,6 +13195,8 @@ New-Alias -Name dmvboxd -Value Dismount-VirtualBoxDisk
 New-Alias -Name gvboxdvd -Value Get-VirtualBoxDisc
 New-Alias -Name ipvboxdvd -Value Import-VirtualBoxDisc
 New-Alias -Name rvboxdvd -Value Remove-VirtualBoxDisc
+New-Alias -Name mtvboxdvd -Value Mount-VirtualBoxDisc
+New-Alias -Name dmvboxdvd -Value Dismount-VirtualBoxDisc
 New-Alias -Name sbvboxvmp -Value Submit-VirtualBoxVMProcess
 New-Alias -Name sbvboxvmpss -Value Submit-VirtualBoxVMPowerShellScript
 if ($ModuleHost.ToLower() -eq 'websrv') {
