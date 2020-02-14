@@ -89,7 +89,6 @@ The Get-VirtualBox commands are used to get PowerShell representations of Virtua
 	February 10, 2020
     
 ### **SEE ALSO**
-	Get-VirtualBox
 	Start-VirtualBoxSession
 	Stop-VirtualBoxSession
 	Start-VirtualBoxWebSrv
