@@ -2,16 +2,7 @@
 <#
 VirtualBox API Version: 6.1
 TODO:
-Add COM support (Immediate priority)
 Standardize data types (Immediate priority) - https://forums.virtualbox.org/viewtopic.php?f=34&t=96465
-Remove-VirtualBoxDisc
-Remove a CD/DVD/Floppy - void IMedium::close()
-Import-VirtualBoxDisc
-Import a CD/DVD/Floppy - IMedium IVirtualBox::openMedium()
-Mount-VirtualBoxDisc
-Mount a CD/DVD/Floppy - void IMachine::mountMedium()
-Dismount-VirtualBoxDisc
-Dismount a CD/DVD/Floppy - void IMachine::unmountMedium()
 Add support for importing/exporting encrypted VMs
 Write more comprehensive error handling (low priority)
 Finish implementing -WhatIf support (Extremely low priority)
@@ -114,13 +105,12 @@ class IProgress {
         $Variable = [IProgress]::new()
         if ($Variable){
 			$Variable.Id = $Id
+			$Variable.Description = $global:vbox.IProgress_getDescription($Id)
 			$Variable.Initiator = $global:vbox.IProgress_getInitiator($Id)
 			$Variable.Percent = $global:vbox.IProgress_getPercent($Id)
 			$Variable.TimeRemaining = $global:vbox.IProgress_getTimeRemaining($Id)
 			$Variable.Completed = $global:vbox.IProgress_getCompleted($Id)
 			$Variable.Canceled = $global:vbox.IProgress_getCanceled($Id)
-			#$Variable.ResultCode = $global:vbox.IProgress_getResultCode($Id)
-			#$Variable.ErrorInfo = $global:vbox.IProgress_getErrorInfo($Id)
 			$Variable.OperationCount = $global:vbox.IProgress_getOperationCount($Id)
 			$Variable.Operation = $global:vbox.IProgress_getOperation($Id)
 			$Variable.OperationDescription = $global:vbox.IProgress_getOperationDescription($Id)
@@ -653,7 +643,7 @@ class VirtualBoxError {
         else {return $null}
     }
 } # probably going to drop this in a future version - see the IVirtualBoxErrorInfo class for replacement
-if (!$__iThinkEnumsAreBetterButDontRealizeTheyAreAMessInPowerShellWhenReimportingModules) {
+if (!$__reallyThisIsJustToMakeTheseCollapsableForMe) {
 class IVirtualBoxErrorInfo {
 # https://www.virtualbox.org/sdkref/group___virtual_box___c_o_m__result__codes.html
 # https://www.virtualbox.org/sdkref/interface_i_virtual_box_error_info.html
@@ -2238,11 +2228,11 @@ $global:systempropertiessupported = New-Object SystemPropertiesSupported
 $global:mediumvariantssupported = New-Object MediumVariantsSupported
 $global:accessmodessupported = New-Object AccessModesSupported
 # seal globals
-if ((Get-Variable -Name mediumformats -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformats -Description "A list of medium formats." -Option ReadOnly -Scope Global -Visibility Private -Force}
-if ((Get-Variable -Name mediumformatspso -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformatspso -Description "A list of medium formats in PowerShell-readable format." -Option ReadOnly -Scope Global -Visibility Private -Force}
-if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name systempropertiessupported -Description "A list of VirtualBox properties supported by your system." -Option ReadOnly -Scope Global -Visibility Private -Force}
-if ((Get-Variable -Name mediumvariantssupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumvariantssupported -Description "A list of medium variants supported by your system." -Option ReadOnly -Scope Global -Visibility Private -Force}
-if ((Get-Variable -Name accessmodessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name accessmodessupported -Description "A list of access modes supported by your system." -Option ReadOnly -Scope Global -Visibility Private -Force}
+if ((Get-Variable -Name mediumformats -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformats -Description "A list of medium formats." -Option ReadOnly -Scope Global -Visibility Public -Force}
+if ((Get-Variable -Name mediumformatspso -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumformatspso -Description "A list of medium formats in PowerShell-readable format." -Option ReadOnly -Scope Global -Visibility Public -Force}
+if ((Get-Variable -Name systempropertiessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name systempropertiessupported -Description "A list of VirtualBox properties supported by your system." -Option ReadOnly -Scope Global -Visibility Public -Force}
+if ((Get-Variable -Name mediumvariantssupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name mediumvariantssupported -Description "A list of medium variants supported by your system." -Option ReadOnly -Scope Global -Visibility Public -Force}
+if ((Get-Variable -Name accessmodessupported -Scope Global).Options -notmatch 'ReadOnly') {Set-Variable -Name accessmodessupported -Description "A list of access modes supported by your system." -Option ReadOnly -Scope Global -Visibility Public -Force}
 # global automatic variables for conversion
 if ($ivirtualboxerrorinfo) {if ((Get-Variable -Name ivirtualboxerrorinfo -Scope Global).Options -match'ReadOnly') {Set-Variable -Name ivirtualboxerrorinfo -Description "Automatic variable used to get VirtualBox error information." -Option None -Scope Global -Force}}
 $global:ivirtualboxerrorinfo = New-Object IVirtualBoxErrorInfo
@@ -2257,18 +2247,18 @@ Function Get-VirtualBoxVM {
 .SYNOPSIS
 Get VirtualBox virtual machine information
 .DESCRIPTION
-Retrieve any or all VirtualBox virtual machines by name/GUID, state, or all. The default usage, without any parameters is to display all virtual machines.
+Retrieves any or all VirtualBox virtual machines by name/GUID, state, or all. The default usage, without any parameters is to display all virtual machines.
 .PARAMETER Name
-The name of a virtual machine.
+The name of at lease one virtual machine.
 .PARAMETER Guid
-The GUID of a virtual machine.
+The GUID of at lease one virtual machine.
 .PARAMETER State
 Return virtual machines based on their state. Valid values are:
 "PoweredOff","Running","Saved","Teleported","Aborted","Paused","Stuck","Snapshotting",
 "Starting","Stopping","Restoring","TeleportingPausedVM","TeleportingIn","FaultTolerantSync",
 "DeletingSnapshotOnline","DeletingSnapshot", and "SettingUp"
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM
 UUID        : c9d4dc35-3967-4009-993d-1c23ab4ff22b
@@ -2332,8 +2322,8 @@ GuestOS     : Debian
 Get suspended virtual machines
 .NOTES
 NAME        :  Update-VirtualBoxWebSrv
-VERSION     :  1.2
-LAST UPDATED:  1/8/2020
+VERSION     :  1.3
+LAST UPDATED:  2/10/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
@@ -2696,7 +2686,7 @@ Process {
  catch {
   Write-Verbose 'Exception retreiving machine information'
   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-  Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+  Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
  } # Catch
 } # Process
 End {
@@ -2716,7 +2706,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Suspend-VirtualBoxVM
 Suspend all running virtual machines
@@ -2885,7 +2875,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Paused | Resume-VirtualBoxVM
 Resume all paused virtual machines
@@ -3062,7 +3052,7 @@ Powershell credentials. Must be provided if the -Encrypted switch is used. The '
 .PARAMETER ProgressBar
 A switch to display a progress bar.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Start-VirtualBoxVM "Win10"
 Starts the virtual machine called Win10 in GUI mode.
@@ -3186,17 +3176,27 @@ Process {
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
       if ($Type -match 'Gui' -or $Type -match 'Sdl') {Write-Host "[Error] Starting VM in GUI or SDL mode is not available for the Web Service. Try again using the -Type Headless parameter and value." -ForegroundColor Red -BackgroundColor Black;return}
       elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, $Type.ToLower(), $null)}
-      # collect iprogress data
-      Write-Verbose "Fetching IProgress data"
-      if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
-      if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {
+       # collect iprogress data
+       Write-Verbose "Fetching IProgress data"
+       $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+       Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+      } # end if $ProgressBar
       do {
        # get the current machine state
        $machinestate = $global:vbox.IMachine_getState($imachine.Id)
        # update iprogress data
-       if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
-       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       if ($ProgressBar) {
+        $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+        if ($imachine.IProgress.Percent -lt 20) {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+         if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+        } # end if $imachine.IProgress.Percent < 20
+        else {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)
+         if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+        } # end else
+       } # end if $ProgressBar
       } until ($machinestate -eq 'Running') # continue once the vm is running
      } # end if not Encrypted
      elseif ($Encrypted) {
@@ -3204,18 +3204,28 @@ Process {
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
       if ($Type -match 'Gui' -or $Type -match 'Sdl') {Write-Host "[Error] Starting VM in GUI or SDL mode is not available for the Web Service. Try again using the -Type Headless parameter and value." -ForegroundColor Red -BackgroundColor Black;return}
       elseif ($Type -match 'Headless') {$imachine.IProgress.Id = $global:vbox.IMachine_launchVMProcess($imachine.Id, $imachine.ISession.Id, 'headless', $null)}
-      # collect iprogress data
-      Write-Verbose "Fetching IProgress data"
-      if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
-      if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+      if ($ProgressBar) {
+       # collect iprogress data
+       Write-Verbose "Fetching IProgress data"
+       $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+       Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+      } # end if $ProgressBar
       Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
       do {
        # get the current machine state
        $machinestate = $global:vbox.IMachine_getState($imachine.Id)
        # update iprogress data
-       if ($imachine.IProgress.Id) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
-       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-       if ($ProgressBar -and $imachine.IProgress.Id) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       if ($ProgressBar) {
+        $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+        if ($imachine.IProgress.Percent -lt 20) {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+         if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+        } # end if $imachine.IProgress.Percent < 20
+        else {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)
+         if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+        } # end else
+       } # end if $ProgressBar
       } until ($machinestate -eq 'Paused') # continue once the vm pauses for password
       Write-Verbose "VM $($imachine.Name) paused"
       # create new session object for iconsole
@@ -3265,13 +3275,21 @@ Process {
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
       if ($Type -match 'Sdl') {Show-VirtualBoxVM -Machine $imachine}
       elseif ($Type -notmatch 'Sdl') {$imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())}
-      if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1}
       do {
        # get the current machine state
        $machinestate = $imachine.ComObject.State
        # update iprogress data
-       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       if ($ProgressBar) {
+        if ($imachine.IProgress.Progress.Percent -lt 20) {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1
+         if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+        } # end if $imachine.IProgress.Progress.Percent < 20
+        else {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)
+         if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+        } # end else
+       } # end if $ProgressBar
       } until ($machinestate -eq 5) # continue once the vm is running
      } # end if not Encrypted
      elseif ($Encrypted) {
@@ -3279,14 +3297,22 @@ Process {
       Write-Verbose "Starting VM $($imachine.Name) in $Type mode"
       if ($Type -match 'Sdl') {Show-VirtualBoxVM -Machine $imachine}
       elseif ($Type -notmatch 'Sdl') {$imachine.IProgress.Progress = $imachine.ComObject.LaunchVMProcess($imachine.ISession.Session, $Type.ToLower(), [string[]]@())}
-      if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+      if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1}
       Write-Verbose "Waiting for VM $($imachine.Name) to pause for password"
       do {
        # get the current machine state
        $machinestate = $imachine.ComObject.State
        # update iprogress data
-       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-       if ($ProgressBar -and $imachine.IProgress.Progress) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       if ($ProgressBar) {
+        if ($imachine.IProgress.Progress.Percent -lt 20) {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1
+         if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+        } # end if $imachine.IProgress.Progress.Percent < 20
+        else {
+         Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)
+         if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+        } # end else
+       } # end if $ProgressBar
       } until ($machinestate -eq 5) # continue once the vm pauses for password
       Write-Verbose "VM $($imachine.Name) paused"
       if ($Type -match 'Sdl') {
@@ -3396,7 +3422,7 @@ A switch to send the Stop-Computer PowerShell command to the machine.
 .PARAMETER Credential
 Administrator credentials for the machine. Required if the PsShutdown switch is used.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Stop-VirtualBoxVM "Win10"
 Stops the VM named Win10
@@ -3540,19 +3566,29 @@ Process {
        # Power off the machine
        Write-verbose "Powering off the machine"
        $imachine.IProgress.Id = $global:vbox.IConsole_powerDown($imachine.IConsole)
-       # collect iprogress data
-       if ($ProgressBar) {Write-Verbose "Fetching IProgress data"}
-       if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)}
-       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+       if ($ProgressBar) {
+        # collect iprogress data
+        Write-Verbose "Fetching IProgress data"
+        $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
+        Write-Progress -Activity "Powering VM $($imachine.Name) off" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+       } # end if $ProgressBar
        do {
         # get the current machine state
         $machinestate = $global:vbox.IMachine_getState($imachine.Id)
         # update iprogress data
-        if ($ProgressBar) {$imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)}
-        if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-        if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+        if ($ProgressBar) {
+        $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
+        if ($imachine.IProgress.Percent -lt 20) {
+         Write-Progress -Activity "Powering VM $($imachine.Name) off" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+         if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+         } # end if $imachine.IProgress.Percent < 20
+         else {
+          Write-Progress -Activity "Powering VM $($imachine.Name) off" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)
+          if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+         } # end else
+        } # end if $ProgressBar
        } until ($machinestate -eq 'PoweredOff') # continue once the vm is stopped
-      }
+      } # end if machine is powered off
       else {return "Only machines that are not powered off may be stopped."}
      } # end if websrv
      elseif ($ModuleHost.ToLower() -eq 'com') {
@@ -3563,19 +3599,27 @@ Process {
        Write-verbose "Powering off the machine"
        $imachine.IProgress.Progress = $imachine.ISession.Session.Console.PowerDown()
        # collect iprogress data
-       if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+       if ($ProgressBar) {Write-Progress -Activity "Powering the VM $($imachine.Name) off" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1}
        do {
         # get the current machine state
         $machinestate = $imachine.ComObject.State
         # update iprogress data
-        if ($ProgressBar) {Write-Progress -Activity "Starting VM $($imachine.Name) in $Type Mode" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-        if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+        if ($ProgressBar) {
+         if ($imachine.IProgress.Progress.Percent -lt 20) {
+          Write-Progress -Activity "Powering the VM $($imachine.Name) off" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1
+          if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+         } # end if $imachine.IProgress.Progress.Percent < 20
+         else {
+          Write-Progress -Activity "Powering the VM $($imachine.Name) off" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)
+          if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+         } # end else
+        } # end if $ProgressBar
        } until ($machinestate -eq 1) # continue once the vm is stopped
-      }
+      } # end if $imachine.ComObject.State -ne 1
       else {return "Only machines that are not powered off may be stopped."}
      } # end elseif com
-    }
-   } #foreach
+    } # end else
+   } # foreach $imachine in $imachines
   } # end if $imachines
   else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
  } # Try
@@ -3751,7 +3795,7 @@ The Virtual File System type for the virtual machine.
 .PARAMETER VmProcPriority
 The VM process priority for the virtual machine.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> New-VirtualBoxVM -Name "My New Win10 VM" -OsTypeId Windows10_64
 Create a new virtual machine named "My New Win10 VM" with the all the recommended 64bit Windows10 defaults
@@ -4387,7 +4431,7 @@ A switch to delete all snapshots, detach all media and return all media for dele
 .PARAMETER ProgressBar
 A switch to display a progress bar when deleting files.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Remove-VirtualBoxVM -Name "My VM I Hate"
 Removes the virtual machine named "My VM I Hate" from the VirtualBox inventory
@@ -4531,41 +4575,19 @@ Process {
       Write-Verbose "          Running cleanup manually"
       # this mess will go away when the com is fixed, or when Get/Remove-VirtualBoxSnapshot commands are created
       $Location = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).SettingsFilePath
-      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments
-      $imediums = $imediumattachments.Medium
-      if ($imediums) {
-       foreach ($imedium in $imediums) {
-        <#
-        do {
-         $snapshotids = $imedium.GetSnapshotIds($imachine.Guid)
-         if ($snapshotids) {
-          foreach ($snapshotid in $snapshotids) {
-           if ($imachine.ComObject.FindSnapshot($snapshotid)) {
-            Write-Verbose "Deleting snapshot ID: $($snapshotid) for $($imachine.Name) machine"
-            $snapshotdeleteprogress = $imachine.ComObject.DeleteSnapshot($snapshotid)
-            if ($snapshotdeleteprogress) {
-             Write-Verbose 'Displaying progress bar'
-             if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
-             do {
-              # update iprogress data
-              if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
-              if ($ProgressBar) {Write-Progress -Activity "$($snapshotdeleteprogress.OperationDescription)" -status "$($snapshotdeleteprogress.OperationDescription): $($snapshotdeleteprogress.OperationPercent)%" -percentComplete ($snapshotdeleteprogress.OperationPercent) -Id 2 -ParentId 1}
-             } until ($snapshotdeleteprogress.Percent -eq 100) # continue once the progress reached 100%
-            }
-           }
-          }
-         }
-        } until (!$snapshotids)
-        #>
-        foreach ($imediumattachment in ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments) {
+      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments | Where-Object {$_.Medium.Id -ne $null}
+      foreach ($imediumattachment in $imediumattachments) {
+      $imediums = $imediumattachment.Medium
+       if ($imediums) {
+        foreach ($imedium in $imediums) {
          Write-Verbose "Dismounting virtual disk: $($imediumattachment.Medium.Name) from $($imachine.Name) machine"
          Write-Verbose "Controller: $($imediumattachment.Controller)"
          Write-Verbose "ControllerPort: $($imediumattachment.Port)"
          Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
          Dismount-VirtualBoxDisk -Guid $imediumattachment.Medium.Id -MachineGuid $imachine.Guid
-        }
-       }
-      }
+        } # foreach $imedium in $imediums
+       } # end if $imediums
+      } # foreach $imediumattachment in $imediumattachments
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
       $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('DetachAllReturnNone'))
       # delete VM files
@@ -4580,43 +4602,21 @@ Process {
       Write-Verbose "          Running cleanup manually"
       # this mess will go away when the com is fixed, or when Get/Remove-VirtualBoxSnapshot commands are created
       $Location = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).SettingsFilePath
-      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments
-      $imediums = $imediumattachments.Medium
-      if ($imediums) {
-       foreach ($imedium in $imediums) {
-        <#
-        do {
-         $snapshotids = $imedium.GetSnapshotIds($imachine.Uuid)
-         if ($snapshotids) {
-          foreach ($snapshotid in $snapshotids) {
-           if ($imachine.ComObject.FindSnapshot($snapshotid)) {
-            Write-Verbose "Deleting snapshot ID: $($snapshotid) for $($imachine.Name) machine"
-            $snapshotdeleteprogress = $imachine.ComObject.DeleteSnapshot($snapshotid)
-            if ($snapshotdeleteprogress) {
-             Write-Verbose 'Displaying progress bar'
-             if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
-             do {
-              # update iprogress data
-              if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
-              if ($ProgressBar) {Write-Progress -Activity "$($snapshotdeleteprogress.OperationDescription)" -status "$($snapshotdeleteprogress.OperationDescription): $($snapshotdeleteprogress.OperationPercent)%" -percentComplete ($snapshotdeleteprogress.OperationPercent) -Id 2 -ParentId 1}
-             } until ($snapshotdeleteprogress.Percent -eq 100) # continue once the progress reached 100%
-            }
-           }
-          }
-         }
-        } until (!$snapshotids)
-        #>
-        foreach ($imediumattachment in ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments) {
+      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments | Where-Object {$_.Medium.Id -ne $null}
+      foreach ($imediumattachment in $imediumattachments) {
+       $imediums = $imediumattachment.Medium
+       if ($imediums) {
+        foreach ($imedium in $imediums) {
          Write-Verbose "Dismounting virtual disk: $($imediumattachment.Medium.Name) from $($imachine.Name) machine"
          Write-Verbose "Controller: $($imediumattachment.Controller)"
          Write-Verbose "ControllerPort: $($imediumattachment.Port)"
          Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
          Dismount-VirtualBoxDisk -Guid $imediumattachment.Medium.Id -MachineGuid $imachine.Guid
-        }
+        } # foreach $imedium in $imediums
         if ($ProgressBar) {Remove-VirtualBoxDisk -Name $imedium.Name -DeleteFromHost -ProgressBar -Confirm:$false -SkipCheck}
         else {Remove-VirtualBoxDisk -Name $imedium.Name -DeleteFromHost -Confirm:$false -SkipCheck}
-       }
-      }
+       } # end if $imediums
+      } # foreach $imediumattachment in $imediumattachments
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
       $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('DetachAllReturnHardDisksOnly'))
       # delete VM files and virtual disk(s)
@@ -4631,43 +4631,27 @@ Process {
       Write-Verbose "          Running cleanup manually"
       # this mess will go away when the com is fixed, or when Get/Remove-VirtualBoxSnapshot commands are created
       $Location = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).SettingsFilePath
-      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments
-      $imediums = $imediumattachments.Medium
-      if ($imediums) {
-       foreach ($imedium in $imediums) {
-        <#
-        do {
-         $snapshotids = $imedium.GetSnapshotIds($imachine.Uuid)
-         if ($snapshotids) {
-          foreach ($snapshotid in $snapshotids) {
-           if ($imachine.ComObject.FindSnapshot($snapshotid)) {
-            Write-Verbose "Deleting snapshot ID: $($snapshotid) for $($imachine.Name) machine"
-            $snapshotdeleteprogress = $imachine.ComObject.DeleteSnapshot($snapshotid)
-            if ($snapshotdeleteprogress) {
-             Write-Verbose 'Displaying progress bar'
-             if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
-             do {
-              # update iprogress data
-              if ($ProgressBar) {Write-Progress -Activity "Deleting snapshot ID $($snapshotid)" -status "$($snapshotdeleteprogress.Description): $($snapshotdeleteprogress.Percent)%" -percentComplete ($snapshotdeleteprogress.Percent) -CurrentOperation "Current Operation: $($snapshotdeleteprogress.OperationDescription)" -Id 1 -SecondsRemaining ($snapshotdeleteprogress.TimeRemaining)}
-              if ($ProgressBar) {Write-Progress -Activity "$($snapshotdeleteprogress.OperationDescription)" -status "$($snapshotdeleteprogress.OperationDescription): $($snapshotdeleteprogress.OperationPercent)%" -percentComplete ($snapshotdeleteprogress.OperationPercent) -Id 2 -ParentId 1}
-             } until ($snapshotdeleteprogress.Percent -eq 100) # continue once the progress reached 100%
-            }
-           }
-          }
-         }
-        } until (!$snapshotids)
-        #>
-        foreach ($imediumattachment in ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments) {
+      $imediumattachments = ($vbox.Machines | Where-Object {$_.Name -eq $imachine.Name}).MediumAttachments | Where-Object {$_.Medium.Id -ne $null}
+      foreach ($imediumattachment in $imediumattachments) {
+       $imediums = $imediumattachment.Medium
+       if ($imediums) {
+        foreach ($imedium in $imediums) {
          Write-Verbose "Dismounting virtual disk: $($imediumattachment.Medium.Name) from $($imachine.Name) machine"
          Write-Verbose "Controller: $($imediumattachment.Controller)"
          Write-Verbose "ControllerPort: $($imediumattachment.Port)"
          Write-Verbose "ControllerSlot: $($imediumattachment.Device)"
          Dismount-VirtualBoxDisk -Guid $imediumattachment.Medium.Id -SkipCheck
-        }
-        if ($ProgressBar) {Remove-VirtualBoxDisk -Guid $imedium.Id -DeleteFromHost -ProgressBar -Confirm:$false -SkipCheck}
-        else {Remove-VirtualBoxDisk -Guid $imedium.Id -DeleteFromHost -Confirm:$false -SkipCheck}
-       }
-      }
+        } # foreach $imedium in $imediums
+        if ($imedium.Format -match 'RAW') {
+         if ($ProgressBar) {Remove-VirtualBoxDisc -Guid $imedium.Id -ProgressBar -SkipCheck}
+         else {Remove-VirtualBoxDisc -Guid $imedium.Id -SkipCheck}
+        } # end if CD/DVD
+        else {
+         if ($ProgressBar) {Remove-VirtualBoxDisk -Guid $imedium.Id -DeleteFromHost -ProgressBar -Confirm:$false -SkipCheck}
+         else {Remove-VirtualBoxDisk -Guid $imedium.Id -DeleteFromHost -Confirm:$false -SkipCheck}
+        } # end else
+       } # end if $imediums
+      } # foreach $imediumattachment in $imediumattachments
       Write-Verbose "Removing virtual machine $($imachine.Name) from inventory"
       $imediums = $imachine.ComObject.Unregister([CleanupMode]::new().ToULong('Full'))
       # delete VM files and virtual disk(s)
@@ -4689,7 +4673,7 @@ Process {
        # update iprogress data
        if ($ProgressBar) {Write-Progress -Activity "Removing virtual machine $($imachine.Name) ($($PSCmdlet.ParameterSetName))" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
        if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
-      } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+      } until ($imachine.IProgress.Progress.Percent -eq 100 -and $imachine.IProgress.Progress.Completed -eq $true) # continue once completed
       if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
      }
     } # end elseif com
@@ -4748,7 +4732,7 @@ The name of the virtual machine. This is a required parameter.
 .PARAMETER Location
 The location of the virtual machine settings file.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Import-VirtualBoxVM -Name "My VM I Love" -Location "C:\Users\SmithersTheOracle\VirtualBox VMs\My VM I Love"
 Import an existing virtual machine named "My VM I Love" from the "C:\Users\SmithersTheOracle\VirtualBox VMs\My VM I Love" folder
@@ -4974,7 +4958,7 @@ The Virtual File System type for the virtual machine.
 .PARAMETER VmProcPriority
 The VM process priority for the virtual machine.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Edit-VirtualBoxVM -Name "My New Win10 VM" -OsTypeId Windows10_64
 Create a new virtual machine named "My New Win10 VM" with the all the recommended 64bit Windows10 defaults
@@ -5666,7 +5650,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER MachineGuid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVMStorageController -Name sata -MachineName 2016
 
@@ -5894,7 +5878,7 @@ The variant type of the virtual disk.
 .PARAMETER VariantFlag
 The variant flag of the virtual disk.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> New-VirtualBoxVMStorageController -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar
 
@@ -6123,7 +6107,7 @@ The port of the storage controller to mount the disc to. This is a required para
 .PARAMETER ControllerSlot
 The slot of the storage controller to mount the disc to. This is a required parameter.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> New-VirtualBoxVMOpticalDrive -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
 
@@ -6253,7 +6237,7 @@ Process {
       # make sure it's not already attached to the requested vm
       foreach ($vmname in $imedium.MachineName) {
        Write-Verbose "Disc attached to VM: $vmname"
-       if (Get-VirtualBoxDisc -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disc $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
+       if (Get-VirtualBoxDisc -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disc $($imedium.Name) is already mounted to the $($imachine.Name) machine." -ForegroundColor Red -BackgroundColor Black;return}
       } # foreach $vmname in $imedium.MachineName
      } # end if $imedium.MachineName
     } # foreach $imedium in $imediums
@@ -6430,7 +6414,7 @@ The GUID of at least one virtual disc. Can be received via pipeline input by nam
 .PARAMETER MachineName
 The name of the virtual machine to dismount the disc from. This is a required parameter.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Remove-VirtualBoxVMOpticalDrive -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
 
@@ -6636,7 +6620,7 @@ The property value.
 .PARAMETER Flags
 A comma-separated list of property flags. (i.e. -Flags 'name=value','name=value','name=value')
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Set-VirtualBoxVMGuestProperty -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-interval' -Value 60000
 Set all running virtual machines to synchronize the guest time with the host every 60 seconds (Default 10 seconds)
@@ -6780,7 +6764,7 @@ The GUID of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER Property
 The property name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Remove-VirtualBoxVMGuestProperty -Property '/VirtualBox/GuestAdd/VBoxService/--timesync-interval'
 Remove the '/VirtualBox/GuestAdd/VBoxService/--timesync-interval' property from all running virtual machines
@@ -6912,7 +6896,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Enable-VirtualBoxVMVRDEServer
 Enable VRDE server for all running virtual machines
@@ -7105,7 +7089,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER Guid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Disable-VirtualBoxVMVRDEServer
 Disable VRDE server for all running virtual machines
@@ -7349,7 +7333,7 @@ The audio rate correction mode for the VRDE server.
 .PARAMETER AudioLogPath
 The audio log path for the VRDE server.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxVM -State Running | Edit-VirtualBoxVMVRDEServer -AuthTimeout 5000
 Set the VRDE server authorization timeout to 5 seconds for all running virtual machines
@@ -7931,7 +7915,7 @@ A custom version for the virtual machine.
 .PARAMETER ProgressBar
 A switch to display a progress bar.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Import-VirtualBoxOVF -FileName "C:\OVA Files\Win10.ova" -ProgressBar
 Imports the Win10.ova file with all VirtualBox recommended defaults and displays a progress bar
@@ -8176,13 +8160,21 @@ Process {
    # collect iprogress data
    Write-Verbose "Fetching IProgress data"
    $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-   if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+   if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1}
    do {
     # update iprogress data
     $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-    if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-   } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+    if ($ProgressBar) {
+     if ($imachine.IProgress.Percent -lt 20) {
+      Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+      if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } # end if $imachine.IProgress.Percent < 20
+     else {
+      Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)
+      if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } # end else
+    } # end if $ProgressBar
+   } until ($imachine.IProgress.Percent -eq 100 -and $imachine.IProgress.Completed -eq $true) # continue once completed
    if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
    # interpret the iappliance
    Write-Verbose "Interpreting the OVF/OVA settings"
@@ -8401,13 +8393,21 @@ Process {
    # collect iprogress data
    Write-Verbose "Fetching IProgress data"
    $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-   if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+   if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1}
    do {
     # update iprogress data
     $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-    if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-   } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+    if ($ProgressBar) {
+     if ($imachine.IProgress.Percent -lt 20) {
+      Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+      if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } # end if $imachine.IProgress.Percent < 20
+     else {
+      Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)
+      if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+     } # end else
+    } # end if $ProgressBar
+   } until ($imachine.IProgress.Percent -eq 100 -and $imachine.IProgress.Completed -eq $true) # continue once completed
    if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
   } # end if websrv
   elseif ($ModuleHost.ToLower() -eq 'com') {
@@ -8420,12 +8420,20 @@ Process {
    # read the ovf/ova file
    Write-Verbose "Reading the OVf/OVA settings file"
    $imachine.IProgress.Progress = $iappliance.Read($FileName)
-   if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+   if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1}
    do {
     # update iprogress data
-    if ($ProgressBar) {Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
-   } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+    if ($ProgressBar) {
+     if ($imachine.IProgress.Progress.Percent -lt 20) {
+      Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1
+      if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+     } # end if $imachine.IProgress.Progress.Percent < 20
+     else {
+      Write-Progress -Activity "Reading OVF file" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)
+      if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+     } # end else
+    } # end if $ProgressBar
+   } until ($imachine.IProgress.Progress.Percent -eq 100 -and $imachine.IProgress.Progress.Completed -eq $true) # continue once completed
    if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
    # interpret the iappliance
    Write-Verbose "Interpreting the OVF/OVA settings"
@@ -8650,12 +8658,20 @@ Process {
    # import the machine to inventory
    Write-Verbose "Importing machine to VirtualBox inventory"
    $imachine.IProgress.Progress = $iappliance.ImportMachines([ImportOptions]::new().ToInt($ImportOptions))
-   if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+   if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1}
    do {
     # update iprogress data
-    if ($ProgressBar) {Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-    if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
-   } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+    if ($ProgressBar) {
+     if ($imachine.IProgress.Progress.Percent -lt 20) {
+      Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1
+      if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+     } # end if $imachine.IProgress.Progress.Percent < 20
+     else {
+      Write-Progress -Activity "Importing VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)
+      if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+     } # end else
+    } # end if $ProgressBar
+   } until ($imachine.IProgress.Progress.Percent -eq 100 -and $imachine.IProgress.Progress.Completed -eq $true) # continue once completed
    if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
   } # end elseif com
  } # Try
@@ -8824,7 +8840,7 @@ A switch to specify an OVA file is to be created. If OVF format is specified as 
 .PARAMETER ProgressBar
 A switch to display a progress bar.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Export-VirtualBoxOVF -Name "My Win10 OVA VM" -FileName "C:\OVA Files" -ProgressBar
 Exports the "My Win10 OVA VM" virtual machine to the "C:\OVA Files\My Win10 OVA VM.ova" file with all VirtualBox recommended defaults and displays a progress bar
@@ -9312,13 +9328,21 @@ Process {
      # collect iprogress data
      Write-Verbose "Fetching IProgress data"
      $imachine.IProgress = $imachine.IProgress.Fetch($imachine.IProgress.Id)
-     if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
+     if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1}
      do {
       # update iprogress data
       $imachine.IProgress = $imachine.IProgress.Update($imachine.IProgress.Id)
-      if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
-     } until ($imachine.IProgress.Completed -eq $true) # continue once completed
+      if ($ProgressBar) {
+       if ($imachine.IProgress.Percent -lt 20) {
+        Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1
+        if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       } # end if $imachine.IProgress.Percent < 20
+       else {
+        Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Description): $($imachine.IProgress.Percent)%" -percentComplete ($imachine.IProgress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.TimeRemaining)
+        if ($imachine.IProgress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.OperationDescription)" -status "$($imachine.IProgress.OperationDescription): $($imachine.IProgress.OperationPercent)%" -percentComplete ($imachine.IProgress.OperationPercent) -Id 2 -ParentId 1}
+       } # end else
+      } # end if $ProgressBar
+     } until ($imachine.IProgress.Percent -eq 100 -and $imachine.IProgress.Completed -eq $true) # continue once completed
      if ($imachine.IProgress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.ErrorInfo}
     } # end if websrv
     elseif ($ModuleHost.ToLower() -eq 'com') {
@@ -9529,12 +9553,20 @@ Process {
      # export the machine to disk
      Write-Verbose "Writing OVF to disk"
      $imachine.IProgress.Progress = $iappliance.Write($OvfFormat, [ExportOptions]::new().ToInt($ExportOptions), (Join-Path -ChildPath "$($imachine.Name).$($Ext)" -Path $FilePath))
-     if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
+     if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1}
      do {
       # update iprogress data
-      if ($ProgressBar) {Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)}
-      if ($ProgressBar) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
-     } until ($imachine.IProgress.Progress.Completed -eq $true) # continue once completed
+      if ($ProgressBar) {
+       if ($imachine.IProgress.Progress.Percent -lt 20) {
+        Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1
+        if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       } # end if $imachine.IProgress.Progress.Percent < 20
+       else {
+        Write-Progress -Activity "Exporting VM $($imachine.Name)" -status "$($imachine.IProgress.Progress.Description): $($imachine.IProgress.Progress.Percent)%" -percentComplete ($imachine.IProgress.Progress.Percent) -CurrentOperation "Current Operation: $($imachine.IProgress.Progress.OperationDescription)" -Id 1 -SecondsRemaining ($imachine.IProgress.Progress.TimeRemaining)
+        if ($imachine.IProgress.Progress.OperationDescription) {Write-Progress -Activity "$($imachine.IProgress.Progress.OperationDescription)" -status "$($imachine.IProgress.Progress.OperationDescription): $($imachine.IProgress.Progress.OperationPercent)%" -percentComplete ($imachine.IProgress.Progress.OperationPercent) -Id 2 -ParentId 1}
+       } # end else
+      } # end if $ProgressBar
+     } until ($imachine.IProgress.Progress.Percent -eq 100 -and $imachine.IProgress.Progress.Completed -eq $true) # continue once completed
      if ($imachine.IProgress.Progress.ResultCode -ne 0) {Write-Verbose $imachine.IProgress.Progress.ErrorInfo}
     } # end elseif com
    } # end foreach $imachine in $imachines
@@ -9589,7 +9621,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER MachineGuid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxDisk -Name 2016
 
@@ -9938,7 +9970,7 @@ The variant type of the virtual disk.
 .PARAMETER VariantFlag
 The variant flag of the virtual disk.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> New-VirtualBoxDisk -AccessMode ReadWrite -Format VMDK -Location C:\Disks -LogicalSize 4194304 -Name TestDisk -VariantFlag Fixed -VariantType Standard -ProgressBar
 
@@ -10098,7 +10130,7 @@ Either Readonly or ReadWrite.
 .PARAMETER LogicalSize
 A switch to request a new disk UUID be created.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Import-VirtualBoxDisk -FileName C:\Disks\TestDisk.vmdk -AccessMode ReadWrite
 
@@ -10192,7 +10224,7 @@ The GUID of at least one virtual disk. Can be received via pipeline input by nam
 .PARAMETER DeleteFromHost
 A switch to delete the virtual disk from the host. This cannot be undone.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Remove-VirtualBoxDisk -Name TestDisk.vmdk -DeleteFromHost -ProgressBar -Confirm:$false
 
@@ -10368,7 +10400,7 @@ The port of the storage controller to mount the disk to. This is a required para
 .PARAMETER ControllerSlot
 The slot of the storage controller to mount the disk to. This is a required parameter.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Mount-VirtualBoxDisk -Name TestDisk -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
 
@@ -10644,7 +10676,7 @@ The GUID of at least one virtual disk. Can be received via pipeline input by nam
 .PARAMETER MachineName
 The name of the virtual machine to dismount the disk from. This is a required parameter.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Dismount-VirtualBoxDisk -Name TestDisk -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
 
@@ -10872,6 +10904,268 @@ End {
  Write-Verbose "Ending $($MyInvocation.MyCommand)"
 } # End
 } # end function
+Function Edit-VirtualBoxDisk {
+<#
+.SYNOPSIS
+Edit VirtualBox disk
+.DESCRIPTION
+Modifies VirtualBox disks. After a disk is modified, an updated virtual disk object will be returned via the pipeline. The command will fail if the virtual disk is not attached to the specified virtual machine. This command currently only supports enabling/disabling the SSD flag.
+.PARAMETER Disk
+At least one virtual disk object. Can be received via pipeline input.
+.PARAMETER Name
+The name of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER Guid
+The GUID of at least one virtual disk. Can be received via pipeline input by name.
+.PARAMETER MachineName
+The name of the virtual machine to dismount the disk from. This is a required parameter.
+.PARAMETER NonRotational
+Specify whether or not the SSD flag is enabled for the virtual disk.
+.PARAMETER SkipCheck
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
+.EXAMPLE
+PS C:\> Edit-VirtualBoxDisk -Name TestDisk -MachineName Win10 -NonRotational $true
+
+Enable the SSD flag for the virtual disk named "TestDisk.vmdk" attached to the Win10 virtual machine
+.NOTES
+NAME        :  Edit-VirtualBoxDisk
+VERSION     :  1.0
+LAST UPDATED:  2/13/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+Get-VirtualBoxDisk
+.INPUTS
+VirtualBoxVHD[]:  VirtualBoxVHDs for virtual disk objects
+String[]       :  Strings for virtual disk names
+GUID[]         :  GUIDS for virtual disk GUIDS
+VirtualBoxVM[] :  VirtualBoxVHDs for virtual machine objects
+String         :  String for virtual machine name
+GUID[]         :  GUIDS for virtual machine GUIDS
+Bool           :  Bool for SSD flag
+.OUTPUTS
+VirtualBoxVHD[]
+#>
+[cmdletbinding()]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk object(s)",
+Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVHD[]]$Disk,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk name(s)")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual disk GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(Mandatory=$false,HelpMessage="Enter a virtual machine object to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM]$Machine,
+[Parameter(Mandatory=$false,HelpMessage="Enter the name of the virtual machine to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [string]$MachineName,
+[Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disk from")]
+[ValidateNotNullorEmpty()]
+  [guid]$MachineGuid,
+[Parameter(Mandatory=$false,HelpMessage="Specify if the virtual disk is SSD")]
+[ValidateNotNullorEmpty()]
+  [bool]$NonRotational,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+ # get extensions supported by the selected format
+ $Ext = ($global:mediumformatspso | Where-Object {$_.Name -match $Format}).Extensions
+ # get the last of the extensions and use it
+ $Ext = $Ext[$Ext.GetUpperBound(0)]
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Disk: `"$Disk`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Disk -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one disk object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imediums = @()
+ if ($Disk) {
+  Write-Verbose "Getting disk inventory from Disk(s) object"
+  $imediums = $Disk
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting disk inventory from Name(s)"
+   $imediums += Get-VirtualBoxDisk -Name $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting disk inventory from GUID(s)"
+   $imediums += Get-VirtualBoxDisk -Guid $item -SkipCheck
+  }
+  $imediums = $imediums | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ $imediums = $imediums | Where-Object {$_.Format -notmatch 'RAW'}
+ if ($imediums) {
+  Write-Verbose "[Info] Found disks"
+  try {
+   foreach ($imedium in $imediums) {
+    Write-Verbose "Found disk: $($imedium.Name)"
+    if ($imedium.MachineGuid) {
+     foreach ($vmids in $imedium.MachineGuid) {
+      Write-Verbose "Disk attached to VM: $vmname"
+      if ($Machine) {
+       $imachines = $Machine
+      } # get vm inventory (by $Machine)
+      elseif ($MachineName) {
+       $imachines = Get-VirtualBoxVM -Name $MachineName -SkipCheck
+      } # get vm inventory (by $MachineName)
+      elseif ($MachineGuid) {
+       $imachines = Get-VirtualBoxVM -Guid $MachineGuid -SkipCheck
+      } # get vm inventory (by $MachineGuid)
+      elseif ($Machine -or $MachineName -or $MachineGuid -and !$imachines) {
+       Write-Verbose "[Warning] No machines found using provided filters. Matching all machines."
+       $imachines = Get-VirtualBoxVM -SkipCheck
+      } # get vm inventory (fallback)
+      if (!$imachines) {$imachines = Get-VirtualBoxVM -SkipCheck}
+      if ($imachines) {
+       foreach ($imachine in $imachines) {
+        if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black}
+        if ($ModuleHost.ToLower() -eq 'websrv') {
+         Write-Verbose "Getting medium attachment information"
+         $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
+         Write-Verbose "Getting write lock on machine $($imachine.Name)"
+         $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+         # create a new machine object
+         $mmachine = New-Object VirtualBoxVM
+         # get the mutable machine object
+         Write-Verbose "Getting the mutable machine object"
+         $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+         $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+         try {
+          # set requested settings here
+          if ($NonRotational -ne $null) {$mmachine.ComObject.NonRotationalDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$NonRotational)}
+         } # Try
+         catch {
+          Write-Verbose 'Exception applying new virtual disk settings'
+          Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+          Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+         } # Catch
+         # save new settings
+         Write-Verbose "Saving new settings"
+         $global:vbox.IMachine_saveSettings($mmachine.Id)
+         # unlock machine session
+         Write-Verbose "Unlocking machine session"
+         $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+        } # end if websrv
+        elseif ($ModuleHost.ToLower() -eq 'com') {
+         Write-Verbose "Getting medium attachment information"
+         $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
+         Write-Verbose "Getting write lock on machine $($imachine.Name)"
+         $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+         # create a new machine object
+         $mmachine = New-Object VirtualBoxVM
+         # get the mutable machine object
+         Write-Verbose "Getting the mutable machine object"
+         $mmachine.ComObject = $imachine.ISession.Session.Machine
+         $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+         Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+         Write-Verbose "Port: `"$($imediumattachment.Port)`""
+         Write-Verbose "Device: `"$($imediumattachment.Device)`""
+         try {
+          # set requested settings here
+          if ($NonRotational -ne $null) {$mmachine.ComObject.NonRotationalDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$NonRotational)}
+         } # Try
+         catch {
+          Write-Verbose 'Exception applying new virtual disk settings'
+          Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+          Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+         } # Catch
+         # save new settings
+         Write-Verbose "Saving new settings"
+         $mmachine.ComObject.SaveSettings()
+         # unlock machine session
+         Write-Verbose "Unlocking machine session"
+         $imachine.ISession.Session.UnlockMachine()
+        } # end elseif com
+        # write the updated disk to the pipeline
+        Write-Output (Get-VirtualBoxDisk -Guid $imedium.Guid)
+       } # foreach $imachine in $imachines
+      } # end if $imachines
+     } # foreach $vmname in $imedium.MachineGuid
+    } # end if $imedium.MachineGuid
+   } # foreach $imedium in $imediums
+  } # Try
+  catch {
+   Write-Verbose 'Exception editing virtual disk'
+   Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+  } # Catch
+  finally {
+   # release mutable machine objects if they exist
+   if ($mmachine) {
+    if ($mmachine.ISession.Id) {
+     # release mutable session object
+     Write-Verbose "Releasing mutable session object"
+     $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+    }
+    if ($mmachine.ISession.Session) {
+     if ($mmachine.ISession.Session.State -gt 1) {
+      $mmachine.ISession.Session.UnlockMachine()
+     } # end if $mmachine.ISession.Session locked
+    } # end if $mmachine.ISession.Session
+    if ($mmachine.Id) {
+     # release mutable object
+     Write-Verbose "Releasing mutable object"
+     $global:vbox.IManagedObjectRef_release($mmachine.Id)
+    }
+   }
+   # obligatory session unlock
+   Write-Verbose 'Cleaning up machine sessions'
+   if ($imachines) {
+    foreach ($imachine in $imachines) {
+     if ($imachine.ISession.Id) {
+      if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+       Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+      } # end if session state not unlocked
+     } # end if $imachine.ISession.Id
+     if ($imachine.ISession.Session) {
+      if ($imachine.ISession.Session.State -gt 1) {
+       $imachine.ISession.Session.UnlockMachine()
+      } # end if $imachine.ISession.Session locked
+     } # end if $imachine.ISession.Session
+     if ($imachine.IConsole) {
+      # release the iconsole session
+      Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+      $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+     } # end if $imachine.IConsole
+     #$imachine.ISession.Id = $null
+     $imachine.IConsole = $null
+     if ($imachine.IPercent) {$imachine.IPercent = $null}
+     $imachine.MSession = $null
+     $imachine.MConsole = $null
+     $imachine.MMachine = $null
+    } # end foreach $imachine in $imachines
+   } # end if $imachines
+  } # Finally
+ } # end if $imediums
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
 Function Get-VirtualBoxDisc {
 <#
 .SYNOPSIS
@@ -10889,7 +11183,7 @@ The name of at least one virtual machine. Can be received via pipeline input by 
 .PARAMETER MachineGuid
 The GUID of at least one virtual machine. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Get-VirtualBoxDisc -Name vboxguestadd
 
@@ -11205,7 +11499,7 @@ The full path to the virtual disc file.
 .PARAMETER ForceNewUuid
 A switch to request a new disc UUID be created.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Import-VirtualBoxDisc -FileName C:\Discs\TestDisc.iso
 
@@ -11292,7 +11586,7 @@ The name of at least one virtual disc. Can be received via pipeline input by nam
 .PARAMETER Guid
 The GUID of at least one virtual disc. Can be received via pipeline input by name.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Remove-VirtualBoxDisc -Name TestDisc.iso -ProgressBar -Confirm:$false
 
@@ -11433,7 +11727,7 @@ The port of the storage controller to mount the disc to. This is a required para
 .PARAMETER ControllerSlot
 The slot of the storage controller to mount the disc to. This is a required parameter.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Mount-VirtualBoxDisc -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
 
@@ -11549,13 +11843,16 @@ Process {
   try {
    foreach ($imedium in $imediums) {
     Write-Verbose "Found disc: $($imedium.Name)"
+    <#
     if ($imedium.MachineName) {
      # make sure it's not already attached to the requested vm
      foreach ($vmname in $imedium.MachineName) {
       Write-Verbose "Disc attached to VM: $vmname"
-      if (Get-VirtualBoxDisc -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disc $($imedium.Name) is already mounted to machine $($imachine.Name)." -ForegroundColor Red -BackgroundColor Black;return}
+      $imachine | Select-Object *
+      if (Get-VirtualBoxDisc -MachineName $vmname -SkipCheck) {Write-Host "[Error] The disc $($imedium.Name) is already mounted to the $($imachine.Name) machine." -ForegroundColor Red -BackgroundColor Black;return}
      } # foreach $vmname in $imedium.MachineName
     } # end if $imedium.MachineName
+    #>
     if ($Machine) {
      $imachines = $Machine
     } # get vm inventory (by $Machine)
@@ -11569,35 +11866,7 @@ Process {
      foreach ($imachine in $imachines) {
       if ($imachine.State -ne 'PoweredOff') {Write-Host "[Error] The machine $($imachine.Name) is not powered off. Hotswap is not supported at this time. Power the machine off and try again." -ForegroundColor Red -BackgroundColor Black;return}
       if ($ModuleHost.ToLower() -eq 'websrv') {
-       #$istoragecontrollers = New-Object IStorageController
-       #$istoragecontrollers = $istoragecontrollers.Fetch($imachine.Id)
-       foreach ($istoragecontroller in $imachine.IStorageControllers) {
-        if ($istoragecontroller.Name -eq $Controller) {
-         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
-         $controllerfound = $true
-        } # end if $istoragecontroller.Name -eq $Controller
-        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
-       } # foreach $istoragecontroller in $imachine.IStorageControllers
-       Write-Verbose "Getting write lock on machine $($imachine.Name)"
-       $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
-       # create a new machine object
-       $mmachine = New-Object VirtualBoxVM
-       # get the mutable machine object
-       Write-Verbose "Getting the mutable machine object"
-       $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
-       $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-       # attach the disc
-       Write-Verbose "Mounting disc $($imedium.Name) to machine $($imachine.Name)"
-       $global:vbox.IMachine_mountMedium($mmachine.Id, $Controller, $ControllerPort, $ControllerSlot, $imedium.Id, $false)
-       # save new settings
-       Write-Verbose "Saving new settings"
-       $global:vbox.IMachine_saveSettings($mmachine.Id)
-       # unlock machine session
-       Write-Verbose "Unlocking machine session"
-       $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
-      } # end if websrv
-      elseif ($ModuleHost.ToLower() -eq 'com') {
+       <#
        $istoragecontrollers = $imachine.ComObject.StorageControllers
        foreach ($istoragecontroller in $istoragecontrollers) {
         if ($istoragecontroller.Name -eq $Controller) {
@@ -11607,27 +11876,69 @@ Process {
         } # end if $istoragecontroller.Name -eq $Controller
         if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
        } # foreach $istoragecontroller in $istoragecontrollers
-       Write-Verbose "Getting write lock on machine $($imachine.Name)"
-       $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
-       # create a new machine object
-       $mmachine = New-Object VirtualBoxVM
-       # get the mutable machine object
-       Write-Verbose "Getting the mutable machine object"
-       $mmachine.ComObject = $imachine.ISession.Session.Machine
-       $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
-       # wait for the disc to become available
-       Write-Verbose "Waiting for the disc to become available"
-       do {
-       } until ($imedium.ComObject.State -eq 1)
-       # attach the disc
-       Write-Verbose "Mounting disc $($imedium.Name) to machine $($imachine.Name)"
-       $mmachine.ComObject.MountMedium($Controller, $ControllerPort, $ControllerSlot, $imedium.ComObject, $false)
-       # save new settings
-       Write-Verbose "Saving new settings"
-       $mmachine.ComObject.SaveSettings()
-       # unlock machine session
-       Write-Verbose "Unlocking machine session"
-       $imachine.ISession.Session.UnlockMachine()
+       #>
+       $storagecontrollers = Get-VirtualBoxVMStorageController -Name $Controller -Machine $imachine -SkipCheck
+       if (!$storagecontrollers) {Write-Host "[Error] The controller $Controller was not found on the $($imachine.Name) machine. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black}
+       else {
+        foreach ($storagecontroller in $storagecontrollers) {
+         Write-Verbose "Getting write lock on machine $($imachine.Name)"
+         $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+         # create a new machine object
+         $mmachine = New-Object VirtualBoxVM
+         # get the mutable machine object
+         Write-Verbose "Getting the mutable machine object"
+         $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+         $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+         # attach the disc
+         Write-Verbose "Mounting disc $($imedium.Name) to machine $($imachine.Name)"
+         $global:vbox.IMachine_mountMedium($mmachine.Id, $storagecontroller.Name, $ControllerPort, $ControllerSlot, $imedium.Id, $false)
+         # save new settings
+         Write-Verbose "Saving new settings"
+         $global:vbox.IMachine_saveSettings($mmachine.Id)
+         # unlock machine session
+         Write-Verbose "Unlocking machine session"
+         $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+        } # foreach $storagecontroller in $storagecontrollers
+       } # end else
+      } # end if websrv
+      elseif ($ModuleHost.ToLower() -eq 'com') {
+       <#
+       $istoragecontrollers = $imachine.ComObject.StorageControllers
+       foreach ($istoragecontroller in $istoragecontrollers) {
+        if ($istoragecontroller.Name -eq $Controller) {
+         if ($ControllerPort -lt 0 -or $ControllerPort -gt $istoragecontroller.PortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough available ports. Specify a new port number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         if ($ControllerSlot -lt 0 -or $ControllerSlot -gt $istoragecontroller.MaxDevicesPerPortCount) {Write-Host "[Error] The controller $($istoragecontroller.Name) does not have enough slots available on the requseted port. Specify a new slot number and try again." -ForegroundColor Red -BackgroundColor Black;return}
+         $controllerfound = $true
+        } # end if $istoragecontroller.Name -eq $Controller
+        if (!$controllerfound) {Write-Host "[Error] The controller $($istoragecontroller.Name) was not found. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black;return}
+       } # foreach $istoragecontroller in $istoragecontrollers
+       #>
+       $storagecontrollers = Get-VirtualBoxVMStorageController -Name $Controller -Machine $imachine -SkipCheck
+       if (!$storagecontrollers) {Write-Host "[Error] The controller $Controller was not found on the $($imachine.Name) machine. Specify an existing controller name and try again." -ForegroundColor Red -BackgroundColor Black}
+       else {
+        foreach ($storagecontroller in $storagecontrollers) {
+         Write-Verbose "Getting write lock on machine $($imachine.Name)"
+         $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+         # create a new machine object
+         $mmachine = New-Object VirtualBoxVM
+         # get the mutable machine object
+         Write-Verbose "Getting the mutable machine object"
+         $mmachine.ComObject = $imachine.ISession.Session.Machine
+         $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+         # wait for the disc to become available
+         Write-Verbose "Waiting for the disc to become available"
+         do {} until ($imedium.ComObject.State -eq 1)
+         # attach the disc
+         Write-Verbose "Mounting disc $($imedium.Name) to machine $($imachine.Name)"
+         $mmachine.ComObject.MountMedium($storagecontroller.Name, $ControllerPort, $ControllerSlot, $imedium.ComObject, $false)
+         # save new settings
+         Write-Verbose "Saving new settings"
+         $mmachine.ComObject.SaveSettings()
+         # unlock machine session
+         Write-Verbose "Unlocking machine session"
+         $imachine.ISession.Session.UnlockMachine()
+        } # foreach $storagecontroller in $storagecontrollers
+       } # end else
       } # end elseif com
      } # foreach $imachine in $imachines
     } # end if $imachines
@@ -11708,7 +12019,7 @@ The GUID of at least one virtual disc. Can be received via pipeline input by nam
 .PARAMETER MachineName
 The name of the virtual machine to dismount the disc from. This is a required parameter.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Dismount-VirtualBoxDisc -Name TestDisc -MachineName Win10 -Controller SATA -ControllerPort 0 -ControllerSlot 0
 
@@ -11828,46 +12139,50 @@ Process {
         if ($PSCmdlet.ShouldProcess("$($imachine.Name) virtual machine" , "Dismount storage medium $($imedium.Name) ")) {
          if ($ModuleHost.ToLower() -eq 'websrv') {
           Write-Verbose "Getting medium attachment information"
-          $imediumattachment = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
-          Write-Verbose "Getting write lock on machine $($imachine.Name)"
-          $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
-          # create a new machine object
-          $mmachine = New-Object VirtualBoxVM
-          # get the mutable machine object
-          Write-Verbose "Getting the mutable machine object"
-          $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
-          $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
-          Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
-          $global:vbox.IMachine_unmountMedium($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device, $false)
-          # save new settings
-          Write-Verbose "Saving new settings"
-          $global:vbox.IMachine_saveSettings($mmachine.Id)
-          # unlock machine session
-          Write-Verbose "Unlocking machine session"
-          $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+          $imediumattachments = $global:vbox.IMachine_getMediumAttachments($imachine.Id) | Where-Object {$_.machine -match $imachine.Id} | Where-Object {$_.Medium -match $imedium.Id}
+          foreach ($imediumattachment in $imediumattachments) {
+           Write-Verbose "Getting write lock on machine $($imachine.Name)"
+           $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+           # create a new machine object
+           $mmachine = New-Object VirtualBoxVM
+           # get the mutable machine object
+           Write-Verbose "Getting the mutable machine object"
+           $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+           $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+           Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
+           $global:vbox.IMachine_unmountMedium($mmachine.Id, $imediumattachment.controller, $imediumattachment.port, $imediumattachment.device, $false)
+           # save new settings
+           Write-Verbose "Saving new settings"
+           $global:vbox.IMachine_saveSettings($mmachine.Id)
+           # unlock machine session
+           Write-Verbose "Unlocking machine session"
+           $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+          } # foreach $imediumattachment in $imediumattachments
          } # end if websrv
          elseif ($ModuleHost.ToLower() -eq 'com') {
           Write-Verbose "Getting medium attachment information"
-          $imediumattachment = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
-          Write-Verbose "Getting write lock on machine $($imachine.Name)"
-          $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
-          # create a new machine object
-          $mmachine = New-Object VirtualBoxVM
-          # get the mutable machine object
-          Write-Verbose "Getting the mutable machine object"
-          $mmachine.ComObject = $imachine.ISession.Session.Machine
-          $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
-          Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
-          Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
-          Write-Verbose "Port: `"$($imediumattachment.Port)`""
-          Write-Verbose "Device: `"$($imediumattachment.Device)`""
-          $mmachine.ComObject.UnmountMedium($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $false)
-          # save new settings
-          Write-Verbose "Saving new settings"
-          $mmachine.ComObject.SaveSettings()
-          # unlock machine session
-          Write-Verbose "Unlocking machine session"
-          $imachine.ISession.Session.UnlockMachine()
+          $imediumattachments = ($global:vbox.Machines | Where-Object {$_.Id -match $imachine.Guid}).MediumAttachments | Where-Object {$_.Medium.Id -match $imedium.Guid}
+          foreach ($imediumattachment in $imediumattachments) {
+           Write-Verbose "Getting write lock on machine $($imachine.Name)"
+           $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+           # create a new machine object
+           $mmachine = New-Object VirtualBoxVM
+           # get the mutable machine object
+           Write-Verbose "Getting the mutable machine object"
+           $mmachine.ComObject = $imachine.ISession.Session.Machine
+           $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+           Write-Verbose "Attempting to unmount disc $($imedium.Name) from machine: $($imachine.Name)"
+           Write-Verbose "Controller: `"$($imediumattachment.Controller)`""
+           Write-Verbose "Port: `"$($imediumattachment.Port)`""
+           Write-Verbose "Device: `"$($imediumattachment.Device)`""
+           $mmachine.ComObject.UnmountMedium($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $false)
+           # save new settings
+           Write-Verbose "Saving new settings"
+           $mmachine.ComObject.SaveSettings()
+           # unlock machine session
+           Write-Verbose "Unlocking machine session"
+           $imachine.ISession.Session.UnlockMachine()
+          } # foreach $imediumattachment in $imediumattachments
          } # end elseif com
         } # end if $PSCmdlet.ShouldProcess(
        } # foreach $imachine in $imachines
@@ -11962,7 +12277,7 @@ A switch to display StdErr to the screen.
 .PARAMETER NoWait
 A switch to skip waiting for process completion. StdOut and StdErr switches will be ignored if this switch is used. Warning: this will launch the process and immediately exit. If the process does not terminate successfully, you will need to do so manually from within the guest OS.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Submit-VirtualBoxVMProcess Win10 'cmd.exe' '/c','shutdown','/s','/f' -Credential $credentials
 Runs cmd.exe in the Win10 virtual machine guest OS with the argument list "/c shutdown /s /f"
@@ -12395,7 +12710,7 @@ A switch to display StdErr to the screen.
 .PARAMETER NoWait
 A switch to skip waiting for PowerShell completion. StdOut and StdErr switches will be ignored if this switch is used. Warning: this will launch the PowerShell scriptblock and immediately exit. If PowerShell does not terminate successfully, you will need to do so manually from within the guest OS.
 .PARAMETER SkipCheck
-A switch to skip service update (for development use).
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
 PS C:\> Submit-VirtualBoxVMPowerShellScript Win10 '& cmd.exe /c shutdown /s /f' -Credential $credentials
 Runs '& cmd.exe /c shutdown /s /f' in the Win10 virtual machine guest OS with PowerShell
@@ -12656,7 +12971,7 @@ if ($ModuleHost.ToLower() -eq 'websrv') {
   catch {
    Write-Verbose 'Exception creating the VirtualBox Web Service session'
    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
-   Write-Host $_.Exception -ForegroundColor Red -BackgroundColor Black
+   Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
   }
  } # Process
  End {
@@ -13164,6 +13479,7 @@ elseif ($ModuleHost.ToLower() -eq 'com') {
   } # Catch
  } # end if $vbox
 } # end elseif com
+if (!$vbox) {Write-Host '[Error] The VirtualBoxPS module did not load successfully.' -ForegroundColor Red -BackgroundColor Black;return (Remove-Module -Name VirtualBoxPS -Force)}
 # define aliases
 New-Alias -Name gvboxvm -Value Get-VirtualBoxVM
 New-Alias -Name ssvboxvm -Value Suspend-VirtualBoxVM
@@ -13192,6 +13508,7 @@ New-Alias -Name ipvboxd -Value Import-VirtualBoxDisk
 New-Alias -Name rvboxd -Value Remove-VirtualBoxDisk
 New-Alias -Name mtvboxd -Value Mount-VirtualBoxDisk
 New-Alias -Name dmvboxd -Value Dismount-VirtualBoxDisk
+New-Alias -Name edvboxd -Value Edit-VirtualBoxDisk
 New-Alias -Name gvboxdvd -Value Get-VirtualBoxDisc
 New-Alias -Name ipvboxdvd -Value Import-VirtualBoxDisc
 New-Alias -Name rvboxdvd -Value Remove-VirtualBoxDisc
