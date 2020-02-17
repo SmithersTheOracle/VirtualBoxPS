@@ -329,16 +329,85 @@ class IMediumAttachments {
 }
 if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayProperty Controller -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type") -Force}
 if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IMediumAttachments -DefaultDisplayProperty Controller -DefaultDisplayPropertySet @("IMedium","Controller","Port","Device","Type","ComObject") -Force}
+class IBiosSettings {
+    [bool]$LogoFadeIn
+    [bool]$LogoFadeOut
+    [uint32]$LogoDisplayTime
+    [string]$LogoImagePath
+    [string]$BootMenuMode
+    [bool]$AcpiEnabled
+    [bool]$IoApicEnabled
+    [bool]$ApicMode
+    [int64]$TimeOffset
+    [bool]$PxeDebugEnabled
+    [string]$NonVolatileStorageFile
+    [bool]$SmBiosUuidLittleEndian
+    [string]$Id
+    [System.__ComObject]$ComObject
+}
+if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName IBiosSettings -DefaultDisplayProperty BootMenuMode -DefaultDisplayPropertySet @("BootMenuMode","AcpiEnabled","IoApicEnabled","ApicMode","TimeOffset") -Force}
+if ($ModuleHost.ToLower() -eq 'com') {Update-TypeData -TypeName IBiosSettings -DefaultDisplayProperty BootMenuMode -DefaultDisplayPropertySet @("BootMenuMode","AcpiEnabled","IoApicEnabled","ApicMode","TimeOffset","ComObject") -Force}
 # property classes
 class VirtualBoxVM {
     [ValidateNotNullOrEmpty()]
     [string]$Name
     [string]$Id
     [string]$MMachine
+    [bool]$Accessible
+    [string]$AccessError
+    [string]$Groups
+    [string]$OsTypeId
+    [string]$HardwareVersion
+    [guid]$HardwareUuid
+    [uint32]$CpuCount
+    [bool]$CpuHotPlugEnabled
+    [ValidateRange(1, 100)]
+    [uint32]$CpuExecutionCap
+    [uint32]$CpuIdPortabilityLevel
+    [uint32]$MemorySize
+    [uint32]$MemoryBalloonSize
+    [bool]$PageFusionEnabled
+    [string]$PointingHidType
+    [string]$KeyboardHidType
+    [bool]$HpetEnabled
+    [string]$ChipsetType
+    [string]$SnapshotFolder
+    [bool]$EmulatedUsbCardReaderEnabled
+    [string]$SettingsFilePath
+    [string]$SessionState
+    [string]$SessionName
+    [uint32]$SessionPid
+    [string]$State
+    [uint64]$LastStateChange
+    [string]$StateFilePath
+    [string]$LogFolder
+    [uint32]$SnapshotCount
+    [bool]$CurrentStateModified
+    [string]$ClipboardMode
+    [bool]$ClipboardFileTransfersEnabled
+    [string]$DnDMode
+    [bool]$TeleporterEnabled
+    [uint32]$TeleporterPort
+    [string]$TeleporterAddress
+    [securestring]$TeleporterPassword
+    [string]$ParavirtProvider
+    [bool]$RtcUseUtc
+    [bool]$IoCacheEnabled
+    [uint32]$IoCacheSize
+    [bool]$TracingEnabled
+    [string]$TracingConfig
+    [bool]$AllowTracingToAccessVm
+    [bool]$AutostartEnabled
+    [uint32]$AutostartDelay
+    [string]$AutostopType
+    [string]$DefaultFrontend
+    [bool]$UsbProxyAvailable
+    [string]$VmProcessPriority
+    [string]$ParavirtDebug
+    [string]$CpuProfile
     [guid]$Guid
     [string]$Description
     [string]$MemoryMB
-    [string]$State
     [bool]$Running
     [string]$Info
     [string]$GuestOS
@@ -353,6 +422,7 @@ class VirtualBoxVM {
     [IVrdeServer]$IVrdeServer = [IVrdeServer]::new()
     [array]$GuestProperties
     [IMediumAttachments[]]$IMediumAttachments = [IMediumAttachments]::new()
+    [IBiosSettings]$IBiosSettings = [IBiosSettings]::new()
     [System.__ComObject]$ComObject
 }
 if ($ModuleHost.ToLower() -eq 'websrv') {Update-TypeData -TypeName VirtualBoxVM -DefaultDisplayProperty Name -DefaultDisplayPropertySet @("GUID","Name","MemoryMB","Description","State","GuestOS") -Force}
@@ -2208,6 +2278,142 @@ class ChipsetType {
         else {return $null}
     }
 } # Int
+class BIOSBootMenuMode {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Disabled'       {$ToInt = 0}
+                'MenuOnly'       {$ToInt = 1}
+                'MessageAndMenu' {$ToInt = 2}
+                Default          {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Disabled'}
+                1       {$ToStr = 'MenuOnly'}
+                2       {$ToStr = 'MessageAndMenu'}
+                default {$ToStr = 'Disabled'} # Default to Disabled.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class SessionState {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'      {$ToInt = 0} # Null value. Never used by the API.
+                'Unlocked'  {$ToInt = 1} # In IMachine::sessionState, this means that the machine is not locked for any sessions. In ISession::state, this means that no machine is currently locked for this session.
+                'Locked'    {$ToInt = 2} # In IMachine::sessionState, this means that the machine is currently locked for a session, whose process identifier can then be found in the IMachine::sessionPID attribute. In ISession::state, this means that a machine is currently locked for this session, and the mutable machine object can be found in the ISession::machine attribute (see IMachine::lockMachine() for details).
+                'Spawning'  {$ToInt = 3} # A new process is being spawned for the machine as a result of IMachine::launchVMProcess() call. This state also occurs as a short transient state during an IMachine::lockMachine() call.
+                'Unlocking' {$ToInt = 4} # The session is being unlocked.
+                Default     {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value. Never used by the API.
+                1       {$ToStr = 'Unlocked'} # In IMachine::sessionState, this means that the machine is not locked for any sessions. In ISession::state, this means that no machine is currently locked for this session.
+                2       {$ToStr = 'Locked'} # In IMachine::sessionState, this means that the machine is currently locked for a session, whose process identifier can then be found in the IMachine::sessionPID attribute. In ISession::state, this means that a machine is currently locked for this session, and the mutable machine object can be found in the ISession::machine attribute (see IMachine::lockMachine() for details).
+                3       {$ToStr = 'Spawning'} # A new process is being spawned for the machine as a result of IMachine::launchVMProcess() call. This state also occurs as a short transient state during an IMachine::lockMachine() call.
+                4       {$ToStr = 'Unlocking'} # The session is being unlocked.
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
+class MachineState {
+    [int]ToInt ([string]$FromStr) {
+        if ($FromStr){
+            $ToInt = $null
+            Switch ($FromStr) {
+                'Null'                   {$ToInt = 0} # Null value. Never used by the API.
+                'PoweredOff'             {$ToInt = 1} # The machine is not running and has no saved execution state; it has either never been started or been shut down successfully.
+                'Saved'                  {$ToInt = 2} # The machine is not currently running, but the execution state of the machine has been saved to an external file when it was running, from where it can be resumed.
+                'Teleported'             {$ToInt = 3} # The machine was teleported to a different host (or process) and then powered off. Take care when powering it on again may corrupt resources it shares with the teleportation target (e.g. disk and network).
+                'Aborted'                {$ToInt = 4} # The process running the machine has terminated abnormally. This may indicate a crash of the VM process in host execution context, or the VM process has been terminated externally.
+                'Running'                {$ToInt = 5} # The machine is currently being executed.
+                'Paused'                 {$ToInt = 6} # Execution of the machine has been paused.
+                'Stuck'                  {$ToInt = 7} # Execution of the machine has reached the “Guru Meditation” condition. This indicates a severe error in the hypervisor itself.
+                'Teleporting'            {$ToInt = 8} # The machine is about to be teleported to a different host or process. It is possible to pause a machine in this state, but it will go to the TeleportingPausedVM state and it will not be possible to resume it again unless the teleportation fails.
+                'LiveSnapshotting'       {$ToInt = 9} # A live snapshot is being taken. The machine is running normally, but some of the runtime configuration options are inaccessible. Also, if paused while in this state it will transition to OnlineSnapshotting and it will not be resume the execution until the snapshot operation has completed.
+                'Starting'               {$ToInt = 10} # Machine is being started after powering it on from a zero execution state.
+                'Stopping'               {$ToInt = 11} # Machine is being normally stopped powering it off, or after the guest OS has initiated a shutdown sequence.
+                'Saving'                 {$ToInt = 12} # Machine is saving its execution state to a file.
+                'Restoring'              {$ToInt = 13} # Execution state of the machine is being restored from a file after powering it on from the saved execution state.
+                'TeleportingPausedVM'    {$ToInt = 14} # The machine is being teleported to another host or process, but it is not running. This is the paused variant of the Teleporting state.
+                'TeleportingIn'          {$ToInt = 15} # Teleporting the machine state in from another host or process.
+                'DeletingSnapshotOnline' {$ToInt = 16} # Like DeletingSnapshot, but the merging of media is ongoing in the background while the machine is running.
+                'DeletingSnapshotPaused' {$ToInt = 17} # Like DeletingSnapshotOnline, but the machine was paused when the merging of differencing media was started.
+                'OnlineSnapshotting'     {$ToInt = 18} # Like LiveSnapshotting, but the machine was paused when the merging of differencing media was started.
+                'RestoringSnapshot'      {$ToInt = 19} # A machine snapshot is being restored; this typically does not take long.
+                'DeletingSnapshot'       {$ToInt = 20} # A machine snapshot is being deleted; this can take a long time since this may require merging differencing media. This value indicates that the machine is not running while the snapshot is being deleted.
+                'SettingUp'              {$ToInt = 21} # Lengthy setup operation is in progress.
+                'Snapshotting'           {$ToInt = 22} # Taking an (offline) snapshot.
+                'FirstOnline'            {$ToInt = 23} # Pseudo-state: first online state (for use in relational expressions).
+                'LastOnline'             {$ToInt = 24} # Pseudo-state: last online state (for use in relational expressions).
+                'FirstTransient'         {$ToInt = 25} # Pseudo-state: first transient state (for use in relational expressions).
+                'LastTransient'          {$ToInt = 26} # Pseudo-state: last transient state (for use in relational expressions).
+                Default                  {$ToInt = 0} # Default to 0.
+            }
+            return [int]$ToInt
+        }
+        else {return $null}
+    }
+    [string]ToStr ([int]$FromInt) {
+        if ($FromInt -ne $null){
+            $ToStr = $null
+            Switch ($FromInt) {
+                0       {$ToStr = 'Null'} # Null value. Never used by the API.
+                1       {$ToStr = 'PoweredOff'} # The machine is not running and has no saved execution state; it has either never been started or been shut down successfully.
+                2       {$ToStr = 'Saved'} # The machine is not currently running, but the execution state of the machine has been saved to an external file when it was running, from where it can be resumed.
+                3       {$ToStr = 'Teleported'} # The machine was teleported to a different host (or process) and then powered off. Take care when powering it on again may corrupt resources it shares with the teleportation target (e.g. disk and network).
+                4       {$ToStr = 'Aborted'} # The process running the machine has terminated abnormally. This may indicate a crash of the VM process in host execution context, or the VM process has been terminated externally.
+                5       {$ToStr = 'Running'} # The machine is currently being executed.
+                6       {$ToStr = 'Paused'} # Execution of the machine has been paused.
+                7       {$ToStr = 'Stuck'} # Execution of the machine has reached the “Guru Meditation” condition. This indicates a severe error in the hypervisor itself.
+                8       {$ToStr = 'Teleporting'} # The machine is about to be teleported to a different host or process. It is possible to pause a machine in this state, but it will go to the TeleportingPausedVM state and it will not be possible to resume it again unless the teleportation fails.
+                9       {$ToStr = 'LiveSnapshotting'} # A live snapshot is being taken. The machine is running normally, but some of the runtime configuration options are inaccessible. Also, if paused while in this state it will transition to OnlineSnapshotting and it will not be resume the execution until the snapshot operation has completed.
+                10      {$ToStr = 'Starting'} # Machine is being started after powering it on from a zero execution state.
+                11      {$ToStr = 'Stopping'} # Machine is being normally stopped powering it off, or after the guest OS has initiated a shutdown sequence.
+                12      {$ToStr = 'Saving'} # Machine is saving its execution state to a file.
+                13      {$ToStr = 'Restoring'} # Execution state of the machine is being restored from a file after powering it on from the saved execution state.
+                14      {$ToStr = 'TeleportingPausedVM'} # The machine is being teleported to another host or process, but it is not running. This is the paused variant of the Teleporting state.
+                15      {$ToStr = 'TeleportingIn'} # Teleporting the machine state in from another host or process.
+                16      {$ToStr = 'DeletingSnapshotOnline'} # Like DeletingSnapshot, but the merging of media is ongoing in the background while the machine is running.
+                17      {$ToStr = 'DeletingSnapshotPaused'} # Like DeletingSnapshotOnline, but the machine was paused when the merging of differencing media was started.
+                18      {$ToStr = 'OnlineSnapshotting'} # Like LiveSnapshotting, but the machine was paused when the merging of differencing media was started.
+                19      {$ToStr = 'RestoringSnapshot'} # A machine snapshot is being restored; this typically does not take long.
+                20      {$ToStr = 'DeletingSnapshot'} # A machine snapshot is being deleted; this can take a long time since this may require merging differencing media. This value indicates that the machine is not running while the snapshot is being deleted.
+                21      {$ToStr = 'SettingUp'} # Lengthy setup operation is in progress.
+                22      {$ToStr = 'Snapshotting'} # Taking an (offline) snapshot.
+                23      {$ToStr = 'FirstOnline'} # Pseudo-state: first online state (for use in relational expressions).
+                24      {$ToStr = 'LastOnline'} # Pseudo-state: last online state (for use in relational expressions).
+                25      {$ToStr = 'FirstTransient'} # Pseudo-state: first transient state (for use in relational expressions).
+                26      {$ToStr = 'LastTransient'} # Pseudo-state: last transient state (for use in relational expressions).
+                default {$ToStr = 'Null'} # Default to Null.
+            }
+            return [string]$ToStr
+        }
+        else {return $null}
+    }
+} # Int
 }
 #########################################################################################
 # Variable Declarations
@@ -2322,8 +2528,8 @@ GuestOS     : Debian
 Get suspended virtual machines
 .NOTES
 NAME        :  Update-VirtualBoxWebSrv
-VERSION     :  1.3
-LAST UPDATED:  2/10/2020
+VERSION     :  1.4
+LAST UPDATED:  2/17/2020
 AUTHOR      :  Andrew Brehm
 EDITOR      :  SmithersTheOracle
 .LINK
@@ -2373,8 +2579,8 @@ Process {
  # initialize array object to hold virtual machine values
  $vminventory = @()
  try {
+  # get virtual machine inventory
   if ($ModuleHost.ToLower() -eq 'websrv') {
-   # get virtual machine inventory
    foreach ($vmid in ($global:vbox.IVirtualBox_getMachines($global:ivbox))) {
      $guestprops = New-Object GuestProperties
      $storagecontrollers = New-Object IStorageControllers
@@ -2385,6 +2591,54 @@ Process {
      $tempobj.State = $global:vbox.IMachine_getState($vmid)
      $tempobj.GuestOS = $global:vbox.IMachine_getOSTypeId($vmid)
      $tempobj.MemoryMb = $global:vbox.IMachine_getMemorySize($vmid)
+     $tempobj.Accessible = $global:vbox.IMachine_getAccessible($vmid)
+     $tempobj.AccessError = $global:vbox.IMachine_getAccessError($vmid)
+     $tempobj.Groups = $global:vbox.IMachine_getGroups($vmid)
+     $tempobj.OsTypeId = $global:vbox.IMachine_getOSTypeId($vmid)
+     $tempobj.HardwareVersion = $global:vbox.IMachine_getHardwareVersion($vmid)
+     $tempobj.HardwareUuid = $global:vbox.IMachine_getHardwareUUID($vmid)
+     $tempobj.CpuCount = $global:vbox.IMachine_getCPUCount($vmid)
+     $tempobj.CpuHotPlugEnabled = $global:vbox.IMachine_getCPUHotPlugEnabled($vmid)
+     $tempobj.CpuExecutionCap = $global:vbox.IMachine_getCPUExecutionCap($vmid)
+     $tempobj.CpuIdPortabilityLevel = $global:vbox.IMachine_getCPUIDPortabilityLevel($vmid)
+     $tempobj.MemorySize = $global:vbox.IMachine_getMemorySize($vmid)
+     $tempobj.MemoryBalloonSize = $global:vbox.IMachine_getMemoryBalloonSize($vmid)
+     $tempobj.PageFusionEnabled = $global:vbox.IMachine_getPageFusionEnabled($vmid)
+     $tempobj.PointingHidType = $global:vbox.IMachine_getPointingHIDType($vmid)
+     $tempobj.KeyboardHidType = $global:vbox.IMachine_getKeyboardHIDType($vmid)
+     $tempobj.HpetEnabled = $global:vbox.IMachine_getHPETEnabled($vmid)
+     $tempobj.ChipsetType = $global:vbox.IMachine_getChipsetType($vmid)
+     $tempobj.SnapshotFolder = $global:vbox.IMachine_getSnapshotFolder($vmid)
+     $tempobj.EmulatedUsbCardReaderEnabled = $global:vbox.IMachine_getEmulatedUSBCardReaderEnabled($vmid)
+     $tempobj.SettingsFilePath = $global:vbox.IMachine_getSettingsFilePath($vmid)
+     $tempobj.SessionState = $global:vbox.IMachine_getSessionState($vmid)
+     $tempobj.LastStateChange = $global:vbox.IMachine_getLastStateChange($vmid)
+     $tempobj.StateFilePath = $global:vbox.IMachine_getStateFilePath($vmid)
+     $tempobj.LogFolder = $global:vbox.IMachine_getLogFolder($vmid)
+     $tempobj.SnapshotCount = $global:vbox.IMachine_getSnapshotCount($vmid)
+     $tempobj.CurrentStateModified = $global:vbox.IMachine_getCurrentStateModified($vmid)
+     $tempobj.ClipboardMode = $global:vbox.IMachine_getClipboardMode($vmid)
+     $tempobj.ClipboardFileTransfersEnabled = $global:vbox.IMachine_getClipboardFileTransfersEnabled($vmid)
+     $tempobj.DnDMode = $global:vbox.IMachine_getDnDMode($vmid)
+     $tempobj.TeleporterEnabled = $global:vbox.IMachine_getTeleporterEnabled($vmid)
+     $tempobj.TeleporterPort = $global:vbox.IMachine_getTeleporterPort($vmid)
+     $tempobj.TeleporterAddress = $global:vbox.IMachine_getTeleporterAddress($vmid)
+     if ($global:vbox.IMachine_getTeleporterPassword($vmid) -ne '' -and $global:vbox.IMachine_getTeleporterPassword($vmid) -ne $null) {$tempobj.TeleporterPassword = ConvertTo-SecureString -String ($global:vbox.IMachine_getTeleporterPassword($vmid)) -AsPlainText -Force}
+     $tempobj.ParavirtProvider = $global:vbox.IMachine_getParavirtProvider($vmid)
+     $tempobj.RtcUseUtc = $global:vbox.IMachine_getRTCUseUTC($vmid)
+     $tempobj.IoCacheEnabled = $global:vbox.IMachine_getIOCacheEnabled($vmid)
+     $tempobj.IoCacheSize = $global:vbox.IMachine_getIOCacheSize($vmid)
+     $tempobj.TracingEnabled = $global:vbox.IMachine_getTracingEnabled($vmid)
+     $tempobj.TracingConfig = $global:vbox.IMachine_getTracingConfig($vmid)
+     $tempobj.AllowTracingToAccessVm = $global:vbox.IMachine_getAllowTracingToAccessVM($vmid)
+     $tempobj.AutostartEnabled = $global:vbox.IMachine_getAutostartEnabled($vmid)
+     $tempobj.AutostartDelay = $global:vbox.IMachine_getAutostartDelay($vmid)
+     $tempobj.AutostopType = $global:vbox.IMachine_getAutostopType($vmid)
+     $tempobj.DefaultFrontend = $global:vbox.IMachine_getDefaultFrontend($vmid)
+     $tempobj.UsbProxyAvailable = $global:vbox.IMachine_getUSBProxyAvailable($vmid)
+     $tempobj.VmProcessPriority = $global:vbox.IMachine_getVMProcessPriority($vmid)
+     $tempobj.ParavirtDebug = $global:vbox.IMachine_getParavirtDebug($vmid)
+     $tempobj.CpuProfile = $global:vbox.IMachine_getCpuProfile($vmid)
      $tempobj.Id = $vmid
      $tempobj.Guid = $global:vbox.IMachine_getId($vmid)
      $tempobj.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($vmid)
@@ -2496,64 +2750,81 @@ Process {
        } # end foreach loop disk inventory
       } # end if $mediumattachment.Type -match 'Floppy'
      } # foreach $mediumattachment in $tempobj.IMediumAttachments
-     #$tempobj.IMediumAttachments = $tempobj.IMediumAttachments | Where-Object {$_.IMedium.Id -ne $null}
+     $tempobj.IBiosSettings.Id = $global:vbox.IMachine_getBIOSSettings($vmid)
+     $tempobj.IBiosSettings.LogoFadeIn = $global:vbox.IBIOSSettings_getLogoFadeIn($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.LogoFadeOut = $global:vbox.IBIOSSettings_getLogoFadeOut($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.LogoDisplayTime = $global:vbox.IBIOSSettings_getLogoDisplayTime($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.LogoImagePath = $global:vbox.IBIOSSettings_getLogoImagePath($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.BootMenuMode = $global:vbox.IBIOSSettings_getBootMenuMode($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.AcpiEnabled = $global:vbox.IBIOSSettings_getACPIEnabled($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.IoApicEnabled = $global:vbox.IBIOSSettings_getIOAPICEnabled($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.ApicMode = $global:vbox.IBIOSSettings_getAPICMode($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.TimeOffset = $global:vbox.IBIOSSettings_getTimeOffset($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.PxeDebugEnabled = $global:vbox.IBIOSSettings_getPXEDebugEnabled($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.NonVolatileStorageFile = $global:vbox.IBIOSSettings_getNonVolatileStorageFile($tempobj.IBiosSettings.Id)
+     $tempobj.IBiosSettings.SmBiosUuidLittleEndian = $global:vbox.IBIOSSettings_getSMBIOSUuidLittleEndian($tempobj.IBiosSettings.Id)
      Write-Verbose "Found $($tempobj.Name) and adding to inventory"
      $vminventory += $tempobj
    } # end foreach loop inventory
-   # filter virtual machines
-   if ($Name -and $Name -ne "*") {
-    Write-Verbose "Filtering virtual machines by name: $Name"
-    foreach ($vm in $vminventory) {
-     Write-Verbose "Matching $($vm.Name) to $($Name)"
-     if ($vm.Name -match $Name) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
-     }
-    }
-   } # end if $Name and not *
-   elseif ($Guid) {
-    Write-Verbose "Filtering virtual machines by GUID: $Guid"
-    foreach ($vm in $vminventory) {
-     Write-Verbose "Matching $($vm.Guid) to $($Guid)"
-     if ($vm.Guid -match $Guid) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
-     }
-    }
-   } # end if $Guid
-   elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
-    if ($State) {
-     Write-Verbose "Filtering all virtual machines by state: $State"
-     foreach ($vm in $vminventory) {
-      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}}
-     }
-    }
-    else {
-     Write-Verbose "Filtering all virtual machines"
-     foreach ($vm in $vminventory) {
-      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments}
-     }
-    }
-   } # end if All
-   Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
-   if ($obj) {
-    Write-Verbose "Found $($obj.Name)"
-    # write virtual machines object to the pipeline as an array
-    Write-Output ([System.Array]$obj)
-   } # end if $obj
-   else {Write-Verbose "[Warning] No matching virtual machines found using specified parameters"}
   } # end if websrv
   elseif ($ModuleHost.ToLower() -eq 'com') {
-   # get virtual machine inventory
    foreach ($vm in ($global:vbox.Machines)) {
      $guestprops = New-Object GuestProperties
      $tempobj = New-Object VirtualBoxVM
      $tempobj.Name = $vm.Name
      $tempobj.Description = $vm.Description
-     $tempobj.State = $vm.State
+     $tempobj.State = [MachineState]::new().ToStr($vm.State)
      $tempobj.GuestOS = $vm.OSTypeID
      $tempobj.MemoryMb = $vm.MemorySize
      $tempobj.Guid = $vm.ID
+     $tempobj.Accessible = $vm.Accessible
+     $tempobj.AccessError = $vm.AccessError
+     $tempobj.Groups = $vm.Groups
+     $tempobj.OsTypeId = $vm.OSTypeId
+     $tempobj.HardwareVersion = $vm.HardwareVersion
+     $tempobj.HardwareUuid = $vm.HardwareUUID
+     $tempobj.CpuCount = $vm.CPUCount
+     $tempobj.CpuHotPlugEnabled = $vm.CPUHotPlugEnabled
+     $tempobj.CpuExecutionCap = $vm.CPUExecutionCap
+     $tempobj.CpuIdPortabilityLevel = $vm.CPUIDPortabilityLevel
+     $tempobj.MemorySize = $vm.MemorySize
+     $tempobj.MemoryBalloonSize = $vm.MemoryBalloonSize
+     $tempobj.PageFusionEnabled = $vm.PageFusionEnabled
+     $tempobj.PointingHidType = [PointingHIDType]::new().ToStr($vm.PointingHIDType - 1)
+     $tempobj.KeyboardHidType = [KeyboardHIDType]::new().ToStr($vm.KeyboardHIDType - 1)
+     $tempobj.HpetEnabled = $vm.HPETEnabled
+     $tempobj.ChipsetType = [ChipsetType]::new().ToStr($vm.ChipsetType)
+     $tempobj.SnapshotFolder = $vm.SnapshotFolder
+     $tempobj.EmulatedUsbCardReaderEnabled = $vm.EmulatedUSBCardReaderEnabled
+     $tempobj.SettingsFilePath = $vm.SettingsFilePath
+     $tempobj.SessionState = [SessionState]::new().ToStr($vm.SessionState)
+     $tempobj.LastStateChange = $vm.LastStateChange
+     $tempobj.StateFilePath = $vm.StateFilePath
+     $tempobj.LogFolder = $vm.LogFolder
+     $tempobj.SnapshotCount = $vm.SnapshotCount
+     $tempobj.CurrentStateModified = $vm.CurrentStateModified
+     $tempobj.ClipboardMode = [ClipboardMode]::new().ToStr($vm.ClipboardMode)
+     $tempobj.ClipboardFileTransfersEnabled = $vm.ClipboardFileTransfersEnabled
+     $tempobj.DnDMode = [DnDMode]::new().ToStr($vm.DnDMode)
+     $tempobj.TeleporterEnabled = $vm.TeleporterEnabled
+     $tempobj.TeleporterPort = $vm.TeleporterPort
+     $tempobj.TeleporterAddress = $vm.TeleporterAddress
+     if ($vm.TeleporterPassword -ne '' -and $vm.TeleporterPassword -ne $null) {$tempobj.TeleporterPassword = ConvertTo-SecureString -String ($vm.TeleporterPassword) -AsPlainText -Force}
+     $tempobj.ParavirtProvider = [ParavirtProvider]::new().ToStr($vm.ParavirtProvider)
+     $tempobj.RtcUseUtc = $vm.RTCUseUTC
+     $tempobj.IoCacheEnabled = $vm.IOCacheEnabled
+     $tempobj.IoCacheSize = $vm.IOCacheSize
+     $tempobj.TracingEnabled = $vm.TracingEnabled
+     $tempobj.TracingConfig = $vm.TracingConfig
+     $tempobj.AllowTracingToAccessVm = $vm.AllowTracingToAccessVM
+     $tempobj.AutostartEnabled = $vm.AutostartEnabled
+     $tempobj.AutostartDelay = $vm.AutostartDelay
+     $tempobj.AutostopType = [AutostopType]::new().ToStr($vm.AutostopType - 1)
+     $tempobj.DefaultFrontend = $vm.DefaultFrontend
+     $tempobj.UsbProxyAvailable = $vm.USBProxyAvailable
+     $tempobj.VmProcessPriority = [VMProcPriority]::new().ToStr($vm.VMProcessPriority)
+     $tempobj.ParavirtDebug = $vm.ParavirtDebug
+     $tempobj.CpuProfile = $vm.CpuProfile
      $tempobj.ISession.Session = New-Object -ComObject VirtualBox.Session
      $tempobj.IVrdeServer = [IVrdeServer]@{Enabled=$vm.VRDEServer.Enabled;AuthType=$vm.VRDEServer.AuthType;AuthTimeout=$vm.VRDEServer.AuthTimeout;AllowMultiConnection=$vm.VRDEServer.AllowMultiConnection;ReuseSingleConnection=$vm.VRDEServer.ReuseSingleConnection;VrdeExtPack=$vm.VRDEServer.VRDEExtPack;AuthLibrary=$vm.VRDEServer.AuthLibrary;VrdeProperties=$vm.VRDEServer.VRDEProperties}
      $tempobj.IVrdeServer.TcpPort = $vm.VRDEServer.GetVRDEProperty('TCP/Ports')
@@ -2613,75 +2884,67 @@ Process {
        $mediumattachment.IMedium.ComObject = $mediumattachment.ComObject.Medium
       } # end if $mediumattachment.ComObject.Medium.Id
      } # foreach $mediumattachment in $tempobj.IMediumAttachments
+     $tempobj.IBiosSettings.LogoFadeIn = $vm.BIOSSettings.LogoFadeIn
+     $tempobj.IBiosSettings.LogoFadeOut = $vm.BIOSSettings.LogoFadeOut
+     $tempobj.IBiosSettings.LogoDisplayTime = $vm.BIOSSettings.LogoFadeDisplayTime
+     $tempobj.IBiosSettings.LogoImagePath = $vm.BIOSSettings.LogoImagePath
+     $tempobj.IBiosSettings.BootMenuMode = [BIOSBootMenuMode]::new().ToStr($vm.BIOSSettings.BootMenuMode)
+     $tempobj.IBiosSettings.AcpiEnabled = $vm.BIOSSettings.ACPIEnabled
+     $tempobj.IBiosSettings.IoApicEnabled = $vm.BIOSSettings.IOAPICEnabled
+     $tempobj.IBiosSettings.ApicMode = $vm.BIOSSettings.APICMode
+     $tempobj.IBiosSettings.TimeOffset = $vm.BIOSSettings.TimeOffset
+     $tempobj.IBiosSettings.PxeDebugEnabled = $vm.BIOSSettings.PXEDebugEnabled
+     $tempobj.IBiosSettings.NonVolatileStorageFile = $vm.BIOSSettings.NonVolatileStorageFile
+     $tempobj.IBiosSettings.SmBiosUuidLittleEndian = $vm.BIOSSettings.SMBIOSUuidLittleEndian
+     $tempobj.IBiosSettings.ComObject = $vm.BIOSSettings
      $tempobj.GuestProperties = $guestprops.Enumerate($vm, $ModuleHost)
      $tempobj.ComObject = $vm
-     # decode state
-     Switch ($tempobj.State) {
-      1 {$tempobj.State = "PoweredOff"}
-      2 {$tempobj.State = "Saved"}
-      3 {$tempobj.State = "Teleported"}
-      4 {$tempobj.State = "Aborted"}
-      5 {$tempobj.State = "Running"}
-      6 {$tempobj.State = "Paused"}
-      7 {$tempobj.State = "Stuck"}
-      8 {$tempobj.State = "Snapshotting"}
-      9 {$tempobj.State = "Starting"}
-      10 {$tempobj.State = "Stopping"}
-      11 {$tempobj.State = "Restoring"}
-      12 {$tempobj.State = "TeleportingPausedVM"}
-      13 {$tempobj.State = "TeleportingIn"}
-      14 {$tempobj.State = "FaultTolerantSync"}
-      15 {$tempobj.State = "DeletingSnapshotOnline"}
-      16 {$tempobj.State = "DeletingSnapshot"}
-      17 {$tempobj.State = "SettingUp"}
-      Default {$tempobj.State = $tempobj.State}
-     }
      Write-Verbose "Found $($tempobj.Name) and adding to inventory"
      $vminventory += $tempobj
    } # end foreach loop inventory
-   # filter virtual machines
-   if ($Name -and $Name -ne "*") {
-    Write-Verbose "Filtering virtual machines by name: $Name"
-    foreach ($vm in $vminventory) {
-     Write-Verbose "Matching $($vm.Name) to $($Name)"
-     if ($vm.Name -match $Name) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
-     }
-    }
-   } # end if $Name and not *
-   elseif ($Guid) {
-    Write-Verbose "Filtering virtual machines by GUID: $Guid"
-    foreach ($vm in $vminventory) {
-     Write-Verbose "Matching $($vm.Guid) to $($Guid)"
-     if ($vm.Guid -match $Guid) {
-      if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
-      elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
-     }
-    }
-   } # end if $Guid
-   elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
-    if ($State) {
-     Write-Verbose "Filtering all virtual machines by state: $State"
-     foreach ($vm in $vminventory) {
-      if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}}
-     }
-    }
-    else {
-     Write-Verbose "Filtering all virtual machines"
-     foreach ($vm in $vminventory) {
-      [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;ComObject=$vm.ComObject}
-     }
-    }
-   } # end if All
-   Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
-   if ($obj) {
-    Write-Verbose "Found $($obj.Name)"
-    # write virtual machines object to the pipeline as an array
-    Write-Output ([System.Array]$obj)
-   } # end if $obj
-   else {Write-Verbose "[Warning] No matching virtual machines found using specified parameters"}
   } # end elseif com
+  # filter virtual machines
+  if ($Name -and $Name -ne "*") {
+   Write-Verbose "Filtering virtual machines by name: $Name"
+   foreach ($vm in $vminventory) {
+    Write-Verbose "Matching $($vm.Name) to $($Name)"
+    if ($vm.Name -match $Name) {
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Accessible=$vm.Accessible;AccessError=$vm.AccessError;Groups=$vm.Groups;OsTypeId=$vm.OsTypeId;HardwareVersion=$vm.HardwareVersion;HardwareUuid=$vm.HardwareUuid;CpuCount=$vm.CpuCount;CpuHotPlugEnabled=$vm.CpuHotPlugEnabled;CpuExecutionCap=$vm.CpuExecutionCap;CpuIdPortabilityLevel=$vm.CpuIdPortabilityLevel;MemorySize=$vm.MemorySize;MemoryBalloonSize=$vm.MemoryBalloonSize;PageFusionEnabled=$vm.PageFusionEnabled;PointingHidType=$vm.PointingHidType;KeyboardHidType=$vm.KeyboardHidType;HpetEnabled=$vm.HpetEnabled;ChipsetType=$vm.ChipsetType;SnapshotFolder=$vm.SnapshotFolder;EmulatedUsbCardReaderEnabled=$vm.EmulatedUsbCardReaderEnabled;SettingsFilePath=$vm.SettingsFilePath;SessionState=$vm.SessionState;LastStateChange=$vm.LastStateChange;StateFilePath=$vm.StateFilePath;LogFolder=$vm.LogFolder;SnapshotCount=$vm.SnapshotCount;CurrentStateModified=$vm.CurrentStateModified;ClipboardMode=$vm.ClipboardMode;ClipboardFileTransfersEnabled=$vm.ClipboardFileTransfersEnabled;DnDMode=$vm.DnDMode;TeleporterEnabled=$vm.TeleporterEnabled;TeleporterPort=$vm.TeleporterPort;TeleporterAddress=$vm.TeleporterAddress;TeleporterPassword=$vm.TeleporterPassword;ParavirtProvider=$vm.ParavirtProvider;RtcUseUtc=$vm.RTCUseUTC;IoCacheEnabled=$vm.IOCacheEnabled;IoCacheSize=$vm.IOCacheSize;TracingEnabled=$vm.TracingEnabled;TracingConfig=$vm.TracingConfig;AllowTracingToAccessVm=$vm.AllowTracingToAccessVM;AutostartEnabled=$vm.AutostartEnabled;AutostartDelay=$vm.AutostartDelay;AutostopType=$vm.AutostopType;DefaultFrontend=$vm.DefaultFrontend;UsbProxyAvailable=$vm.USBProxyAvailable;VmProcessPriority=$vm.VMProcessPriority;ParavirtDebug=$vm.ParavirtDebug;CpuProfile=$vm.CpuProfile;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;IBiosSettings=$vm.IBiosSettings;ComObject=$vm.ComObject}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Accessible=$vm.Accessible;AccessError=$vm.AccessError;Groups=$vm.Groups;OsTypeId=$vm.OsTypeId;HardwareVersion=$vm.HardwareVersion;HardwareUuid=$vm.HardwareUuid;CpuCount=$vm.CpuCount;CpuHotPlugEnabled=$vm.CpuHotPlugEnabled;CpuExecutionCap=$vm.CpuExecutionCap;CpuIdPortabilityLevel=$vm.CpuIdPortabilityLevel;MemorySize=$vm.MemorySize;MemoryBalloonSize=$vm.MemoryBalloonSize;PageFusionEnabled=$vm.PageFusionEnabled;PointingHidType=$vm.PointingHidType;KeyboardHidType=$vm.KeyboardHidType;HpetEnabled=$vm.HpetEnabled;ChipsetType=$vm.ChipsetType;SnapshotFolder=$vm.SnapshotFolder;EmulatedUsbCardReaderEnabled=$vm.EmulatedUsbCardReaderEnabled;SettingsFilePath=$vm.SettingsFilePath;SessionState=$vm.SessionState;LastStateChange=$vm.LastStateChange;StateFilePath=$vm.StateFilePath;LogFolder=$vm.LogFolder;SnapshotCount=$vm.SnapshotCount;CurrentStateModified=$vm.CurrentStateModified;ClipboardMode=$vm.ClipboardMode;ClipboardFileTransfersEnabled=$vm.ClipboardFileTransfersEnabled;DnDMode=$vm.DnDMode;TeleporterEnabled=$vm.TeleporterEnabled;TeleporterPort=$vm.TeleporterPort;TeleporterAddress=$vm.TeleporterAddress;TeleporterPassword=$vm.TeleporterPassword;ParavirtProvider=$vm.ParavirtProvider;RtcUseUtc=$vm.RTCUseUTC;IoCacheEnabled=$vm.IOCacheEnabled;IoCacheSize=$vm.IOCacheSize;TracingEnabled=$vm.TracingEnabled;TracingConfig=$vm.TracingConfig;AllowTracingToAccessVm=$vm.AllowTracingToAccessVM;AutostartEnabled=$vm.AutostartEnabled;AutostartDelay=$vm.AutostartDelay;AutostopType=$vm.AutostopType;DefaultFrontend=$vm.DefaultFrontend;UsbProxyAvailable=$vm.USBProxyAvailable;VmProcessPriority=$vm.VMProcessPriority;ParavirtDebug=$vm.ParavirtDebug;CpuProfile=$vm.CpuProfile;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;IBiosSettings=$vm.IBiosSettings;ComObject=$vm.ComObject}}
+    } # end if $vm.Name -match $Name
+   } # foreach $vm in $vminventory
+  } # end if $Name and not *
+  elseif ($Guid) {
+   Write-Verbose "Filtering virtual machines by GUID: $Guid"
+   foreach ($vm in $vminventory) {
+    Write-Verbose "Matching $($vm.Guid) to $($Guid)"
+    if ($vm.Guid -match $Guid) {
+     if ($State -and $vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Accessible=$vm.Accessible;AccessError=$vm.AccessError;Groups=$vm.Groups;OsTypeId=$vm.OsTypeId;HardwareVersion=$vm.HardwareVersion;HardwareUuid=$vm.HardwareUuid;CpuCount=$vm.CpuCount;CpuHotPlugEnabled=$vm.CpuHotPlugEnabled;CpuExecutionCap=$vm.CpuExecutionCap;CpuIdPortabilityLevel=$vm.CpuIdPortabilityLevel;MemorySize=$vm.MemorySize;MemoryBalloonSize=$vm.MemoryBalloonSize;PageFusionEnabled=$vm.PageFusionEnabled;PointingHidType=$vm.PointingHidType;KeyboardHidType=$vm.KeyboardHidType;HpetEnabled=$vm.HpetEnabled;ChipsetType=$vm.ChipsetType;SnapshotFolder=$vm.SnapshotFolder;EmulatedUsbCardReaderEnabled=$vm.EmulatedUsbCardReaderEnabled;SettingsFilePath=$vm.SettingsFilePath;SessionState=$vm.SessionState;LastStateChange=$vm.LastStateChange;StateFilePath=$vm.StateFilePath;LogFolder=$vm.LogFolder;SnapshotCount=$vm.SnapshotCount;CurrentStateModified=$vm.CurrentStateModified;ClipboardMode=$vm.ClipboardMode;ClipboardFileTransfersEnabled=$vm.ClipboardFileTransfersEnabled;DnDMode=$vm.DnDMode;TeleporterEnabled=$vm.TeleporterEnabled;TeleporterPort=$vm.TeleporterPort;TeleporterAddress=$vm.TeleporterAddress;TeleporterPassword=$vm.TeleporterPassword;ParavirtProvider=$vm.ParavirtProvider;RtcUseUtc=$vm.RTCUseUTC;IoCacheEnabled=$vm.IOCacheEnabled;IoCacheSize=$vm.IOCacheSize;TracingEnabled=$vm.TracingEnabled;TracingConfig=$vm.TracingConfig;AllowTracingToAccessVm=$vm.AllowTracingToAccessVM;AutostartEnabled=$vm.AutostartEnabled;AutostartDelay=$vm.AutostartDelay;AutostopType=$vm.AutostopType;DefaultFrontend=$vm.DefaultFrontend;UsbProxyAvailable=$vm.USBProxyAvailable;VmProcessPriority=$vm.VMProcessPriority;ParavirtDebug=$vm.ParavirtDebug;CpuProfile=$vm.CpuProfile;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;IBiosSettings=$vm.IBiosSettings;ComObject=$vm.ComObject}}
+     elseif (!$State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Accessible=$vm.Accessible;AccessError=$vm.AccessError;Groups=$vm.Groups;OsTypeId=$vm.OsTypeId;HardwareVersion=$vm.HardwareVersion;HardwareUuid=$vm.HardwareUuid;CpuCount=$vm.CpuCount;CpuHotPlugEnabled=$vm.CpuHotPlugEnabled;CpuExecutionCap=$vm.CpuExecutionCap;CpuIdPortabilityLevel=$vm.CpuIdPortabilityLevel;MemorySize=$vm.MemorySize;MemoryBalloonSize=$vm.MemoryBalloonSize;PageFusionEnabled=$vm.PageFusionEnabled;PointingHidType=$vm.PointingHidType;KeyboardHidType=$vm.KeyboardHidType;HpetEnabled=$vm.HpetEnabled;ChipsetType=$vm.ChipsetType;SnapshotFolder=$vm.SnapshotFolder;EmulatedUsbCardReaderEnabled=$vm.EmulatedUsbCardReaderEnabled;SettingsFilePath=$vm.SettingsFilePath;SessionState=$vm.SessionState;LastStateChange=$vm.LastStateChange;StateFilePath=$vm.StateFilePath;LogFolder=$vm.LogFolder;SnapshotCount=$vm.SnapshotCount;CurrentStateModified=$vm.CurrentStateModified;ClipboardMode=$vm.ClipboardMode;ClipboardFileTransfersEnabled=$vm.ClipboardFileTransfersEnabled;DnDMode=$vm.DnDMode;TeleporterEnabled=$vm.TeleporterEnabled;TeleporterPort=$vm.TeleporterPort;TeleporterAddress=$vm.TeleporterAddress;TeleporterPassword=$vm.TeleporterPassword;ParavirtProvider=$vm.ParavirtProvider;RtcUseUtc=$vm.RTCUseUTC;IoCacheEnabled=$vm.IOCacheEnabled;IoCacheSize=$vm.IOCacheSize;TracingEnabled=$vm.TracingEnabled;TracingConfig=$vm.TracingConfig;AllowTracingToAccessVm=$vm.AllowTracingToAccessVM;AutostartEnabled=$vm.AutostartEnabled;AutostartDelay=$vm.AutostartDelay;AutostopType=$vm.AutostopType;DefaultFrontend=$vm.DefaultFrontend;UsbProxyAvailable=$vm.USBProxyAvailable;VmProcessPriority=$vm.VMProcessPriority;ParavirtDebug=$vm.ParavirtDebug;CpuProfile=$vm.CpuProfile;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;IBiosSettings=$vm.IBiosSettings;ComObject=$vm.ComObject}}
+    } # end if $vm.Guid -match $Guid
+   } # foreach $vm in $vminventory
+  } # end if $Guid
+  elseif ($PSCmdlet.ParameterSetName -eq "All" -or $Name -eq "*") {
+   if ($State) {
+    Write-Verbose "Filtering all virtual machines by state: $State"
+    foreach ($vm in $vminventory) {
+     if ($vm.State -eq $State) {[VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Accessible=$vm.Accessible;AccessError=$vm.AccessError;Groups=$vm.Groups;OsTypeId=$vm.OsTypeId;HardwareVersion=$vm.HardwareVersion;HardwareUuid=$vm.HardwareUuid;CpuCount=$vm.CpuCount;CpuHotPlugEnabled=$vm.CpuHotPlugEnabled;CpuExecutionCap=$vm.CpuExecutionCap;CpuIdPortabilityLevel=$vm.CpuIdPortabilityLevel;MemorySize=$vm.MemorySize;MemoryBalloonSize=$vm.MemoryBalloonSize;PageFusionEnabled=$vm.PageFusionEnabled;PointingHidType=$vm.PointingHidType;KeyboardHidType=$vm.KeyboardHidType;HpetEnabled=$vm.HpetEnabled;ChipsetType=$vm.ChipsetType;SnapshotFolder=$vm.SnapshotFolder;EmulatedUsbCardReaderEnabled=$vm.EmulatedUsbCardReaderEnabled;SettingsFilePath=$vm.SettingsFilePath;SessionState=$vm.SessionState;LastStateChange=$vm.LastStateChange;StateFilePath=$vm.StateFilePath;LogFolder=$vm.LogFolder;SnapshotCount=$vm.SnapshotCount;CurrentStateModified=$vm.CurrentStateModified;ClipboardMode=$vm.ClipboardMode;ClipboardFileTransfersEnabled=$vm.ClipboardFileTransfersEnabled;DnDMode=$vm.DnDMode;TeleporterEnabled=$vm.TeleporterEnabled;TeleporterPort=$vm.TeleporterPort;TeleporterAddress=$vm.TeleporterAddress;TeleporterPassword=$vm.TeleporterPassword;ParavirtProvider=$vm.ParavirtProvider;RtcUseUtc=$vm.RTCUseUTC;IoCacheEnabled=$vm.IOCacheEnabled;IoCacheSize=$vm.IOCacheSize;TracingEnabled=$vm.TracingEnabled;TracingConfig=$vm.TracingConfig;AllowTracingToAccessVm=$vm.AllowTracingToAccessVM;AutostartEnabled=$vm.AutostartEnabled;AutostartDelay=$vm.AutostartDelay;AutostopType=$vm.AutostopType;DefaultFrontend=$vm.DefaultFrontend;UsbProxyAvailable=$vm.USBProxyAvailable;VmProcessPriority=$vm.VMProcessPriority;ParavirtDebug=$vm.ParavirtDebug;CpuProfile=$vm.CpuProfile;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;IBiosSettings=$vm.IBiosSettings;ComObject=$vm.ComObject}}
+    } # foreach $vm in $vminventory
+   } # end if $State
+   else {
+    Write-Verbose "Filtering all virtual machines"
+    foreach ($vm in $vminventory) {
+     [VirtualBoxVM[]]$obj += [VirtualBoxVM]@{Name=$vm.Name;Description=$vm.Description;State=$vm.State;GuestOS=$vm.GuestOS;MemoryMb=$vm.MemoryMb;Accessible=$vm.Accessible;AccessError=$vm.AccessError;Groups=$vm.Groups;OsTypeId=$vm.OsTypeId;HardwareVersion=$vm.HardwareVersion;HardwareUuid=$vm.HardwareUuid;CpuCount=$vm.CpuCount;CpuHotPlugEnabled=$vm.CpuHotPlugEnabled;CpuExecutionCap=$vm.CpuExecutionCap;CpuIdPortabilityLevel=$vm.CpuIdPortabilityLevel;MemorySize=$vm.MemorySize;MemoryBalloonSize=$vm.MemoryBalloonSize;PageFusionEnabled=$vm.PageFusionEnabled;PointingHidType=$vm.PointingHidType;KeyboardHidType=$vm.KeyboardHidType;HpetEnabled=$vm.HpetEnabled;ChipsetType=$vm.ChipsetType;SnapshotFolder=$vm.SnapshotFolder;EmulatedUsbCardReaderEnabled=$vm.EmulatedUsbCardReaderEnabled;SettingsFilePath=$vm.SettingsFilePath;SessionState=$vm.SessionState;LastStateChange=$vm.LastStateChange;StateFilePath=$vm.StateFilePath;LogFolder=$vm.LogFolder;SnapshotCount=$vm.SnapshotCount;CurrentStateModified=$vm.CurrentStateModified;ClipboardMode=$vm.ClipboardMode;ClipboardFileTransfersEnabled=$vm.ClipboardFileTransfersEnabled;DnDMode=$vm.DnDMode;TeleporterEnabled=$vm.TeleporterEnabled;TeleporterPort=$vm.TeleporterPort;TeleporterAddress=$vm.TeleporterAddress;TeleporterPassword=$vm.TeleporterPassword;ParavirtProvider=$vm.ParavirtProvider;RtcUseUtc=$vm.RTCUseUTC;IoCacheEnabled=$vm.IOCacheEnabled;IoCacheSize=$vm.IOCacheSize;TracingEnabled=$vm.TracingEnabled;TracingConfig=$vm.TracingConfig;AllowTracingToAccessVm=$vm.AllowTracingToAccessVM;AutostartEnabled=$vm.AutostartEnabled;AutostartDelay=$vm.AutostartDelay;AutostopType=$vm.AutostopType;DefaultFrontend=$vm.DefaultFrontend;UsbProxyAvailable=$vm.USBProxyAvailable;VmProcessPriority=$vm.VMProcessPriority;ParavirtDebug=$vm.ParavirtDebug;CpuProfile=$vm.CpuProfile;Id=$vm.Id;Guid=$vm.Guid;ISession=$vm.ISession;IVrdeServer=$vm.IVrdeServer;GuestProperties=$vm.GuestProperties;IStorageControllers=$vm.IStorageControllers;IMediumAttachments=$vm.IMediumAttachments;IBiosSettings=$vm.IBiosSettings;ComObject=$vm.ComObject}
+    } # foreach $vm in $vminventory
+   } # end else
+  } # end if All
+  Write-Verbose "Found $(($obj | Measure-Object).count) virtual machine(s)"
+  if ($obj) {
+   Write-Verbose "Found $($obj.Name)"
+   # write virtual machines object to the pipeline as an array
+   Write-Output ([System.Array]$obj)
+  } # end if $obj
+  else {Write-Verbose "[Warning] No matching virtual machines found using specified parameters"}
  } # Try
  catch {
   Write-Verbose 'Exception retreiving machine information'
@@ -4291,7 +4554,7 @@ Process {
      if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($imachine.Id, $AutostartEnabled)}
      if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($imachine.Id, $AutostartDelay)}
      if ($AutostopType) {$global:vbox.IMachine_setAutostopType($imachine.Id, $AutostopType)}
-     if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($imachine.Id, $CPUProfile)}
+     if ($CpuProfile) {$global:vbox.IMachine_setCPUProfile($imachine.Id, $CpuProfile)}
     }
     catch {
      Write-Verbose 'Exception applying custom parameters to machine'
@@ -4329,36 +4592,36 @@ Process {
      if ($Description) {$imachine.ComObject.Description = $Description}
      if ($HardwareUuid) {$imachine.ComObject.HardwareUUID = $HardwareUuid}
      if ($CpuCount) {$imachine.ComObject.CPUCount = $CpuCount}
-     if ($CpuHotPlugEnabled) {$imachine.ComObject.CPUHotPlugEnabled = $CpuHotPlugEnabled}
+     if ($CpuHotPlugEnabled) {$imachine.ComObject.CPUHotPlugEnabled = [int]$CpuHotPlugEnabled}
      if ($CpuExecutionCap) {$imachine.ComObject.CPUExecutionCap = $CpuExecutionCap}
      if ($CpuIdPortabilityLevel) {$imachine.ComObject.CPUIDPortabilityLevel = $CpuIdPortabilityLevel}
      if ($MemorySize) {$imachine.ComObject.MemorySize = $MemorySize}
      if ($MemoryBalloonSize) {$imachine.ComObject.MemoryBalloonSize = $MemoryBalloonSize}
-     if ($PageFusionEnabled) {$imachine.ComObject.PageFusionEnabled = $PageFusionEnabled}
-     if ($FirmwareType) {$imachine.ComObject.FirmwareType = $FirmwareType}
-     if ($PointingHidType) {$imachine.ComObject.PointingHIDType = $PointingHidType}
-     if ($KeyboardHidType) {$imachine.ComObject.KeyboardHIDType = $KeyboardHidType}
-     if ($HpetEnabled) {$imachine.ComObject.HPETEnabled = $HpetEnabled}
-     if ($ChipsetType) {$imachine.ComObject.ChipsetType = $ChipsetType}
-     if ($EmulatedUsbCardReaderEnabled) {$imachine.ComObject.EmulatedUSBCardReaderEnabled = $EmulatedUsbCardReaderEnabled}
-     if ($ClipboardMode) {$imachine.ComObject.ClipboardMode = $ClipboardMode}
-     if ($ClipboardFileTransfersEnabled) {$imachine.ComObject.ClipboardFileTransfersEnabled = $ClipboardFileTransfersEnabled}
-     if ($DndMode) {$imachine.ComObject.DnDMode = $DndMode}
-     if ($TeleporterEnabled) {$imachine.ComObject.TeleporterEnabled = $TeleporterEnabled}
+     if ($PageFusionEnabled) {$imachine.ComObject.PageFusionEnabled = [int]$PageFusionEnabled}
+     if ($FirmwareType) {$imachine.ComObject.FirmwareType = [FirmwareType]::new().ToInt($FirmwareType)}
+     if ($PointingHidType) {$imachine.ComObject.PointingHIDType = [PointingHIDType]::new().ToInt($PointingHidType - 1)}
+     if ($KeyboardHidType) {$imachine.ComObject.KeyboardHIDType = [KeyboardHIDType]::new().ToInt($KeyboardHidType - 1)}
+     if ($HpetEnabled) {$imachine.ComObject.HPETEnabled = [int]$HpetEnabled}
+     if ($ChipsetType) {$imachine.ComObject.ChipsetType = [ChipsetType]::new().ToInt($ChipsetType)}
+     if ($EmulatedUsbCardReaderEnabled) {$imachine.ComObject.EmulatedUSBCardReaderEnabled = [int]$EmulatedUsbCardReaderEnabled}
+     if ($ClipboardMode) {$imachine.ComObject.ClipboardMode = [ClipboardMode]::new().ToInt($ClipboardMode)}
+     if ($ClipboardFileTransfersEnabled) {$imachine.ComObject.ClipboardFileTransfersEnabled = [int]$ClipboardFileTransfersEnabled}
+     if ($DndMode) {$imachine.ComObject.DnDMode = [DnDMode]::new().ToInt($DndMode)}
+     if ($TeleporterEnabled) {$imachine.ComObject.TeleporterEnabled = [int]$TeleporterEnabled}
      if ($TeleporterPort) {$imachine.ComObject.TeleporterPort = $TeleporterPort}
      if ($TeleporterAddress) {$imachine.ComObject.TeleporterAddress = $TeleporterAddress}
      if ($TeleporterPassword) {$imachine.ComObject.TeleporterPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword))}
-     if ($ParavirtProvider) {$imachine.ComObject.ParavirtProvider = $ParavirtProvider}
-     if ($RtcUseUtc) {$imachine.ComObject.RTCUseUTC = $RtcUseUtc}
-     if ($IoCacheEnabled) {$imachine.ComObject.IOCacheEnabled = $IoCacheEnabled}
+     if ($ParavirtProvider) {$imachine.ComObject.ParavirtProvider = [ParavirtProvider]::new().ToInt($ParavirtProvider)}
+     if ($RtcUseUtc) {$imachine.ComObject.RTCUseUTC = [int]$RtcUseUtc}
+     if ($IoCacheEnabled) {$imachine.ComObject.IOCacheEnabled = [int]$IoCacheEnabled}
      if ($IoCacheSize) {$imachine.ComObject.IOCacheSize = $IoCacheSize}
-     if ($TracingEnabled) {$imachine.ComObject.TracingEnabled = $TracingEnabled}
+     if ($TracingEnabled) {$imachine.ComObject.TracingEnabled = [int]$TracingEnabled}
      if ($TracingConfig) {$imachine.ComObject.TracingConfig = $TracingConfig}
-     if ($AllowTracingToAccessVM) {$imachine.ComObject.AllowTracingToAccessVM = $AllowTracingToAccessVM}
-     if ($AutostartEnabled) {$imachine.ComObject.AutostartEnabled = $AutostartEnabled}
+     if ($AllowTracingToAccessVM) {$imachine.ComObject.AllowTracingToAccessVM = [int]$AllowTracingToAccessVM}
+     if ($AutostartEnabled) {$imachine.ComObject.AutostartEnabled = [int]$AutostartEnabled}
      if ($AutostartDelay) {$imachine.ComObject.AutostartDelay = $AutostartDelay}
-     if ($AutostopType) {$imachine.ComObject.AutostopType = $AutostopType}
-     if ($CPUProfile) {$imachine.ComObject.CPUProfile = $CPUProfile}
+     if ($AutostopType) {$imachine.ComObject.AutostopType = [AutostopType]::new().ToInt($AutostopType - 1)}
+     if ($CpuProfile) {$imachine.ComObject.CPUProfile = $CpuProfile}
     }
     catch {
      Write-Verbose 'Exception applying custom parameters to machine'
@@ -5484,7 +5747,7 @@ Process {
       if ($AutostartEnabled) {$global:vbox.IMachine_setAutostartEnabled($mmachine.Id, $AutostartEnabled)}
       if ($AutostartDelay) {$global:vbox.IMachine_setAutostartDelay($mmachine.Id, $AutostartDelay)}
       if ($AutostopType) {$global:vbox.IMachine_setAutostopType($mmachine.Id, $AutostopType)}
-      if ($CPUProfile) {$global:vbox.IMachine_setCPUProfile($mmachine.Id, $CPUProfile)}
+      if ($CpuProfile) {$global:vbox.IMachine_setCPUProfile($mmachine.Id, $CpuProfile)}
      }
      catch {
       Write-Verbose 'Exception applying custom parameters to machine'
@@ -5526,36 +5789,318 @@ Process {
       if ($Description) {$mmachine.ComObject.Description = $Description}
       if ($HardwareUuid) {$mmachine.ComObject.HardwareUUID = $HardwareUuid}
       if ($CpuCount) {$mmachine.ComObject.CPUCount = $CpuCount}
-      if ($CpuHotPlugEnabled) {$mmachine.ComObject.CPUHotPlugEnabled = $CpuHotPlugEnabled}
+      if ($CpuHotPlugEnabled) {$mmachine.ComObject.CPUHotPlugEnabled = [int]$CpuHotPlugEnabled}
       if ($CpuExecutionCap) {$mmachine.ComObject.CPUExecutionCap = $CpuExecutionCap}
       if ($CpuIdPortabilityLevel) {$mmachine.ComObject.CPUIDPortabilityLevel = $CpuIdPortabilityLevel}
       if ($MemorySize) {$mmachine.ComObject.MemorySize = $MemorySize}
       if ($MemoryBalloonSize) {$mmachine.ComObject.MemoryBalloonSize = $MemoryBalloonSize}
-      if ($PageFusionEnabled) {$mmachine.ComObject.PageFusionEnabled = $PageFusionEnabled}
-      if ($FirmwareType) {$mmachine.ComObject.FirmwareType = $FirmwareType}
-      if ($PointingHidType) {$mmachine.ComObject.PointingHIDType = $PointingHidType}
-      if ($KeyboardHidType) {$mmachine.ComObject.KeyboardHIDType = $KeyboardHidType}
-      if ($HpetEnabled) {$mmachine.ComObject.HPETEnabled = $HpetEnabled}
-      if ($ChipsetType) {$mmachine.ComObject.ChipsetType = $ChipsetType}
-      if ($EmulatedUsbCardReaderEnabled) {$mmachine.ComObject.EmulatedUSBCardReaderEnabled = $EmulatedUsbCardReaderEnabled}
-      if ($ClipboardMode) {$mmachine.ComObject.ClipboardMode = $ClipboardMode}
-      if ($ClipboardFileTransfersEnabled) {$mmachine.ComObject.ClipboardFileTransfersEnabled = $ClipboardFileTransfersEnabled}
-      if ($DndMode) {$mmachine.ComObject.DnDMode = $DndMode}
-      if ($TeleporterEnabled) {$mmachine.ComObject.TeleporterEnabled = $TeleporterEnabled}
+      if ($PageFusionEnabled) {$mmachine.ComObject.PageFusionEnabled = [int]$PageFusionEnabled}
+      if ($FirmwareType) {$mmachine.ComObject.FirmwareType = [FirmwareType]::new().ToInt($FirmwareType)}
+      if ($PointingHidType) {$mmachine.ComObject.PointingHIDType = [PointingHIDType]::new().ToInt($PointingHidType - 1)}
+      if ($KeyboardHidType) {$mmachine.ComObject.KeyboardHIDType = [KeyboardHIDType]::new().ToInt($KeyboardHidType - 1)}
+      if ($HpetEnabled) {$mmachine.ComObject.HPETEnabled = [int]$HpetEnabled}
+      if ($ChipsetType) {$mmachine.ComObject.ChipsetType = [ChipsetType]::new().ToInt($ChipsetType)}
+      if ($EmulatedUsbCardReaderEnabled) {$mmachine.ComObject.EmulatedUSBCardReaderEnabled = [int]$EmulatedUsbCardReaderEnabled}
+      if ($ClipboardMode) {$mmachine.ComObject.ClipboardMode = [ClipboardMode]::new().ToInt($ClipboardMode)}
+      if ($ClipboardFileTransfersEnabled) {$mmachine.ComObject.ClipboardFileTransfersEnabled = [int]$ClipboardFileTransfersEnabled}
+      if ($DndMode) {$mmachine.ComObject.DnDMode = [DnDMode]::new().ToInt($DndMode)}
+      if ($TeleporterEnabled) {$mmachine.ComObject.TeleporterEnabled = [int]$TeleporterEnabled}
       if ($TeleporterPort) {$mmachine.ComObject.TeleporterPort = $TeleporterPort}
       if ($TeleporterAddress) {$mmachine.ComObject.TeleporterAddress = $TeleporterAddress}
       if ($TeleporterPassword) {$mmachine.ComObject.TeleporterPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($TeleporterPassword))}
-      if ($ParavirtProvider) {$mmachine.ComObject.ParavirtProvider = $ParavirtProvider}
-      if ($RtcUseUtc) {$mmachine.ComObject.RTCUseUTC = $RtcUseUtc}
-      if ($IoCacheEnabled) {$mmachine.ComObject.IOCacheEnabled = $IoCacheEnabled}
+      if ($ParavirtProvider) {$mmachine.ComObject.ParavirtProvider = [ParavirtProvider]::new().ToInt($ParavirtProvider)}
+      if ($RtcUseUtc) {$mmachine.ComObject.RTCUseUTC = [int]$RtcUseUtc}
+      if ($IoCacheEnabled) {$mmachine.ComObject.IOCacheEnabled = [int]$IoCacheEnabled}
       if ($IoCacheSize) {$mmachine.ComObject.IOCacheSize = $IoCacheSize}
-      if ($TracingEnabled) {$mmachine.ComObject.TracingEnabled = $TracingEnabled}
+      if ($TracingEnabled) {$mmachine.ComObject.TracingEnabled = [int]$TracingEnabled}
       if ($TracingConfig) {$mmachine.ComObject.TracingConfig = $TracingConfig}
-      if ($AllowTracingToAccessVM) {$mmachine.ComObject.AllowTracingToAccessVM = $AllowTracingToAccessVM}
-      if ($AutostartEnabled) {$mmachine.ComObject.AutostartEnabled = $AutostartEnabled}
+      if ($AllowTracingToAccessVM) {$mmachine.ComObject.AllowTracingToAccessVM = [int]$AllowTracingToAccessVM}
+      if ($AutostartEnabled) {$mmachine.ComObject.AutostartEnabled = [int]$AutostartEnabled}
       if ($AutostartDelay) {$mmachine.ComObject.AutostartDelay = $AutostartDelay}
-      if ($AutostopType) {$mmachine.ComObject.AutostopType = $AutostopType}
-      if ($CPUProfile) {$mmachine.ComObject.CPUProfile = $CPUProfile}
+      if ($AutostopType) {$mmachine.ComObject.AutostopType = [AutostopType]::new().ToInt($AutostopType - 1)}
+      if ($CpuProfile) {$mmachine.ComObject.CPUProfile = $CpuProfile}
+     }
+     catch {
+      Write-Verbose 'Exception applying custom parameters to machine'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+     }
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $mmachine.ComObject.SaveSettings()
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $imachine.ISession.Session.UnlockMachine()
+    } # end elseif com
+   } # Try
+   catch {
+    Write-Verbose 'Exception creating machine'
+    Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+    Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+   } # Catch
+   finally {
+    # release mutable machine objects if they exist
+    if ($mmachine) {
+     if ($mmachine.ISession.Id) {
+      # release mutable session object
+      Write-Verbose "Releasing mutable session object"
+      $global:vbox.IManagedObjectRef_release($mmachine.ISession.Id)
+     }
+     if ($mmachine.ISession.Session) {
+      if ($mmachine.ISession.Session.State -gt 1) {
+       $mmachine.ISession.Session.UnlockMachine()
+      } # end if $mmachine.ISession.Session locked
+     } # end if $mmachine.ISession.Session
+     if ($mmachine.Id) {
+      # release mutable object
+      Write-Verbose "Releasing mutable object"
+      $global:vbox.IManagedObjectRef_release($mmachine.Id)
+     }
+    }
+    # obligatory session unlock
+    Write-Verbose 'Cleaning up machine sessions'
+    if ($imachines) {
+     foreach ($imachine in $imachines) {
+      if ($imachine.ISession.Id) {
+       if ($global:vbox.ISession_getState($imachine.ISession.Id) -eq 'Locked') {
+        Write-Verbose "Unlocking ISession for VM $($imachine.Name)"
+        $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+       } # end if session state not unlocked
+      } # end if $imachine.ISession.Id
+      if ($imachine.ISession.Session) {
+       if ($imachine.ISession.Session.State -gt 1) {
+        $imachine.ISession.Session.UnlockMachine()
+       } # end if $imachine.ISession.Session locked
+      } # end if $imachine.ISession.Session
+      if ($imachine.IConsole) {
+       # release the iconsole session
+       Write-verbose "Releasing the IConsole session for VM $($imachine.Name)"
+       $global:vbox.IManagedObjectRef_release($imachine.IConsole)
+      } # end if $imachine.IConsole
+      #$imachine.ISession.Id = $null
+      $imachine.IConsole = $null
+      if ($imachine.IPercent) {$imachine.IPercent = $null}
+      $imachine.MSession = $null
+      $imachine.MConsole = $null
+      $imachine.MMachine = $null
+     } # end foreach $imachine in $imachines
+    } # end if $imachines
+   } # Finally
+  } # foreach $imachine in $imachines
+ } # end if $imachines
+ else {Write-Host "[Error] No matching virtual machines were found using specified parameters" -ForegroundColor Red -BackgroundColor Black;return}
+} # Process
+End {
+ Write-Verbose "Ending $($MyInvocation.MyCommand)"
+} # End
+} # end function
+Function Edit-VirtualBoxVMFirmware {
+<#
+.SYNOPSIS
+Create a virtual machine
+.DESCRIPTION
+Creates a new virtual machine. The name provided by the Name parameter must not exist in the VirtualBox inventory, or this command will fail. You can optionally supply custom values using a large number of parameters available to this command. There are too many to fully document in this help text, so tab completion has been added where it is possible. The values provided by tab completion are updated when Start-VirtualBoxSession is successfully run. To force the values to be updated again, use the -Force switch with Start-VirtualBoxSession.
+.PARAMETER Name
+The name of the virtual machine. This is a required parameter.
+.PARAMETER OsTypeId
+The type ID for the virtual machine guest OS. This is a required parameter.
+.PARAMETER LogoFadeIn
+Enable or disable the BIOS logo fade in animation for the virtual machine.
+.PARAMETER LogoFadeOut
+Enable or disable the BIOS logo fade out animation for the virtual machine.
+.PARAMETER LogoDisplayTime
+The time (in milliseconds) to display the firmware logo for the virtual machine.
+.PARAMETER LogoImagePath
+The full local path to the external firmware splash image for the virtual machine. Specify an empty string to display the default image.
+.PARAMETER BootMenuMode
+The boot menu mode for the virtual machine.
+.PARAMETER AcpiEnabled
+Enable or disable ACPI support for the virtual machine.
+.PARAMETER IoAcpiEnabled
+Enable or disable I/O APIC support for the virtual machine.
+.PARAMETER ApicMode
+The APIC mode for the virtual machine.
+.PARAMETER TimeOffset
+The time offset (in milliseconds) from the host for the virtual machine. This allows for guests running with a different system date/time than the host. It is equivalent to setting the system date/time in the BIOS except it is not an absolute value but a relative one. Guest Additions time synchronization honors this offset.
+.PARAMETER PxeDebugEnabled
+Enable or disable PXE debug logging for the virtual machine.
+.PARAMETER SmBiosUuidLittleEndian
+Enable or disable the virtual machine presenting the SMBIOS UUID in little endian to the guest as mandated by the SMBIOS spec chapter 7.2.1. Before VirtualBox version 6.1 it was always presented in big endian form and to retain the old behavior this flag was introduced so it can be changed. Virtual machines created with VirtualBox 6.1 will default to true for this flag.
+.PARAMETER SkipCheck
+A switch to skip web service update. (Only for use between functions - DO NOT USE)
+.EXAMPLE
+PS C:\> Edit-VirtualBoxVMFirmware -Name "My New Win10 VM" -BootMenuMode Disabled
+Disable the boot menu for the virtual machine named "My New Win10 VM"
+.NOTES
+NAME        :  Edit-VirtualBoxVMFirmware
+VERSION     :  1.0
+LAST UPDATED:  2/16/2020
+AUTHOR      :  Andrew Brehm
+EDITOR      :  SmithersTheOracle
+.LINK
+None
+.INPUTS
+VirtualBoxVM[]:  VirtualBoxVMs for virtual machine objects
+String[]      :  Strings for virtual machine names
+Guid[]        :  GUIDs for virtual machine GUIDs
+String        :  String for virtual machine OS Type ID
+Other optional input parameters available. Use "Get-Help Edit-VirtualBoxVMFirmware -Full" for a complete list.
+.OUTPUTS
+None
+#>
+[CmdletBinding()]
+Param(
+[Parameter(Mandatory=$false,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine object(s)"
+,Position=0)]
+[ValidateNotNullorEmpty()]
+  [VirtualBoxVM[]]$Machine,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine name(s)")]
+[ValidateNotNullorEmpty()]
+  [string[]]$Name,
+[Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$true,
+HelpMessage="Enter one or more virtual machine GUID(s)")]
+[ValidateNotNullorEmpty()]
+  [guid[]]$Guid,
+[Parameter(HelpMessage="Enable or disable the logo fade in for the virtual machine",
+Mandatory=$false)]
+  [bool]$LogoFadeIn,
+[Parameter(HelpMessage="Enable or disable the logo fade out for the virtual machine",
+Mandatory=$false)]
+  [bool]$LogoFadeOut,
+[Parameter(HelpMessage="Enter the logo display time (in ms) for the virtual machine",
+Mandatory=$false)]
+  [uint32]$LogoDisplayTime,
+[Parameter(HelpMessage="Enter the full path to the firmware logo for the virtual machine",
+ParameterSetName='Custom',Mandatory=$false)]
+[ValidateNotNull()]
+[ValidateScript({if ($_ -eq '') {return $true} elseif (Test-Path $_) {return $true}})]
+  [string]$LogoImagePath,
+[Parameter(HelpMessage="Enter the boot menu mode for the virtual machine",
+Mandatory=$false)]
+[ValidateSet('Disabled', 'MenuOnly', 'MessageAndMenu')]
+  [string]$BootMenuMode,
+[Parameter(HelpMessage="Enable or disable ACPI support for the virtual machine",
+Mandatory=$false)]
+  [bool]$AcpiEnabled,
+[Parameter(HelpMessage="Enable or disable I/O APIC support for the virtual machine",
+Mandatory=$false)]
+  [bool]$IoApicEnabled,
+[Parameter(HelpMessage="Enter the APIC mode for the virtual machine",
+Mandatory=$false)]
+[ValidateSet('Disabled', 'APIC', 'X2APIC')]
+  [string]$ApicMode,
+[Parameter(HelpMessage="Enter the time offset (in ms) from the host for the virtual machine",
+Mandatory=$false)]
+  [int64]$TimeOffset,
+[Parameter(HelpMessage="Enable or disable PXE debug logging for the virtual machine",
+Mandatory=$false)]
+  [bool]$PxeDebugEnabled,
+[Parameter(HelpMessage="Enable or disable encoding the SMBIOS UUID in little endian for the virtual machine",
+Mandatory=$false)]
+  [bool]$SmBiosUuidLittleEndian,
+[Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
+  [switch]$SkipCheck
+) # Param
+Begin {
+ Write-Verbose "Beginning $($MyInvocation.MyCommand)"
+ if ($ModuleHost.ToLower() -eq 'websrv') {
+  # refresh vboxwebsrv variable
+  if (!$SkipCheck -or !(Get-Process 'VBoxWebSrv')) {$global:vboxwebsrvtask = Update-VirtualBoxWebSrv}
+  # start the websrvtask if it's not running
+  if ($global:vboxwebsrvtask.Status -ne 'Running') {Start-VirtualBoxWebSrv}
+  if (!$global:ivbox) {Start-VirtualBoxSession}
+ } # end if websrv
+} # Begin
+Process {
+ Write-Verbose "Pipeline - Machine: `"$Machine`""
+ Write-Verbose "Pipeline - Name: `"$Name`""
+ Write-Verbose "Pipeline - Guid: `"$Guid`""
+ Write-Verbose "ParameterSetName: `"$($PSCmdlet.ParameterSetName)`""
+ if (!($Machine -or $Name -or $Guid)) {Write-Host "[Error] You must supply at least one VM object, name, or GUID." -ForegroundColor Red -BackgroundColor Black;return}
+ # initialize $imachines array
+ $imachines = @()
+ if ($Machine) {
+  Write-Verbose "Getting VM inventory from Machine(s)"
+  $imachines = $Machine
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Machine)
+ elseif ($Name) {
+  foreach ($item in $Name) {
+   Write-Verbose "Getting VM inventory from Name(s)"
+   $imachines += Get-VirtualBoxVM -Name $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Name)
+ elseif ($Guid) {
+  foreach ($item in $Guid) {
+   Write-Verbose "Getting VM inventory from GUID(s)"
+   $imachines += Get-VirtualBoxVM -Guid $item -SkipCheck
+  }
+  $imachines = $imachines | Where-Object {$_ -ne $null}
+ }# get vm inventory (by $Guid)
+ if ($imachines) {
+  foreach ($imachine in $imachines) {
+   try {
+    if ($ModuleHost.ToLower() -eq 'websrv') {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $global:vbox.IMachine_lockMachine($imachine.Id, $imachine.ISession.Id, [LockType]::new().ToInt('Write'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.Id = $global:vbox.ISession_getMachine($imachine.ISession.Id)
+     $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
+     $mmachine.IBiosSettings.Id = $global:vbox.IMachine_BIOSSettings($mmachine.Id)
+     try {
+      Write-Verbose "Modifying requeseted settings on machine $($mmachine.Name)"
+      if ($LogoFadeIn -ne $null) {$global:vbox.IBIOSSettings_setLogoFadeIn($mmachine.IBiosSettings.Id, $LogoFadeIn)}
+      if ($LogoFadeOut -ne $null) {$global:vbox.IBIOSSettings_setLogoFadeOut($mmachine.IBiosSettings.Id, $LogoFadeOut)}
+      if ($LogoDisplayTime) {$global:vbox.IBIOSSettings_setLogoDisplayTime($mmachine.IBiosSettings.Id, $LogoDisplayTime)}
+      if ($LogoImagePath) {$global:vbox.IBIOSSettings_setLogoImagePath($mmachine.IBiosSettings.Id, $LogoImagePath)}
+      if ($BootMenuMode) {$global:vbox.IBIOSSettings_setBootMenuMode($mmachine.IBiosSettings.Id, $BootMenuMode)}
+      if ($AcpiEnabled -ne $null) {$global:vbox.IBIOSSettings_setACPIEnabled($mmachine.IBiosSettings.Id, $AcpiEnabled)}
+      if ($IoApicEnabled -ne $null) {$global:vbox.IBIOSSettings_setIOAPICEnabled($mmachine.IBiosSettings.Id, $IoApicEnabled)}
+      if ($ApicMode) {$global:vbox.IBIOSSettings_setAPICMode($mmachine.IBiosSettings.Id, $ApicMode)}
+      if ($TimeOffset) {$global:vbox.IBIOSSettings_setTimeOffset($mmachine.IBiosSettings.Id, $TimeOffset)}
+      if ($PxeDebugEnabled -ne $null) {$global:vbox.IBIOSSettings_setPXEDebugEnabled($mmachine.IBiosSettings.Id, $PxeDebugEnabled)}
+      if ($SmBiosUuidLittleEndian -ne $null) {$global:vbox.IBIOSSettings_setSMBIOSUuidLittleEndian($mmachine.IBiosSettings.Id, $SmBiosUuidLittleEndian)}
+     }
+     catch {
+      Write-Verbose 'Exception applying custom parameters to machine'
+      Write-Verbose "Stack trace output: $($_.ScriptStackTrace)"
+      Write-Host "[Error] $($_.Exception.Message)" -ForegroundColor Red -BackgroundColor Black
+     }
+     # save new settings
+     Write-Verbose "Saving new settings"
+     $global:vbox.IMachine_saveSettings($mmachine.Id)
+     # unlock machine session
+     Write-Verbose "Unlocking machine session"
+     $global:vbox.ISession_unlockMachine($imachine.ISession.Id)
+    } # end if websrv
+    elseif ($ModuleHost.ToLower() -eq 'com') {
+     Write-Verbose "Getting write lock on machine $($imachine.Name)"
+     $imachine.ComObject.LockMachine($imachine.ISession.Session, [LockType]::new().ToInt('Write'))
+     # create a new machine object
+     $mmachine = New-Object VirtualBoxVM
+     # get the mutable machine object
+     Write-Verbose "Getting the mutable machine object"
+     $mmachine.ComObject = $imachine.ISession.Session.Machine
+     $mmachine.ISession.Session = New-Object -ComObject VirtualBox.Session
+     try {
+      Write-Verbose "Modifying requeseted settings on machine $($mmachine.Name)"
+      if ($LogoFadeIn -ne $null) {$mmachine.ComObject.BIOSSettings.LogoFadeIn = $LogoFadeIn}
+      if ($LogoFadeOut -ne $null) {$mmachine.ComObject.BIOSSettings.LogoFadeOut = $LogoFadeOut}
+      if ($LogoDisplayTime) {$mmachine.ComObject.BIOSSettings.LogoDisplayTime = $LogoDisplayTime}
+      if ($LogoImagePath) {$mmachine.ComObject.BIOSSettings.LogoImagePath = $LogoImagePath}
+      if ($BootMenuMode) {$mmachine.ComObject.BIOSSettings.BootMenuMode = $BootMenuMode}
+      if ($AcpiEnabled -ne $null) {$mmachine.ComObject.BIOSSettings.ACPIEnabled = $AcpiEnabled}
+      if ($IoApicEnabled -ne $null) {$mmachine.ComObject.BIOSSettings.IOAPICEnabled = $IoApicEnabled}
+      if ($ApicMode) {$mmachine.ComObject.BIOSSettings.APICMode = $ApicMode}
+      if ($TimeOffset) {$mmachine.ComObject.BIOSSettings.TimeOffset = $TimeOffset}
+      if ($PxeDebugEnabled -ne $null) {$mmachine.ComObject.BIOSSettings.PXEDebugEnabled = $PxeDebugEnabled}
+      if ($SmBiosUuidLittleEndian -ne $null) {$mmachine.ComObject.BIOSSettings.SMBIOSUuidLittleEndian = $SmBiosUuidLittleEndian}
      }
      catch {
       Write-Verbose 'Exception applying custom parameters to machine'
@@ -10909,7 +11454,7 @@ Function Edit-VirtualBoxDisk {
 .SYNOPSIS
 Edit VirtualBox disk
 .DESCRIPTION
-Modifies VirtualBox disks. After a disk is modified, an updated virtual disk object will be returned via the pipeline. The command will fail if the virtual disk is not attached to the specified virtual machine. This command currently only supports enabling/disabling the SSD flag.
+Modifies VirtualBox disks. After a disk is modified, an updated virtual disk object will be returned via the pipeline. The command will fail if the virtual disk is not attached to the specified virtual machine.
 .PARAMETER Disk
 At least one virtual disk object. Can be received via pipeline input.
 .PARAMETER Name
@@ -10918,8 +11463,16 @@ The name of at least one virtual disk. Can be received via pipeline input by nam
 The GUID of at least one virtual disk. Can be received via pipeline input by name.
 .PARAMETER MachineName
 The name of the virtual machine to dismount the disk from. This is a required parameter.
+.PARAMETER AutoDiscard
+Specify whether or not the TRIM is enabled for the virtual disk. This is silently ignored if it is not supported by the specified controller and/or drive.
+.PARAMETER BandwidthGroup
+Specify a bandwidth group for the virtual disk. Specify a blank string to clear the bandwidth group.
 .PARAMETER NonRotational
-Specify whether or not the SSD flag is enabled for the virtual disk.
+Specify whether or not the SSD flag is enabled for the virtual disk. This is silently ignored if it is not supported by the specified controller and/or drive.
+.PARAMETER HotPluggable
+Specify whether or not the Hot-pluggable flag is enabled for the virtual disk. This is silently ignored if it is not supported by the specified controller and/or drive.
+.PARAMETER TemporaryEject
+Specify whether or not guest-triggered eject results in unmounting the virtual disk.
 .PARAMETER SkipCheck
 A switch to skip web service update. (Only for use between functions - DO NOT USE)
 .EXAMPLE
@@ -10969,9 +11522,21 @@ HelpMessage="Enter one or more virtual disk GUID(s)")]
 [Parameter(Mandatory=$false,HelpMessage="Enter the GUID of the virtual machine to dismount the disk from")]
 [ValidateNotNullorEmpty()]
   [guid]$MachineGuid,
+[Parameter(Mandatory=$false,HelpMessage="Specify if the virtual disk supports TRIM")]
+[ValidateNotNullorEmpty()]
+  [bool]$AutoDiscard,
+[Parameter(Mandatory=$false,HelpMessage="Specify the virtual disk bandwidth group")]
+[ValidateNotNullorEmpty()]
+  [string]$BandwidthGroup,
 [Parameter(Mandatory=$false,HelpMessage="Specify if the virtual disk is SSD")]
 [ValidateNotNullorEmpty()]
   [bool]$NonRotational,
+[Parameter(Mandatory=$false,HelpMessage="Specify if the virtual disk is hot-pluggable")]
+[ValidateNotNullorEmpty()]
+  [bool]$HotPluggable,
+[Parameter(Mandatory=$false,HelpMessage="Specify if the virtual disk is guest ejectable")]
+[ValidateNotNullorEmpty()]
+  [bool]$TemporaryEject,
 [Parameter(HelpMessage="Use this switch to skip service update (for development use)")]
   [switch]$SkipCheck
 ) # Param
@@ -11055,7 +11620,14 @@ Process {
          $mmachine.ISession.Id = $global:vbox.IWebsessionManager_getSessionObject($global:ivbox)
          try {
           # set requested settings here
-          if ($NonRotational -ne $null) {$mmachine.ComObject.NonRotationalDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$NonRotational)}
+          if ($AutoDiscard -ne $null) {$vbox.IMachine_setAutoDiscardForDevice($mmachine.Id, $imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $AutoDiscard)}
+          if ($BandwidthGroup -ne $null) {
+           if ($BandwidthGroup -eq '') {$vbox.IMachine_setNoBandwidthGroupForDevice($mmachine.Id, $imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)}
+           else {$vbox.IMachine_setBandwidthGroupForDevice($mmachine.Id, $imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $BandwidthGroup)}
+          }
+          if ($NonRotational -ne $null) {$vbox.IMachine_nonRotationalDevice($mmachine.Id, $imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $NonRotational)}
+          if ($HotPluggable -ne $null) {$vbox.IMachine_setHotPluggableForDevice($mmachine.Id, $imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $HotPluggable)}
+          if ($TemporaryEject -ne $null) {$vbox.IMachine_temporaryEjectDevice($mmachine.Id, $imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $TemporaryEject)}
          } # Try
          catch {
           Write-Verbose 'Exception applying new virtual disk settings'
@@ -11085,7 +11657,14 @@ Process {
          Write-Verbose "Device: `"$($imediumattachment.Device)`""
          try {
           # set requested settings here
+          if ($AutoDiscard -ne $null) {$mmachine.ComObject.SetAutoDiscardForDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$AutoDiscard)}
+          if ($BandwidthGroup -ne $null) {
+           if ($BandwidthGroup -eq '') {$mmachine.ComObject.SetNoBandwidthGroupForDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device)}
+           else {$mmachine.ComObject.SetBandwidthGroupForDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, $BandwidthGroup)}
+          }
           if ($NonRotational -ne $null) {$mmachine.ComObject.NonRotationalDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$NonRotational)}
+          if ($HotPluggable -ne $null) {$mmachine.ComObject.SetHotPluggableForDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$HotPluggable)}
+          if ($TemporaryEject -ne $null) {$mmachine.ComObject.TemporaryEjectDevice($imediumattachment.Controller, $imediumattachment.Port, $imediumattachment.Device, [int]$TemporaryEject)}
          } # Try
          catch {
           Write-Verbose 'Exception applying new virtual disk settings'
