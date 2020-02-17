@@ -85,8 +85,8 @@ The Get-VirtualBox commands are used to get PowerShell representations of Virtua
 	>(Workaround) If you are sending a command that will cause this (shutdown commands), use the supplied -NoWait switch.
     
 ### **VERSION**
-	0.6.1.42
-	February 13, 2020
+	0.6.2.43
+	February 17, 2020
     
 ### **SEE ALSO**
 	Start-VirtualBoxSession
@@ -105,6 +105,7 @@ The Get-VirtualBox commands are used to get PowerShell representations of Virtua
 	Import-VirtualBoxVM
 	Edit-VirtualBoxVM
 	Show-VirtualBoxVM
+	Edit-VirtualBoxVMFirmware
 	Get-VirtualBoxVMStorageController
 	New-VirtualBoxVMStorageController
 	New-VirtualBoxVMOpticalDrive
